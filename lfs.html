@@ -353,27 +353,50 @@ geotab.addin.lfs = function () {
     return 'way["highway"]["name"~"' + echapperRegex(r.d.valeur) + '",i][~"^(bridge|tunnel)$"~"^yes$"](' + BBOX_QC + ');out geom;';
   }
 
+  var BBOX_QC_SUD = '45.0,-74.6,47.4,-70.5';
+  var restrictionsEnEchec = {};
+
   function chargerGeometriesRestrictions() {
+    restrictions.forEach(function (r) {
+      if (!geomRestrictions[r.id] && r.d.geom && r.d.geom.length) {
+        geomRestrictions[r.id] = r.d.geom.map(function (e) { return decoderPolyligne(e); });
+      }
+    });
     var manquantes = restrictions.filter(function (r) { return !geomRestrictions[r.id]; });
-    if (!manquantes.length) { return Promise.resolve(); }
-    var q = '[out:json][timeout:60];';
-    manquantes.forEach(function (r, k) { q += requeteRestriction(r) + 'make m k=' + k + ';out;'; });
-    return fetch(OVERPASS, { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' } })
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        var tampon = [];
-        (data.elements || []).forEach(function (el) {
-          if (el.type === 'm') {
-            var r = manquantes[parseInt(el.tags.k, 10)];
-            if (r) { geomRestrictions[r.id] = tampon; }
-            tampon = [];
-          } else if (el.geometry) {
-            tampon.push(el.geometry.map(function (g) { return [g.lat, g.lon]; }));
-          }
-        });
-        dessinerRestrictions();
-      })
-      .catch(function () { message('Les restrictions n’ont pas pu être chargées (OpenStreetMap ne répond pas). Réessaie dans un moment.', true); });
+    if (!manquantes.length) { dessinerRestrictions(); return Promise.resolve(); }
+    var chaine = Promise.resolve();
+    manquantes.forEach(function (r) {
+      chaine = chaine.then(function () {
+        var q1 = '[out:json][timeout:60];' + requeteRestriction(r).split(BBOX_QC).join(BBOX_QC_SUD);
+        var q2 = '[out:json][timeout:90];' + requeteRestriction(r);
+        return requeteOverpass(q1).then(function (data) {
+          var ways = (data.elements || []).filter(function (el) { return el.geometry; });
+          return ways.length ? ways : requeteOverpass(q2).then(function (d2) { return (d2.elements || []).filter(function (el) { return el.geometry; }); });
+        }).then(function (ways) {
+          var lignes = ways.map(function (w) { return w.geometry.map(function (g) { return [g.lat, g.lon]; }); });
+          geomRestrictions[r.id] = lignes;
+          delete restrictionsEnEchec[r.id];
+          if (lignes.length) { memoriserGeometrie(r, lignes); }
+        }).catch(function () { restrictionsEnEchec[r.id] = r.d.nom; });
+      });
+    });
+    return chaine.then(function () {
+      dessinerRestrictions();
+      afficherListeRestrictions();
+      var echecs = Object.keys(restrictionsEnEchec).map(function (k) { return restrictionsEnEchec[k]; });
+      if (echecs.length) { message('Restrictions non vérifiées (OpenStreetMap ne répond pas) : ' + echecs.join(', ') + '. Réessaie dans un moment.', true); }
+    });
+  }
+
+  function memoriserGeometrie(r, lignes) {
+    var tol = 0.00003, enc;
+    do {
+      enc = lignes.map(function (l) { return encoderPolyligne(simplifier(l, tol)); });
+      tol *= 2;
+    } while (JSON.stringify(enc).length > 8000 && tol < 0.01);
+    var details = Object.assign({}, r.d, { geom: enc });
+    r.d = details;
+    appelGeotab('Set', { typeName: 'AddInData', entity: { id: r.id, addInId: ADDIN_ID, groups: [{ id: 'GroupCompanyId' }], details: details } }).catch(function () {});
   }
 
   function dessinerRestrictions() {
@@ -507,6 +530,8 @@ geotab.addin.lfs = function () {
     var boite = trouver('it511-restrictions-trajet');
     while (boite.firstChild) { boite.removeChild(boite.firstChild); }
     var lignes = [];
+    var echecs = Object.keys(restrictionsEnEchec).map(function (k) { return restrictionsEnEchec[k]; });
+    if (echecs.length) { lignes.push({ t: 'ATTENTION : restrictions non vérifiées pour ce trajet (' + echecs.join(', ') + '). Vérifie le trajet toi-même ou recalcule dans un moment.', c: '#8a1c1c' }); }
     Object.keys(bilanRestrictions.evitees).forEach(function (n) {
       if (!bilanRestrictions.restantes[n]) { lignes.push({ t: n + ' : évité', c: '#14532d' }); }
     });
@@ -595,7 +620,7 @@ geotab.addin.lfs = function () {
   function sauverRestriction() {
     var details = {
       type: 'restriction', nom: trouver('it511-r-nom').value.trim(), mode: trouver('it511-r-mode').value,
-      critere: trouver('it511-r-critere').value, valeur: trouver('it511-r-valeur').value.trim(),
+      critere: trouver('it511-r-critere').value, valeur: trouver('it511-r-valeur').value.trim(), geom: [],
       heureDebut: trouver('it511-r-debut').value, heureFin: trouver('it511-r-fin').value, jours: trouver('it511-r-jours').value
     };
     if (!details.nom || !details.valeur) { message('Indique un nom et une route ou un ouvrage.', true); return; }
@@ -879,6 +904,32 @@ geotab.addin.lfs = function () {
   }
 
   var OVERPASS = 'https://overpass-api.de/api/interpreter';
+  var SERVEURS_OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://overpass.private.coffee/api/interpreter'];
+
+  function requeteOverpass(q) {
+    var i = 0;
+    function essai() {
+      var url = SERVEURS_OVERPASS[i];
+      return fetch(url, { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' } })
+        .then(function (r) { if (!r.ok) { throw new Error('Overpass ' + r.status); } return r.json(); })
+        .catch(function (e) { i++; if (i < SERVEURS_OVERPASS.length) { return essai(); } throw e; });
+    }
+    return essai();
+  }
+
+  function enOntario(lat, lon) {
+    if (lon < -79.5) { return true; }
+    if (lon > -74.32) { return false; }
+    var riviere = [[-74.32, 45.57], [-75.0, 45.60], [-75.7, 45.43], [-76.3, 45.47], [-77.0, 45.75], [-77.5, 46.0], [-78.0, 46.25], [-78.7, 46.3], [-79.5, 46.5]];
+    for (var i = 0; i < riviere.length - 1; i++) {
+      var a = riviere[i], b = riviere[i + 1];
+      if (lon <= a[0] && lon >= b[0]) {
+        var lim = a[1] + (b[1] - a[1]) * (lon - a[0]) / (b[0] - a[0]);
+        return lat < lim;
+      }
+    }
+    return false;
+  }
 
   function refDepuisTags(tags) {
     var ref = String(tags.ref || '').split(';')[0].trim();
@@ -910,17 +961,22 @@ geotab.addin.lfs = function () {
     if (!cibles.length) { return Promise.resolve(); }
     var q = '[out:json][timeout:25];';
     cibles.forEach(function (c, k) {
-      q += 'way(around:25,' + c.lat.toFixed(6) + ',' + c.lon.toFixed(6) + ')["highway"~"^(motorway|trunk|primary|secondary|motorway_link|trunk_link|primary_link)$"]["ref"];out tags;make m k=' + k + ';out;';
+      q += 'way(around:20,' + c.lat.toFixed(6) + ',' + c.lon.toFixed(6) + ')["highway"~"^(motorway|trunk|primary|secondary|tertiary|motorway_link|trunk_link|primary_link)$"];out tags;make m k=' + k + ';out;';
     });
-    return fetch(OVERPASS, { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' } })
-      .then(function (r) { return r.json(); })
+    return requeteOverpass(q)
       .then(function (data) {
-        var tampon = [], votes = {};
+        var tampon = [], votes = {}, nomsVotes = {};
         (data.elements || []).forEach(function (el) {
           if (el.type === 'm') {
             var c = cibles[parseInt(el.tags.k, 10)];
             var principales = tampon.filter(function (t) { return !/_link$/.test(t.highway || ''); });
-            var choix = (principales.length ? principales : tampon)[0];
+            var avecRef = principales.filter(function (t) { return t.ref; });
+            var choix = (avecRef.length ? avecRef : (principales.length ? principales : tampon).filter(function (t) { return t.ref; }))[0];
+            var avecNom = principales.filter(function (t) { return t.name; })[0];
+            if (c && !choix && avecNom) {
+              nomsVotes[c.etape] = nomsVotes[c.etape] || {};
+              nomsVotes[c.etape][avecNom.name] = (nomsVotes[c.etape][avecNom.name] || 0) + 1;
+            }
             if (c && choix) {
               var ref = refDepuisTags(choix);
               if (ref) {
@@ -940,6 +996,11 @@ geotab.addin.lfs = function () {
           Object.keys(votes[i]).forEach(function (k) { if (!meilleur || votes[i][k].n > meilleur.n) { meilleur = votes[i][k]; } });
           if (meilleur) { steps[i].refOsm = meilleur.ref; }
         });
+        Object.keys(nomsVotes).forEach(function (i) {
+          if (steps[i].refOsm) { return; }
+          var noms = Object.keys(nomsVotes[i]).sort(function (a, b) { return nomsVotes[i][b] - nomsVotes[i][a]; });
+          if (noms.length) { steps[i].nomOsm = noms[0]; }
+        });
       })
       .catch(function () {});
   }
@@ -953,6 +1014,9 @@ geotab.addin.lfs = function () {
       var ref = brut ? referenceRoute(brut) : null;
       if (!ref && s.refOsm) { ref = s.refOsm; }
       if (!ref && s.instruction) { ref = referenceRoute(s.instruction); }
+      if (!ref && !brut && s.nomOsm) { brut = s.nomOsm; ref = referenceRoute(brut); }
+      var c0 = coords && coords[(s.way_points || [0])[0]];
+      if (ref && c0 && enOntario(c0[1], c0[0]) && ref.type === 'A') { ref = { type: 'Hwy', num: ref.num }; }
       var cle = ref ? ref.type + ref.num : brut;
       var wp = s.way_points || [0, 0];
       var dernier = routes[routes.length - 1];
@@ -1829,7 +1893,7 @@ geotab.addin.lfs = function () {
 <div id="it511-wrap" style="padding:12px 16px;box-sizing:border-box;">
   <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px;margin-bottom:10px;">
     <span style="font-size:18px;font-weight:600;">LFS</span>
-    <span style="font-size:12px;color:#8a8f98;">version 1.2</span>
+    <span style="font-size:12px;color:#8a8f98;">version 1.2.1</span>
     <span id="it511-statut" style="font-size:13px;color:#5a6270;">Démarrage...</span>
     <span id="it511-sources" style="font-size:13px;color:#5a6270;"></span>
   </div>
