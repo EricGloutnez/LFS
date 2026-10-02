@@ -1,0 +1,1154 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>LFS</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+geotab.addin.lfs = function () {
+  var ORS = 'https://api.heigit.org';
+  var carte = null, radarPluie = null, radarNeige = null, coucheActifs = null, coucheTrajet = null, minuterie = null;
+  var points = { depart: null, arrivee: null };
+  var dernierResultat = null;
+
+  function trouver(id) { return document.getElementById(id); }
+
+  function lire(cle, defaut) {
+    if (parametres && parametres[cle]) { return parametres[cle]; }
+    try { var v = localStorage.getItem('it511-' + cle); return v === null ? defaut : v; } catch (e) { return defaut; }
+  }
+  function ecrire(cle, valeur) {
+    try { localStorage.setItem('it511-' + cle, valeur); } catch (e) {}
+    if (['cle', 'cle511on', 'hauteurPi', 'largeurPi'].indexOf(cle) >= 0 && parametres[cle] !== valeur) {
+      parametres[cle] = valeur;
+      sauverParametresPartages();
+    }
+  }
+
+  function chargerStyleLeaflet() {
+    if (!trouver('it511-leaflet-css')) {
+      var lien = document.createElement('link');
+      lien.id = 'it511-leaflet-css';
+      lien.rel = 'stylesheet';
+      lien.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css';
+      document.head.appendChild(lien);
+    }
+  }
+
+  function statut(texte) { var el = trouver('it511-statut'); if (el) { el.textContent = texte; } }
+  function message(texte, erreur) {
+    var el = trouver('it511-message');
+    el.textContent = texte || '';
+    el.style.display = texte ? 'block' : 'none';
+    el.style.background = erreur ? '#fdecea' : '#e8f1fb';
+    el.style.color = erreur ? '#8a1c1c' : '#0c447c';
+  }
+
+  function nombreFr(n, dec) {
+    return n.toLocaleString('fr-CA', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+  }
+
+    function creerCarte() {
+    var conteneur = trouver('it511-carte');
+    carte = L.map(conteneur).setView([46.2, -72.6], 7);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 18, attribution: '&copy; contributeurs OpenStreetMap'
+    }).addTo(carte);
+
+    var optionsRadar = { format: 'image/png', transparent: true, version: '1.3.0', opacity: 0.6,
+      attribution: 'Radar : Environnement et Changement climatique Canada' };
+    radarPluie = L.tileLayer.wms('https://geo.weather.gc.ca/geomet', L.extend({ layers: 'RADAR_1KM_RRAI' }, optionsRadar));
+    radarNeige = L.tileLayer.wms('https://geo.weather.gc.ca/geomet', L.extend({ layers: 'RADAR_1KM_RSNO' }, optionsRadar));
+    radarPluie.addTo(carte);
+
+    coucheActifs = L.layerGroup().addTo(carte);
+    coucheTrajet = L.layerGroup().addTo(carte);
+    coucheEntraves = L.layerGroup().addTo(carte);
+    coucheCameras = L.layerGroup();
+    coucheReel = L.layerGroup().addTo(carte);
+    var alertes = L.tileLayer.wms('https://geo.weather.gc.ca/geomet', L.extend({ layers: 'ALERTS' }, optionsRadar));
+
+    L.control.layers(null, {
+      'Trajet': coucheTrajet,
+      'Entraves 511': coucheEntraves,
+      'Caméras 511': coucheCameras,
+      'Avertissements météo': alertes,
+      'Trajet réel': coucheReel,
+      'Radar - pluie': radarPluie,
+      'Radar - neige': radarNeige,
+      'Actifs Geotab': coucheActifs
+    }, { collapsed: false }).addTo(carte);
+  }
+
+  function rafraichirRadar() {
+    var t = Date.now();
+    radarPluie.setParams({ _t: t });
+    radarNeige.setParams({ _t: t });
+  }
+
+  function chargerActifs(api) {
+    api.multiCall([
+      ['Get', { typeName: 'Device', search: { fromDate: new Date().toISOString() } }],
+      ['Get', { typeName: 'DeviceStatusInfo' }]
+    ], function (resultats) {
+      var noms = {};
+      resultats[0].forEach(function (d) { noms[d.id] = d.name; });
+      coucheActifs.clearLayers();
+      listeActifs = [];
+      resultats[0].forEach(function (d) { listeActifs.push({ id: d.id, nom: d.name, lat: null, lon: null }); });
+      resultats[1].forEach(function (s) {
+        var a = s.device ? listeActifs.filter(function (x) { return x.id === s.device.id; })[0] : null;
+        if (a) { a.lat = s.latitude; a.lon = s.longitude; }
+      });
+      remplirListeActifs();
+      mettreAJourSuivi();
+      var nombre = 0;
+      resultats[1].forEach(function (s) {
+        if (s.latitude && s.longitude && s.device && noms[s.device.id]) {
+          var libelle = noms[s.device.id];
+          if (s.speed) { libelle += ' - ' + Math.round(s.speed) + ' km/h'; }
+          L.circleMarker([s.latitude, s.longitude], {
+            radius: 7, color: '#ffffff', weight: 2, fillColor: '#1565c0', fillOpacity: 1
+          }).bindTooltip(libelle).addTo(coucheActifs);
+          nombre++;
+        }
+      });
+      statut(nombre + ' actifs affichés - mis à jour à ' + new Date().toLocaleTimeString('fr-CA'));
+    }, function (erreur) {
+      statut('Geotab a refusé la lecture des actifs : ' + (erreur && erreur.message ? erreur.message : erreur));
+    });
+  }
+
+    function brancherAdresse(champ) {
+    var input = trouver('it511-' + champ), liste = trouver('it511-liste-' + champ), delai = null;
+
+    input.addEventListener('input', function () {
+      points[champ] = null;
+      clearTimeout(delai);
+      var texte = input.value.trim();
+      if (texte.length < 4) { liste.style.display = 'none'; return; }
+      delai = setTimeout(function () { suggerer(texte, liste, champ); }, 350);
+    });
+    input.addEventListener('blur', function () { setTimeout(function () { liste.style.display = 'none'; }, 250); });
+  }
+
+  function suggerer(texte, liste, champ) {
+    var cle = lire('cle', '');
+    if (!cle) { message('Entre d’abord ta clé OpenRouteService dans les paramètres.', true); return; }
+    var url = ORS + '/pelias/v1/autocomplete?text=' + encodeURIComponent(texte) +
+      '&boundary.country=CA&focus.point.lat=45.6&focus.point.lon=-73.2&size=6';
+    fetch(url, { headers: { 'Authorization': cle } }).then(function (r) { return r.json(); }).then(function (data) {
+      while (liste.firstChild) { liste.removeChild(liste.firstChild); }
+      var res = (data && data.features) || [];
+      if (!res.length) { liste.style.display = 'none'; return; }
+      res.forEach(function (f) {
+        var item = document.createElement('div');
+        item.textContent = f.properties.label;
+        item.style.cssText = 'padding:7px 10px;cursor:pointer;font-size:13px;border-bottom:1px solid #eef0f3;';
+        item.addEventListener('mouseenter', function () { item.style.background = '#f0f4f9'; });
+        item.addEventListener('mouseleave', function () { item.style.background = ''; });
+        item.addEventListener('mousedown', function () {
+          trouver('it511-' + champ).value = f.properties.label;
+          points[champ] = { lon: f.geometry.coordinates[0], lat: f.geometry.coordinates[1], label: f.properties.label };
+          liste.style.display = 'none';
+        });
+        liste.appendChild(item);
+      });
+      liste.style.display = 'block';
+    }).catch(function () { liste.style.display = 'none'; });
+  }
+
+  function geocoder(texte) {
+    var url = ORS + '/pelias/v1/search?text=' + encodeURIComponent(texte) + '&boundary.country=CA&size=1';
+    return fetch(url, { headers: { 'Authorization': lire('cle', '') } }).then(function (r) { return r.json(); }).then(function (data) {
+      if (!data.features || !data.features.length) { throw new Error('Adresse introuvable : ' + texte); }
+      var f = data.features[0];
+      return { lon: f.geometry.coordinates[0], lat: f.geometry.coordinates[1], label: f.properties.label };
+    });
+  }
+
+  function piedsEnMetres(texte) {
+    var t = (texte || '').trim().toLowerCase().replace(/,/g, '.');
+    if (!t) { return null; }
+    var m = t.match(/^(\d+(?:\.\d+)?)\s*(?:'|’|pi|pieds?)?\s*(?:(\d+(?:\.\d+)?)\s*(?:"|”|''|po|pouces?)?)?$/);
+    if (!m) { return null; }
+    var pieds = parseFloat(m[1]) + (m[2] ? parseFloat(m[2]) / 12 : 0);
+    if (isNaN(pieds) || pieds <= 0) { return null; }
+    return pieds * 0.3048;
+  }
+
+  function lireDimension(id) {
+    return piedsEnMetres(trouver(id).value);
+  }
+
+  function afficherConversion(id) {
+    var m = piedsEnMetres(trouver(id).value);
+    trouver(id + '-m').textContent = m ? '= ' + nombreFr(m, 2) + ' m' : '';
+  }
+
+  var nbEviteesCourant = 0;
+  function optionsTrajet(h, w, depart, arrivee) {
+    var o = { vehicle_type: 'hgv', profile_params: { restrictions: { height: h, width: w } } };
+    var ev = polygonesAEviter(h, w, depart, arrivee);
+    nbEviteesCourant = ev.nombre;
+    if (ev.multi) { o.avoid_polygons = ev.multi; }
+    return o;
+  }
+
+  function calculer() {
+    message('');
+    var cle = lire('cle', '');
+    if (!cle) { message('Entre d’abord ta clé OpenRouteService dans les paramètres (en bas du panneau).', true); return; }
+    var h = lireDimension('it511-hauteur'), w = lireDimension('it511-largeur');
+    if (!h || !w) { message('Indique la hauteur et la largeur en pieds (ex. 15,5 ou 15\'6").', true); return; }
+    if (!trouver('it511-depart').value.trim() || !trouver('it511-arrivee').value.trim()) { message('Indique une adresse de départ et d’arrivée.', true); return; }
+
+    ecrire('hauteurPi', trouver('it511-hauteur').value);
+    ecrire('largeurPi', trouver('it511-largeur').value);
+
+    var bouton = trouver('it511-calculer');
+    bouton.disabled = true; bouton.textContent = 'Calcul en cours...';
+
+    chargerEntraves(false).then(function () { return Promise.all([
+      points.depart ? Promise.resolve(points.depart) : geocoder(trouver('it511-depart').value.trim()),
+      points.arrivee ? Promise.resolve(points.arrivee) : geocoder(trouver('it511-arrivee').value.trim())
+    ]); }).then(function (p) {
+      points.depart = p[0]; points.arrivee = p[1];
+      return fetch(ORS + '/openrouteservice/v2/directions/driving-hgv/geojson', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': cle },
+        body: JSON.stringify({
+          coordinates: [[p[0].lon, p[0].lat], [p[1].lon, p[1].lat]],
+          radiuses: [-1, -1],
+          units: 'km',
+          language: 'fr',
+          instructions: true,
+          options: optionsTrajet(h, w, p[0], p[1])
+        })
+      });
+    }).then(function (r) {
+      return r.json().then(function (data) { return { ok: r.ok, statut: r.status, data: data }; });
+    }).then(function (rep) {
+      if (!rep.ok) {
+        var code = rep.data && rep.data.error && rep.data.error.code;
+        if (rep.statut === 401 || rep.statut === 403) { throw new Error('La clé OpenRouteService est refusée. Vérifie-la dans les paramètres.'); }
+        var detail = (rep.data && rep.data.error && rep.data.error.message) ? ' [code ' + code + ' : ' + rep.data.error.message + ']' : ' [code ' + code + ']';
+        if (code === 2010) { throw new Error('Une des adresses est trop loin d’une route accessible aux camions.' + detail); }
+        if (code === 2009) { throw new Error('Aucun trajet possible avec ces dimensions entre ces deux adresses.' + detail); }
+        throw new Error('Le calcul a échoué (' + rep.statut + ') : ' + ((rep.data.error && rep.data.error.message) || 'erreur inconnue'));
+      }
+      afficherResultat(rep.data, h, w);
+    }).catch(function (e) {
+      message(e.message || String(e), true);
+    }).then(function () {
+      bouton.disabled = false; bouton.textContent = 'Calculer le trajet';
+    });
+  }
+
+  function capCardinal(a, b) {
+    var dy = b[1] - a[1];
+    var dx = (b[0] - a[0]) * Math.cos(a[1] * Math.PI / 180);
+    if (Math.abs(dx) >= Math.abs(dy)) { return dx >= 0 ? 'E' : 'O'; }
+    return dy >= 0 ? 'N' : 'S';
+  }
+
+  function referenceRoute(nom) {
+    var m;
+    if ((m = nom.match(/\b(?:A|Aut\.?|Autoroute)\s*-?\s*(\d{1,3})\b/i))) { return { type: 'A', num: m[1] }; }
+    if ((m = nom.match(/\b(?:R|Rte|Route)\s*-?\s*(\d{2,3})\b/i))) { return { type: 'R', num: m[1] }; }
+    if ((m = nom.match(/\b(?:Highway|Hwy|ON|Autoroute de l.Ontario)\s*-?\s*(\d{1,3})\b/i))) { return { type: 'Hwy', num: m[1] }; }
+    return null;
+  }
+
+  function regrouperRoutes(steps, coords) {
+    var routes = [];
+    steps.forEach(function (s) {
+      if (s.type === 10) { return; }
+      var brut = (s.name && s.name !== '-') ? s.name.trim() : '';
+      var ref = brut ? referenceRoute(brut) : null;
+      var cle = ref ? ref.type + ref.num : brut;
+      var wp = s.way_points || [0, 0];
+      var dernier = routes[routes.length - 1];
+      if (!cle) {
+        if (dernier) { dernier.km += s.distance; dernier.fin = wp[1]; }
+        else { routes.push({ cle: '', brut: '(voie sans nom)', ref: null, km: s.distance, debut: wp[0], fin: wp[1] }); }
+        return;
+      }
+      if (dernier && dernier.cle === cle) { dernier.km += s.distance; dernier.fin = wp[1]; }
+      else { routes.push({ cle: cle, brut: brut, ref: ref, km: s.distance, debut: wp[0], fin: wp[1] }); }
+    });
+    routes = routes.filter(function (r) { return r.km >= 0.05 || routes.length === 1; });
+    return routes.map(function (r) {
+      var nom = r.brut;
+      if (r.ref) {
+        var dir = (coords && coords[r.debut] && coords[r.fin]) ? ' ' + capCardinal(coords[r.debut], coords[r.fin]) : '';
+        nom = (r.ref.type === 'Hwy' ? 'Hwy ' : r.ref.type + '-') + r.ref.num + dir;
+      } else if (nom.indexOf(',') > 0) {
+        nom = nom.split(',')[0].trim();
+      }
+      return { nom: nom, km: r.km };
+    });
+  }
+
+  function simplifier(points, tol) {
+    if (points.length < 3) { return points.slice(); }
+    var garder = new Array(points.length); garder[0] = garder[points.length - 1] = true;
+    var pile = [[0, points.length - 1]];
+    while (pile.length) {
+      var seg = pile.pop(), a = points[seg[0]], b = points[seg[1]], max = 0, idx = -1;
+      for (var i = seg[0] + 1; i < seg[1]; i++) {
+        var p = points[i];
+        var dx = b[1] - a[1], dy = b[0] - a[0];
+        var d = (dx === 0 && dy === 0) ? Math.hypot(p[1] - a[1], p[0] - a[0])
+          : Math.abs(dy * p[1] - dx * p[0] + b[1] * a[0] - b[0] * a[1]) / Math.hypot(dx, dy);
+        if (d > max) { max = d; idx = i; }
+      }
+      if (max > tol && idx > 0) { garder[idx] = true; pile.push([seg[0], idx], [idx, seg[1]]); }
+    }
+    return points.filter(function (p, i) { return garder[i]; });
+  }
+
+  function encoderPolyligne(points) {
+    var sortie = '', pLat = 0, pLon = 0;
+    function code(v) {
+      v = v < 0 ? ~(v << 1) : (v << 1);
+      var s = '';
+      while (v >= 0x20) { s += String.fromCharCode((0x20 | (v & 0x1f)) + 63); v >>= 5; }
+      return s + String.fromCharCode(v + 63);
+    }
+    points.forEach(function (p) {
+      var lat = Math.round(p[0] * 1e5), lon = Math.round(p[1] * 1e5);
+      sortie += code(lat - pLat) + code(lon - pLon);
+      pLat = lat; pLon = lon;
+    });
+    return sortie;
+  }
+
+  function traceCompacte(latlngs) {
+    var tol = 0.00005, enc = encoderPolyligne(latlngs);
+    while (enc.length > 5500 && tol < 0.05) { tol *= 2; enc = encoderPolyligne(simplifier(latlngs, tol)); }
+    return enc;
+  }
+
+  function afficherDonnees(d) {
+    coucheTrajet.clearLayers();
+    if (d.latlngs && d.latlngs.length) {
+      var trace = L.polyline(d.latlngs, { color: '#c2410c', weight: 5, opacity: 0.85 }).addTo(coucheTrajet);
+      carte.fitBounds(trace.getBounds(), { padding: [30, 30] });
+    }
+    if (d.depart) {
+      L.circleMarker([d.depart.lat, d.depart.lon], { radius: 8, color: '#fff', weight: 2, fillColor: '#15803d', fillOpacity: 1 })
+        .bindTooltip('Départ : ' + d.depart.label).addTo(coucheTrajet);
+    }
+    if (d.arrivee) {
+      L.circleMarker([d.arrivee.lat, d.arrivee.lon], { radius: 8, color: '#fff', weight: 2, fillColor: '#b91c1c', fillOpacity: 1 })
+        .bindTooltip('Arrivée : ' + d.arrivee.label).addTo(coucheTrajet);
+    }
+    var duree = d.dureeS || 0;
+    var heures = Math.floor(duree / 3600), minutes = Math.round((duree % 3600) / 60);
+    trouver('it511-total').textContent = nombreFr(d.totalKm || 0, 1) + ' km';
+    trouver('it511-duree').textContent = heures + ' h ' + (minutes < 10 ? '0' : '') + minutes;
+    var tableau = trouver('it511-routes');
+    while (tableau.firstChild) { tableau.removeChild(tableau.firstChild); }
+    d.routes.forEach(function (r) {
+      var ligne = document.createElement('div');
+      ligne.style.cssText = 'display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid #eef0f3;font-size:13px;';
+      var nom = document.createElement('span'); nom.textContent = r.nom;
+      var km = document.createElement('span'); km.textContent = nombreFr(r.km, 1) + ' km'; km.style.color = '#5a6270'; km.style.whiteSpace = 'nowrap';
+      ligne.appendChild(nom); ligne.appendChild(km);
+      tableau.appendChild(ligne);
+    });
+    trouver('it511-enligne').textContent = d.enLigne;
+    trouver('it511-resultat').style.display = 'block';
+  }
+
+  function afficherResultat(geo, h, w) {
+    var f = geo.features[0];
+    var seg = f.properties.segments[0];
+    var coords = f.geometry.coordinates;
+    var totalKm = f.properties.summary.distance;
+    var routes = regrouperRoutes(seg.steps || [], coords);
+    var latlngs = coords.map(function (c) { return [c[1], c[0]]; });
+    var enLigne = routes.map(function (r) { return r.nom; }).join(' - ') + ' (' + nombreFr(totalKm, 1) + ' km)';
+    var d = { routes: routes, totalKm: totalKm, dureeS: f.properties.summary.duration, enLigne: enLigne, latlngs: latlngs, depart: points.depart, arrivee: points.arrivee };
+    voyageAffiche = null;
+    if (coucheReel) { coucheReel.clearLayers(); }
+    trouver('it511-zone-suivi').style.display = 'none';
+    afficherDonnees(d);
+    trouver('it511-titre-resultat').textContent = voyageEnEdition ? 'Nouveau calcul (modification en cours)' : 'Nouveau trajet';
+    afficherEntravesTrajet(entravesSurTrajet(coords), nbEviteesCourant);
+    d.traceEnc = traceCompacte(latlngs);
+    d.hauteur = h; d.largeur = w;
+    dernierResultat = d;
+  }
+
+  function copier(texte) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(texte).then(function () {
+        message('Copié dans le presse-papiers.');
+        setTimeout(function () { message(''); }, 2500);
+      }, function () {
+        message('La copie automatique est bloquée par le navigateur.', true);
+      });
+    } else {
+      message('La copie automatique est bloquée par le navigateur.', true);
+    }
+  }
+
+  var URL_QC = 'https://ws.mapserver.transports.gouv.qc.ca/swtq?service=wfs&version=2.0.0&request=getfeature&typename=ms:chantiers_mtmdet&srsname=EPSG:4326&outputformat=geojson';
+  var URL_ON = 'https://511on.ca/api/v2/get/event?format=json&lang=fr&key=';
+  var DEPART_DEFAUT = '601 Rue de l’Industrie, Beloeil, QC J3G 0S5';
+  var entraves = [];
+  var etatSources = { qc: 'chargement', on: 'chargement' };
+  var coucheEntraves = null;
+  var dernierChargementEntraves = 0;
+
+  function nombre(texte) { return parseFloat(String(texte).replace(',', '.')); }
+
+  function valeursMetres(texte, motCle) {
+    var vals = [], m, reste = texte;
+    var apres = new RegExp('(\\d+(?:[.,]\\d+)?)\\s*m\\S*\\s+de\\s+' + motCle, 'gi');
+    while ((m = apres.exec(texte)) !== null) { vals.push(nombre(m[1])); }
+    reste = texte.replace(/(\d+(?:[.,]\d+)?)\s*m\S*\s+de\s+[a-zéè]+/gi, ' ');
+    var avant = new RegExp(motCle + '[^\\n]{0,60}?(\\d+(?:[.,]\\d+)?)\\s*m(?:è|e|\\b)', 'gi');
+    while ((m = avant.exec(reste)) !== null) { vals.push(nombre(m[1])); }
+    vals = vals.filter(function (v) { return v > 1.5 && v < 12; });
+    return vals.length ? Math.min.apply(null, vals) : null;
+  }
+
+  function dateQc(texte) {
+    if (!texte) { return null; }
+    var d = new Date(texte.replace(/\//g, '-').replace(' ', 'T'));
+    return isNaN(d.getTime()) ? null : d.getTime();
+  }
+
+  function normaliserQc(f) {
+    var p = f.properties || {}, g = f.geometry;
+    if (!g) { return null; }
+    var lignes = g.type === 'LineString' ? [g.coordinates] : (g.type === 'MultiLineString' ? g.coordinates : (g.type === 'Point' ? [[g.coordinates]] : []));
+    var maintenant = Date.now(), debut = dateQc(p.debut), fin = dateQc(p.fin);
+    var texteDim = (p.entravesLieesAuxChargesEtDimensions || '') + String.fromCharCode(10) + (p.entrave || '');
+    var direction = (p.direction || '').toLowerCase();
+    var deuxSens = direction.indexOf(' et ') >= 0 || direction.indexOf('deux directions') >= 0;
+    var fermeture = /(fermeture compl[eè]te|pont ferm[ée]|route ferm[ée]e|autoroute ferm[ée]e|tunnel ferm[ée]|rue ferm[ée]e)/i.test(p.entrave || '') && !/contresens/i.test(p.entrave || '');
+    return {
+      source: 'Québec',
+      id: 'qc' + p.identifiant,
+      titre: p.identificationDesTravaux || 'Travaux',
+      lieu: p.localisation || '',
+      detail: p.descriptionFrancais || '',
+      lignes: lignes.map(function (l) { return l.map(function (c) { return [c[1], c[0]]; }); }),
+      actif: (!debut || debut <= maintenant) && (!fin || fin >= maintenant),
+      largeurMax: valeursMetres(texteDim, 'largeur'),
+      hauteurMax: valeursMetres(texteDim, 'hauteur'),
+      fermeture: fermeture && deuxSens,
+      fermeturePartielle: fermeture && !deuxSens
+    };
+  }
+
+  function decoderPolyligne(code) {
+    var points = [], index = 0, lat = 0, lng = 0;
+    while (index < code.length) {
+      var b, decalage = 0, resultat = 0;
+      do { b = code.charCodeAt(index++) - 63; resultat |= (b & 31) << decalage; decalage += 5; } while (b >= 32);
+      lat += (resultat & 1) ? ~(resultat >> 1) : (resultat >> 1);
+      decalage = 0; resultat = 0;
+      do { b = code.charCodeAt(index++) - 63; resultat |= (b & 31) << decalage; decalage += 5; } while (b >= 32);
+      lng += (resultat & 1) ? ~(resultat >> 1) : (resultat >> 1);
+      points.push([lat / 1e5, lng / 1e5]);
+    }
+    return points;
+  }
+
+  function normaliserOn(e) {
+    var ligne = [];
+    if (e.EncodedPolyline) { try { ligne = decoderPolyligne(e.EncodedPolyline); } catch (x) { ligne = []; } }
+    if (!ligne.length && e.Latitude && e.Longitude) {
+      ligne = [[e.Latitude, e.Longitude]];
+      if (e.LatitudeSecondary && e.LongitudeSecondary) { ligne.push([e.LatitudeSecondary, e.LongitudeSecondary]); }
+    }
+    if (!ligne.length) { return null; }
+    var maintenant = Date.now() / 1000;
+    var r = e.Restrictions || {};
+    var dir = e.DirectionOfTravel || '';
+    var deuxSens = /All Directions|Both Directions|Toutes|Deux/i.test(dir);
+    return {
+      source: 'Ontario',
+      id: 'on' + e.ID,
+      titre: (e.RoadwayName || 'Route') + (e.EventType ? ' (' + e.EventType + ')' : ''),
+      lieu: dir,
+      detail: [e.Description, e.Comment, e.Impact].filter(Boolean).join(String.fromCharCode(10)),
+      lignes: [ligne],
+      actif: (!e.StartDate || e.StartDate <= maintenant) && (!e.PlannedEndDate || e.PlannedEndDate >= maintenant),
+      largeurMax: r.Width ? r.Width * 0.3048 : null,
+      hauteurMax: r.Height ? r.Height * 0.3048 : null,
+      fermeture: !!e.IsFullClosure && deuxSens,
+      fermeturePartielle: !!e.IsFullClosure && !deuxSens
+    };
+  }
+
+  function afficherEtatSources() {
+    var t = { ok: 'chargées', erreur: 'indisponibles', chargement: 'chargement...', sanscle: 'clé 511 Ontario manquante' };
+    var actives = entraves.filter(function (e) { return e.actif; }).length;
+    var el = trouver('it511-sources');
+    if (el) {
+      el.textContent = 'Entraves : Québec ' + (t[etatSources.qc] || etatSources.qc) + ', Ontario ' + (t[etatSources.on] || etatSources.on) + ' - ' + actives + ' actives';
+    }
+  }
+
+  function couleurEntrave(e) {
+    if (e.fermeture) { return '#b91c1c'; }
+    if (e.largeurMax || e.hauteurMax) { return '#d97706'; }
+    return '#6b7280';
+  }
+
+  function dessinerEntraves() {
+    coucheEntraves.clearLayers();
+    entraves.forEach(function (e) {
+      if (!e.actif) { return; }
+      var texte = '<strong>' + echapper(e.titre) + '</strong><br>' + echapper(e.detail).split(String.fromCharCode(10)).join('<br>');
+      e.lignes.forEach(function (l) {
+        var objet = l.length > 1
+          ? L.polyline(l, { color: couleurEntrave(e), weight: 6, opacity: 0.85 })
+          : L.circleMarker(l[0], { radius: 6, color: '#fff', weight: 1, fillColor: couleurEntrave(e), fillOpacity: 1 });
+        objet.bindPopup(texte, { maxWidth: 320 }).addTo(coucheEntraves);
+      });
+    });
+  }
+
+  function echapper(t) {
+    var d = document.createElement('div');
+    d.textContent = t || '';
+    return d.textContent.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function chargerEntraves(forcer) {
+    if (!forcer && Date.now() - dernierChargementEntraves < 15 * 60 * 1000 && entraves.length) { return Promise.resolve(); }
+    dernierChargementEntraves = Date.now();
+    etatSources.qc = 'chargement';
+    var cleOn = lire('cle511on', '');
+    etatSources.on = cleOn ? 'chargement' : 'sanscle';
+    afficherEtatSources();
+
+    var pQc = fetch(URL_QC).then(function (r) { return r.json(); }).then(function (data) {
+      etatSources.qc = 'ok';
+      return (data.features || []).map(normaliserQc).filter(Boolean);
+    }).catch(function () { etatSources.qc = 'erreur'; return []; });
+
+    var pOn = cleOn ? fetch(URL_ON + encodeURIComponent(cleOn)).then(function (r) { return r.json(); }).then(function (data) {
+      etatSources.on = 'ok';
+      return (Array.isArray(data) ? data : []).map(normaliserOn).filter(Boolean);
+    }).catch(function () { etatSources.on = 'erreur'; return []; }) : Promise.resolve([]);
+
+    return Promise.all([pQc, pOn]).then(function (r) {
+      entraves = r[0].concat(r[1]);
+      dessinerEntraves();
+      afficherEtatSources();
+    });
+  }
+
+  function bloquante(e, h, w) {
+    if (!e.actif) { return false; }
+    if (e.fermeture) { return true; }
+    if (e.largeurMax && w > e.largeurMax) { return true; }
+    if (e.hauteurMax && h > e.hauteurMax) { return true; }
+    return false;
+  }
+
+  function dansZone(e, zone) {
+    return e.lignes.some(function (l) {
+      return l.some(function (p) { return p[0] >= zone.s && p[0] <= zone.n && p[1] >= zone.o && p[1] <= zone.e; });
+    });
+  }
+
+  function rectangleCorridor(a, b, demiLargeurM) {
+    var latMoy = (a[0] + b[0]) / 2;
+    var mLat = 111320, mLon = 111320 * Math.cos(latMoy * Math.PI / 180);
+    var dx = (b[1] - a[1]) * mLon, dy = (b[0] - a[0]) * mLat;
+    var long = Math.sqrt(dx * dx + dy * dy);
+    if (long < 1) { dx = 1; dy = 0; long = 1; }
+    var ux = dx / long, uy = dy / long;
+    var px = -uy * demiLargeurM, py = ux * demiLargeurM;
+    var ex = ux * demiLargeurM, ey = uy * demiLargeurM;
+    function pt(lat, lon, ox, oy) { return [lon + ox / mLon, lat + oy / mLat]; }
+    var p1 = pt(a[0], a[1], px - ex, py - ey), p2 = pt(b[0], b[1], px + ex, py + ey);
+    var p3 = pt(b[0], b[1], -px + ex, -py + ey), p4 = pt(a[0], a[1], -px - ex, -py - ey);
+    return [[p1, p2, p3, p4, p1]];
+  }
+
+  function polygonesAEviter(h, w, depart, arrivee) {
+    var marge = 0.6;
+    var zone = {
+      s: Math.min(depart.lat, arrivee.lat) - marge, n: Math.max(depart.lat, arrivee.lat) + marge,
+      o: Math.min(depart.lon, arrivee.lon) - marge, e: Math.max(depart.lon, arrivee.lon) + marge
+    };
+    var polys = [], nb = 0;
+    entraves.forEach(function (e) {
+      if (!bloquante(e, h, w) || !dansZone(e, zone)) { return; }
+      nb++;
+      e.lignes.forEach(function (l) {
+        if (l.length === 1) { l = [l[0], [l[0][0] + 0.0003, l[0][1]]]; }
+        var pas = Math.max(1, Math.ceil((l.length - 1) / 40));
+        for (var i = 0; i < l.length - 1; i += pas) {
+          var j = Math.min(i + pas, l.length - 1);
+          polys.push(rectangleCorridor(l[i], l[j], 30));
+        }
+      });
+    });
+    return { nombre: nb, multi: polys.length ? { type: 'MultiPolygon', coordinates: polys } : null };
+  }
+
+  function distanceM(a, b) {
+    var mLon = 111320 * Math.cos(a[0] * Math.PI / 180);
+    var dx = (b[1] - a[1]) * mLon, dy = (b[0] - a[0]) * 111320;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  function entravesSurTrajet(coordsLonLat) {
+    var trace = coordsLonLat.map(function (c) { return [c[1], c[0]]; });
+    var s = 90, n = -90, o = 180, e = -180;
+    trace.forEach(function (p) { s = Math.min(s, p[0]); n = Math.max(n, p[0]); o = Math.min(o, p[1]); e = Math.max(e, p[1]); });
+    var zone = { s: s - 0.01, n: n + 0.01, o: o - 0.01, e: e + 0.01 };
+    var pas = Math.max(1, Math.floor(trace.length / 3000));
+    var echantillon = trace.filter(function (p, i) { return i % pas === 0; });
+    return entraves.filter(function (en) {
+      if (!en.actif || !dansZone(en, zone)) { return false; }
+      return en.lignes.some(function (l) {
+        return l.some(function (p) {
+          for (var i = 0; i < echantillon.length; i++) { if (distanceM(p, echantillon[i]) < 120) { return true; } }
+          return false;
+        });
+      });
+    });
+  }
+
+  function afficherEntravesTrajet(liste, nbEvitees) {
+    var boite = trouver('it511-entraves');
+    while (boite.firstChild) { boite.removeChild(boite.firstChild); }
+    var entete = document.createElement('div');
+    entete.style.cssText = 'font-size:13px;margin-bottom:6px;color:#5a6270;';
+    entete.textContent = nbEvitees + ' entrave(s) bloquante(s) contournée(s) - ' + liste.length + ' entrave(s) sur le trajet';
+    boite.appendChild(entete);
+    liste.forEach(function (en) {
+      var item = document.createElement('div');
+      item.style.cssText = 'border-left:4px solid ' + couleurEntrave(en) + ';padding:4px 8px;margin-bottom:6px;font-size:12px;background:#f8f9fb;';
+      var t = document.createElement('div'); t.style.fontWeight = '600'; t.textContent = en.titre + ' (' + en.source + ')';
+      var d = document.createElement('div'); d.style.whiteSpace = 'pre-line'; d.textContent = en.detail;
+      item.appendChild(t); item.appendChild(d);
+      boite.appendChild(item);
+    });
+  }
+
+  var URL_CAM_QC = 'https://ws.mapserver.transports.gouv.qc.ca/swtq?service=wfs&version=2.0.0&request=getfeature&typename=ms:infos_cameras&srsname=EPSG:4326&outputformat=geojson';
+  var URL_CAM_ON = 'https://511on.ca/api/v2/get/cameras?format=json&lang=fr&key=';
+  var coucheCameras = null;
+  var camerasChargees = 0;
+
+  function popupCamera(titre, lien, image) {
+    var boite = document.createElement('div');
+    boite.style.cssText = 'max-width:300px;font-size:12px;';
+    var t = document.createElement('div');
+    t.style.cssText = 'font-weight:600;margin-bottom:4px;';
+    t.textContent = titre;
+    boite.appendChild(t);
+    if (image) {
+      var img = document.createElement('img');
+      img.src = image + (image.indexOf('?') >= 0 ? '&' : '?') + 't=' + Date.now();
+      img.alt = titre;
+      img.style.cssText = 'width:100%;border-radius:4px;display:block;margin-bottom:4px;';
+      boite.appendChild(img);
+    }
+    if (lien) {
+      var a = document.createElement('a');
+      a.href = lien; a.target = '_blank'; a.rel = 'noopener';
+      a.textContent = 'Voir la caméra';
+      boite.appendChild(a);
+    }
+    return boite;
+  }
+
+  function ajouterCamera(lat, lon, titre, lien, image) {
+    L.circleMarker([lat, lon], { radius: 5, color: '#ffffff', weight: 1, fillColor: '#7c3aed', fillOpacity: 1 })
+      .bindTooltip(titre)
+      .bindPopup(function () { return popupCamera(titre, lien, image); }, { maxWidth: 320 })
+      .addTo(coucheCameras);
+  }
+
+  function chargerCameras() {
+    if (Date.now() - camerasChargees < 60 * 60 * 1000) { return; }
+    camerasChargees = Date.now();
+    coucheCameras.clearLayers();
+    fetch(URL_CAM_QC).then(function (r) { return r.json(); }).then(function (data) {
+      (data.features || []).forEach(function (f) {
+        if (!f.geometry || f.geometry.type !== 'Point') { return; }
+        var p = f.properties || {};
+        ajouterCamera(f.geometry.coordinates[1], f.geometry.coordinates[0], p.DescriptionLocalisationFr || 'Caméra', p.URL_FLUX_DONNEE, null);
+      });
+    }).catch(function () { camerasChargees = 0; });
+    var cleOn = lire('cle511on', '');
+    if (!cleOn) { return; }
+    fetch(URL_CAM_ON + encodeURIComponent(cleOn)).then(function (r) { return r.json(); }).then(function (data) {
+      (Array.isArray(data) ? data : []).forEach(function (c) {
+        if (!c.Latitude || !c.Longitude) { return; }
+        var vues = c.Views || [];
+        var image = vues.length ? vues[0].Url : null;
+        ajouterCamera(c.Latitude, c.Longitude, c.Location || c.Name || 'Caméra (Ontario)', image, image);
+      });
+    }).catch(function () {});
+  }
+
+  var ADDIN_ID = 'aXdeNEZ7tQ7eMPNywYFFKrA';
+  var apiGeotab = null;
+  var parametres = {};
+  var parametresId = null;
+  var voyages = [];
+  var voyageEnEdition = null;
+  var voyageAffiche = null;
+  var listeActifs = [];
+  var minuterieSauvegarde = null;
+  var coucheReel = null;
+
+  function appelGeotab(methode, params) {
+    return new Promise(function (ok, ko) {
+      if (!apiGeotab) { ko(new Error('API Geotab indisponible')); return; }
+      apiGeotab.call(methode, params, ok, ko);
+    });
+  }
+
+  function chargerStockage() {
+    return appelGeotab('Get', { typeName: 'AddInData', search: { addInId: ADDIN_ID } }).then(function (lignes) {
+      voyages = [];
+      (lignes || []).forEach(function (l) {
+        var d = l.details || {};
+        if (d.type === 'parametres') { parametresId = l.id; parametres = d; }
+        else if (d.type === 'voyage') { voyages.push({ id: l.id, d: d }); }
+      });
+      voyages.sort(function (a, b) { return (b.d.date || '').localeCompare(a.d.date || ''); });
+      appliquerParametres();
+      afficherListeVoyages();
+    }).catch(function (e) {
+      message('Lecture du stockage Geotab impossible : ' + (e && e.message ? e.message : e), true);
+    });
+  }
+
+  function appliquerParametres() {
+    if (parametres.cle && !trouver('it511-cle').value) { trouver('it511-cle').value = parametres.cle; }
+    if (parametres.cle511on && !trouver('it511-cle-on').value) { trouver('it511-cle-on').value = parametres.cle511on; }
+    if (parametres.hauteurPi && !trouver('it511-hauteur').value) { trouver('it511-hauteur').value = parametres.hauteurPi; afficherConversion('it511-hauteur'); }
+    if (parametres.largeurPi && !trouver('it511-largeur').value) { trouver('it511-largeur').value = parametres.largeurPi; afficherConversion('it511-largeur'); }
+  }
+
+  function sauverParametresPartages() {
+    clearTimeout(minuterieSauvegarde);
+    minuterieSauvegarde = setTimeout(function () {
+      var details = { type: 'parametres', cle: parametres.cle || '', cle511on: parametres.cle511on || '', hauteurPi: parametres.hauteurPi || '', largeurPi: parametres.largeurPi || '' };
+      var entite = { addInId: ADDIN_ID, groups: [{ id: 'GroupCompanyId' }], details: details };
+      if (parametresId) {
+        entite.id = parametresId;
+        appelGeotab('Set', { typeName: 'AddInData', entity: entite }).catch(function () {});
+      } else {
+        appelGeotab('Add', { typeName: 'AddInData', entity: entite }).then(function (id) { parametresId = id; }).catch(function () {});
+      }
+    }, 1200);
+  }
+
+  function referenceValide(ref) { return /^\d{5}(-\d{1,2})?$/.test(ref); }
+
+  function sauverVoyage() {
+    if (!dernierResultat) { message('Calcule d’abord un trajet.', true); return; }
+    var ref = trouver('it511-ref').value.trim();
+    if (!referenceValide(ref)) { message('Référence invalide : 5 chiffres, ou 5 chiffres, un tiret et le numéro du module (ex. 17513 ou 17513-2).', true); return; }
+    var sel = trouver('it511-actif');
+    var details = {
+      type: 'voyage', ref: ref, maison: ref.split('-')[0], module: ref.split('-')[1] || '',
+      date: new Date().toISOString(),
+      depart: dernierResultat.depart, arrivee: dernierResultat.arrivee,
+      hauteurPi: trouver('it511-hauteur').value, largeurPi: trouver('it511-largeur').value,
+      totalKm: Math.round(dernierResultat.totalKm * 10) / 10, dureeS: Math.round(dernierResultat.dureeS),
+      routes: dernierResultat.routes.map(function (r) { return { n: r.nom, k: Math.round(r.km * 10) / 10 }; }),
+      enLigne: dernierResultat.enLigne,
+      trace: dernierResultat.traceEnc,
+      actifId: sel.value || '', actifNom: sel.value ? sel.options[sel.selectedIndex].text : ''
+    };
+    var taille = JSON.stringify(details).length;
+    if (taille > 9800) { details.routes = details.routes.slice(0, 40); details.trace = traceCompacte(decoderPolyligne(details.trace).filter(function (p, i) { return i % 2 === 0; })); }
+    var entite = { addInId: ADDIN_ID, groups: [{ id: 'GroupCompanyId' }], details: details };
+    var promesse;
+    if (voyageEnEdition) {
+      entite.id = voyageEnEdition;
+      var ancien = voyages.filter(function (v) { return v.id === voyageEnEdition; })[0];
+      if (ancien && ancien.d.date) { details.dateCreation = ancien.d.dateCreation || ancien.d.date; }
+      promesse = appelGeotab('Set', { typeName: 'AddInData', entity: entite });
+    } else {
+      promesse = appelGeotab('Add', { typeName: 'AddInData', entity: entite });
+    }
+    promesse.then(function () {
+      message(voyageEnEdition ? 'Voyage ' + ref + ' mis à jour.' : 'Voyage ' + ref + ' enregistré.');
+      voyageEnEdition = null;
+      trouver('it511-sauver-voyage').textContent = 'Enregistrer le voyage';
+      return chargerStockage();
+    }).catch(function (e) {
+      message('Enregistrement impossible : ' + (e && e.message ? e.message : e), true);
+    });
+  }
+
+  function supprimerVoyage(v) {
+    if (!window.confirm('Supprimer le voyage ' + v.d.ref + ' ? Cette action est définitive.')) { return; }
+    appelGeotab('Remove', { typeName: 'AddInData', entity: { id: v.id } }).then(function () {
+      message('Voyage ' + v.d.ref + ' supprimé.');
+      if (voyageAffiche && voyageAffiche.id === v.id) { voyageAffiche = null; }
+      return chargerStockage();
+    }).catch(function (e) { message('Suppression impossible : ' + (e && e.message ? e.message : e), true); });
+  }
+
+  function modifierVoyage(v) {
+    var d = v.d;
+    trouver('it511-ref').value = d.ref;
+    trouver('it511-depart').value = d.depart ? d.depart.label : '';
+    trouver('it511-arrivee').value = d.arrivee ? d.arrivee.label : '';
+    points.depart = d.depart || null; points.arrivee = d.arrivee || null;
+    trouver('it511-hauteur').value = d.hauteurPi || ''; afficherConversion('it511-hauteur');
+    trouver('it511-largeur').value = d.largeurPi || ''; afficherConversion('it511-largeur');
+    trouver('it511-actif').value = d.actifId || '';
+    voyageEnEdition = v.id;
+    trouver('it511-sauver-voyage').textContent = 'Mettre à jour le voyage ' + d.ref;
+    message('Modification du voyage ' + d.ref + ' : ajuste les champs, recalcule le trajet, puis clique sur « Mettre à jour ».');
+    trouver('it511-wrap').scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function ouvrirVoyage(v) {
+    var d = v.d;
+    voyageAffiche = v;
+    var latlngs = d.trace ? decoderPolyligne(d.trace) : [];
+    afficherDonnees({
+      routes: (d.routes || []).map(function (r) { return { nom: r.n, km: r.k }; }),
+      totalKm: d.totalKm, dureeS: d.dureeS, enLigne: d.enLigne,
+      latlngs: latlngs, depart: d.depart, arrivee: d.arrivee
+    });
+    trouver('it511-titre-resultat').textContent = 'Voyage ' + d.ref + ' du ' + new Date(d.date).toLocaleDateString('fr-CA') + (d.actifNom ? ' - ' + d.actifNom : '');
+    afficherEntravesTrajet(entravesSurTrajet(latlngs.map(function (p) { return [p[1], p[0]]; })), 0);
+    if (coucheReel) { coucheReel.clearLayers(); }
+    trouver('it511-zone-suivi').style.display = d.actifId ? 'block' : 'none';
+    trouver('it511-cmp-debut').value = versChampDate(new Date(d.date));
+    trouver('it511-cmp-fin').value = versChampDate(new Date());
+    trouver('it511-suivi').textContent = '';
+    trouver('it511-comparaison').textContent = '';
+    mettreAJourSuivi();
+  }
+
+  function versChampDate(dt) {
+    var z = function (n) { return (n < 10 ? '0' : '') + n; };
+    return dt.getFullYear() + '-' + z(dt.getMonth() + 1) + '-' + z(dt.getDate()) + 'T' + z(dt.getHours()) + ':' + z(dt.getMinutes());
+  }
+
+  function bouton(texte, action, danger) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = texte;
+    b.style.cssText = 'padding:3px 8px;border:1px solid ' + (danger ? '#e5a3a3' : '#c9ced6') + ';border-radius:4px;background:#fff;font-size:12px;cursor:pointer;color:' + (danger ? '#8a1c1c' : 'inherit') + ';';
+    b.addEventListener('click', action);
+    return b;
+  }
+
+  function afficherListeVoyages() {
+    var filtre = (trouver('it511-recherche').value || '').trim();
+    var boite = trouver('it511-liste-voyages');
+    while (boite.firstChild) { boite.removeChild(boite.firstChild); }
+    var liste = voyages.filter(function (v) { return !filtre || (v.d.ref || '').indexOf(filtre) === 0; });
+    if (!filtre) { liste = liste.slice(0, 15); }
+    if (!liste.length) {
+      var vide = document.createElement('div');
+      vide.style.cssText = 'font-size:12px;color:#5a6270;';
+      vide.textContent = voyages.length ? 'Aucun voyage ne correspond à cette référence.' : 'Aucun voyage enregistré pour l’instant.';
+      boite.appendChild(vide);
+      return;
+    }
+    liste.forEach(function (v) {
+      var d = v.d;
+      var item = document.createElement('div');
+      item.style.cssText = 'border:1px solid #e3e6eb;border-radius:4px;padding:6px 8px;margin-bottom:6px;font-size:12px;';
+      var t = document.createElement('div');
+      t.style.fontWeight = '600';
+      t.textContent = d.ref + ' - ' + nombreFr(d.totalKm || 0, 1) + ' km - ' + new Date(d.date).toLocaleDateString('fr-CA');
+      var s = document.createElement('div');
+      s.style.color = '#5a6270';
+      s.textContent = ((d.depart && d.depart.label) || '?') + ' → ' + ((d.arrivee && d.arrivee.label) || '?') + (d.actifNom ? ' - ' + d.actifNom : '');
+      var actions = document.createElement('div');
+      actions.style.cssText = 'display:flex;gap:6px;margin-top:4px;flex-wrap:wrap;';
+      actions.appendChild(bouton('Ouvrir', function () { ouvrirVoyage(v); }));
+      actions.appendChild(bouton('Modifier', function () { modifierVoyage(v); }));
+      actions.appendChild(bouton('Supprimer', function () { supprimerVoyage(v); }, true));
+      item.appendChild(t); item.appendChild(s); item.appendChild(actions);
+      boite.appendChild(item);
+    });
+  }
+
+  function brancherRecherche() {
+    var input = trouver('it511-recherche'), sugg = trouver('it511-sugg-voyages');
+    input.addEventListener('input', function () {
+      var f = input.value.trim();
+      afficherListeVoyages();
+      while (sugg.firstChild) { sugg.removeChild(sugg.firstChild); }
+      if (!f) { sugg.style.display = 'none'; return; }
+      var refs = {};
+      voyages.forEach(function (v) {
+        var r = v.d.ref || '';
+        if (r.indexOf(f) === 0) { refs[r] = true; refs[r.split('-')[0]] = refs[r.split('-')[0]] || (r.split('-')[0].indexOf(f) === 0); }
+      });
+      var cles = Object.keys(refs).filter(function (k) { return refs[k] && k.indexOf(f) === 0; }).sort().slice(0, 12);
+      cles.forEach(function (k) {
+        var it = document.createElement('div');
+        it.textContent = k;
+        it.style.cssText = 'padding:6px 10px;cursor:pointer;font-size:13px;border-bottom:1px solid #eef0f3;';
+        it.addEventListener('mousedown', function () { input.value = k; sugg.style.display = 'none'; afficherListeVoyages(); });
+        sugg.appendChild(it);
+      });
+      sugg.style.display = cles.length ? 'block' : 'none';
+    });
+    input.addEventListener('blur', function () { setTimeout(function () { sugg.style.display = 'none'; }, 250); });
+  }
+
+  function remplirListeActifs() {
+    var sel = trouver('it511-actif'), valeur = sel.value;
+    while (sel.options.length > 1) { sel.remove(1); }
+    listeActifs.slice().sort(function (a, b) { return a.nom.localeCompare(b.nom); }).forEach(function (a) {
+      var o = document.createElement('option'); o.value = a.id; o.textContent = a.nom; sel.appendChild(o);
+    });
+    sel.value = valeur;
+  }
+
+  function cumulKm(latlngs) {
+    var c = [0];
+    for (var i = 1; i < latlngs.length; i++) { c.push(c[i - 1] + distanceM(latlngs[i - 1], latlngs[i]) / 1000); }
+    return c;
+  }
+
+  function mettreAJourSuivi() {
+    if (!voyageAffiche || !voyageAffiche.d.actifId) { return; }
+    var a = listeActifs.filter(function (x) { return x.id === voyageAffiche.d.actifId; })[0];
+    var zone = trouver('it511-suivi');
+    if (!a || !a.lat) { zone.textContent = 'Position de l’actif indisponible.'; return; }
+    var trace = decoderPolyligne(voyageAffiche.d.trace || '');
+    if (!trace.length) { return; }
+    var cumul = cumulKm(trace), meilleur = 0, dMin = Infinity;
+    for (var i = 0; i < trace.length; i++) {
+      var dd = distanceM([a.lat, a.lon], trace[i]);
+      if (dd < dMin) { dMin = dd; meilleur = i; }
+    }
+    var total = cumul[cumul.length - 1];
+    var fait = cumul[meilleur];
+    var texte = a.nom + ' : environ ' + nombreFr(fait, 1) + ' km parcourus, ' + nombreFr(Math.max(0, total - fait), 1) + ' km restants';
+    texte += dMin > 500 ? ' - ATTENTION : à ' + nombreFr(dMin / 1000, 1) + ' km du trajet prévu.' : ' - sur le trajet prévu.';
+    zone.textContent = texte;
+    zone.style.color = dMin > 500 ? '#8a1c1c' : '#14532d';
+  }
+
+  function comparerReel() {
+    if (!voyageAffiche || !voyageAffiche.d.actifId) { return; }
+    var debut = new Date(trouver('it511-cmp-debut').value), fin = new Date(trouver('it511-cmp-fin').value);
+    if (isNaN(debut.getTime()) || isNaN(fin.getTime()) || fin <= debut) { message('Période de comparaison invalide.', true); return; }
+    var zone = trouver('it511-comparaison');
+    zone.textContent = 'Lecture du trajet réel dans Geotab...';
+    appelGeotab('Get', { typeName: 'LogRecord', resultsLimit: 50000, search: { deviceSearch: { id: voyageAffiche.d.actifId }, fromDate: debut.toISOString(), toDate: fin.toISOString() } })
+      .then(function (logs) {
+        var pts = (logs || []).filter(function (l) { return l.latitude && l.longitude && (l.latitude !== 0 || l.longitude !== 0); })
+          .map(function (l) { return [l.latitude, l.longitude]; });
+        if (pts.length < 2) { zone.textContent = 'Aucune position enregistrée pour cet actif durant cette période.'; return; }
+        coucheReel.clearLayers();
+        L.polyline(pts, { color: '#7c3aed', weight: 4, opacity: 0.8, dashArray: '6 6' }).bindTooltip('Trajet réel').addTo(coucheReel);
+        var kmReel = cumulKm(pts); kmReel = kmReel[kmReel.length - 1];
+        var trace = decoderPolyligne(voyageAffiche.d.trace || '');
+        var pas = Math.max(1, Math.floor(pts.length / 1500)), horsTrajet = 0, testes = 0, ecartMax = 0;
+        for (var i = 0; i < pts.length; i += pas) {
+          var dMin = Infinity;
+          for (var j = 0; j < trace.length; j++) { var d = distanceM(pts[i], trace[j]); if (d < dMin) { dMin = d; } }
+          testes++; if (dMin > 400) { horsTrajet++; } if (dMin > ecartMax) { ecartMax = dMin; }
+        }
+        var prevu = voyageAffiche.d.totalKm || 0;
+        var pct = testes ? Math.round(100 * (testes - horsTrajet) / testes) : 0;
+        zone.textContent = 'Prévu : ' + nombreFr(prevu, 1) + ' km - Réel : ' + nombreFr(kmReel, 1) + ' km (écart ' +
+          (kmReel - prevu >= 0 ? '+' : '') + nombreFr(kmReel - prevu, 1) + ' km). ' + pct + ' % des positions sur le trajet prévu; écart maximal ' + nombreFr(ecartMax / 1000, 1) + ' km.';
+        zone.style.color = pct < 90 ? '#8a1c1c' : '#14532d';
+      }).catch(function (e) { zone.textContent = 'Lecture impossible : ' + (e && e.message ? e.message : e); });
+  }
+
+  function brancherParametres() {
+    trouver('it511-cle').value = lire('cle', '');
+    trouver('it511-cle-on').value = lire('cle511on', '');
+    trouver('it511-sauver-cle-on').addEventListener('click', function () {
+      ecrire('cle511on', trouver('it511-cle-on').value.trim());
+      message('Clé 511 Ontario enregistrée pour toute l’équipe.');
+      chargerEntraves(true);
+      camerasChargees = 0;
+      chargerCameras();
+    });
+    if (!trouver('it511-depart').value) { trouver('it511-depart').value = DEPART_DEFAUT; }
+    trouver('it511-hauteur').value = lire('hauteurPi', '');
+    trouver('it511-largeur').value = lire('largeurPi', '');
+    ['it511-hauteur', 'it511-largeur'].forEach(function (id) {
+      trouver(id).addEventListener('input', function () { afficherConversion(id); });
+      afficherConversion(id);
+    });
+    trouver('it511-sauver-cle').addEventListener('click', function () {
+      ecrire('cle', trouver('it511-cle').value.trim());
+      message('Clé enregistrée pour toute l’équipe.');
+    });
+    trouver('it511-calculer').addEventListener('click', calculer);
+    trouver('it511-copier-ligne').addEventListener('click', function () { if (dernierResultat) { copier(dernierResultat.enLigne); } });
+    trouver('it511-copier-liste').addEventListener('click', function () {
+      if (!dernierResultat) { return; }
+      var t = dernierResultat.routes.map(function (r) { return r.nom + ' : ' + nombreFr(r.km, 1) + ' km'; }).join(String.fromCharCode(10));
+      copier(t + String.fromCharCode(10) + 'Total : ' + nombreFr(dernierResultat.totalKm, 1) + ' km');
+    });
+    brancherAdresse('depart');
+    brancherAdresse('arrivee');
+    brancherRecherche();
+    trouver('it511-sauver-voyage').addEventListener('click', sauverVoyage);
+    trouver('it511-comparer').addEventListener('click', comparerReel);
+  }
+
+  return {
+    initialize: function (api, state, callback) {
+      apiGeotab = api;
+      chargerStyleLeaflet();
+      creerCarte();
+      brancherParametres();
+      callback();
+    },
+    focus: function (api, state) {
+      setTimeout(function () { carte.invalidateSize(); }, 300);
+      setTimeout(function () { carte.invalidateSize(); }, 1500);
+      apiGeotab = api;
+      chargerStockage();
+      chargerActifs(api);
+      rafraichirRadar();
+      chargerEntraves(false);
+      chargerCameras();
+      minuterie = setInterval(function () { chargerActifs(api); rafraichirRadar(); chargerEntraves(false); }, 120000);
+    },
+    blur: function (api, state) {
+      if (minuterie) { clearInterval(minuterie); minuterie = null; }
+    }
+  };
+};
+</script>
+</head>
+<body>
+<div id="it511-wrap" style="padding:12px 16px;box-sizing:border-box;">
+  <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px;margin-bottom:10px;">
+    <span style="font-size:18px;font-weight:600;">LFS - version test 0.5</span>
+    <span id="it511-statut" style="font-size:13px;color:#5a6270;">Démarrage...</span>
+    <span id="it511-sources" style="font-size:13px;color:#5a6270;"></span>
+  </div>
+
+  <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;">
+    <div style="flex:0 0 360px;max-width:100%;border:1px solid #c9ced6;border-radius:6px;padding:14px;box-sizing:border-box;background:#fff;">
+
+      <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Départ</label>
+      <div style="position:relative;margin-bottom:10px;">
+        <input id="it511-depart" type="text" autocomplete="off" placeholder="125 rue de l’Usine, Beloeil" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
+        <div id="it511-liste-depart" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:2000;background:#fff;border:1px solid #c9ced6;border-radius:4px;max-height:240px;overflow:auto;"></div>
+      </div>
+
+      <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Arrivée</label>
+      <div style="position:relative;margin-bottom:10px;">
+        <input id="it511-arrivee" type="text" autocomplete="off" placeholder="450 rue King O, Sherbrooke" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
+        <div id="it511-liste-arrivee" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:2000;background:#fff;border:1px solid #c9ced6;border-radius:4px;max-height:240px;overflow:auto;"></div>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-bottom:12px;">
+        <div style="flex:1;">
+          <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Hauteur (pi)</label>
+          <input id="it511-hauteur" type="text" placeholder="15'6&quot; ou 15,5" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
+          <div id="it511-hauteur-m" style="font-size:11px;color:#5a6270;margin-top:2px;min-height:14px;"></div>
+        </div>
+        <div style="flex:1;">
+          <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Largeur (pi)</label>
+          <input id="it511-largeur" type="text" placeholder="16' ou 16,0" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
+          <div id="it511-largeur-m" style="font-size:11px;color:#5a6270;margin-top:2px;min-height:14px;"></div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-bottom:12px;">
+        <div style="flex:1;">
+          <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Référence</label>
+          <input id="it511-ref" type="text" placeholder="17513 ou 17513-2" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
+        </div>
+        <div style="flex:1;">
+          <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Actif (facultatif)</label>
+          <select id="it511-actif" style="width:100%;box-sizing:border-box;padding:7px 6px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;background:#fff;"><option value="">Aucun</option></select>
+        </div>
+      </div>
+
+      <button id="it511-calculer" type="button" style="width:100%;padding:9px;border:none;border-radius:4px;background:#1565c0;color:#fff;font-size:14px;font-weight:600;cursor:pointer;">Calculer le trajet</button>
+
+      <div id="it511-message" style="display:none;margin-top:10px;padding:8px 10px;border-radius:4px;font-size:13px;"></div>
+
+      <div id="it511-resultat" style="display:none;margin-top:14px;">
+        <div id="it511-titre-resultat" style="font-size:13px;font-weight:600;margin-bottom:8px;"></div>
+        <div style="display:flex;gap:10px;margin-bottom:12px;">
+          <div style="flex:1;background:#f3f5f8;border-radius:4px;padding:8px 10px;">
+            <div style="font-size:12px;color:#5a6270;">Distance totale</div>
+            <div id="it511-total" style="font-size:20px;font-weight:600;"></div>
+          </div>
+          <div style="flex:1;background:#f3f5f8;border-radius:4px;padding:8px 10px;">
+            <div style="font-size:12px;color:#5a6270;">Durée estimée</div>
+            <div id="it511-duree" style="font-size:20px;font-weight:600;"></div>
+          </div>
+        </div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:4px;">Routes empruntées</div>
+        <div id="it511-routes" style="border-top:1px solid #eef0f3;margin-bottom:10px;"></div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:4px;">En ligne</div>
+        <div id="it511-enligne" style="font-size:13px;background:#f3f5f8;border-radius:4px;padding:8px 10px;margin-bottom:10px;line-height:1.5;"></div>
+        <div style="display:flex;gap:8px;">
+          <button id="it511-copier-ligne" type="button" style="flex:1;padding:7px;border:1px solid #c9ced6;border-radius:4px;background:#fff;font-size:13px;cursor:pointer;">Copier la ligne</button>
+          <button id="it511-copier-liste" type="button" style="flex:1;padding:7px;border:1px solid #c9ced6;border-radius:4px;background:#fff;font-size:13px;cursor:pointer;">Copier la liste</button>
+        </div>
+        <div style="font-size:13px;font-weight:600;margin:12px 0 4px;">Entraves 511</div>
+        <div id="it511-entraves"></div>
+        <button id="it511-sauver-voyage" type="button" style="width:100%;margin-top:10px;padding:8px;border:none;border-radius:4px;background:#15803d;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">Enregistrer le voyage</button>
+        <div id="it511-zone-suivi" style="display:none;margin-top:12px;border-top:1px solid #eef0f3;padding-top:10px;">
+          <div style="font-size:13px;font-weight:600;margin-bottom:4px;">Suivi de l’actif</div>
+          <div id="it511-suivi" style="font-size:12px;margin-bottom:8px;"></div>
+          <div style="font-size:13px;font-weight:600;margin-bottom:4px;">Prévu comparé au réel</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">
+            <input id="it511-cmp-debut" type="datetime-local" style="flex:1;min-width:140px;padding:5px;border:1px solid #c9ced6;border-radius:4px;font-size:12px;">
+            <input id="it511-cmp-fin" type="datetime-local" style="flex:1;min-width:140px;padding:5px;border:1px solid #c9ced6;border-radius:4px;font-size:12px;">
+          </div>
+          <button id="it511-comparer" type="button" style="width:100%;padding:6px;border:1px solid #c9ced6;border-radius:4px;background:#fff;font-size:12px;cursor:pointer;">Comparer avec le trajet réel</button>
+          <div id="it511-comparaison" style="font-size:12px;margin-top:6px;"></div>
+        </div>
+      </div>
+
+      <div style="margin-top:16px;border-top:1px solid #eef0f3;padding-top:10px;">
+        <div style="font-size:13px;font-weight:600;margin-bottom:6px;">Voyages enregistrés</div>
+        <div style="position:relative;margin-bottom:8px;">
+          <input id="it511-recherche" type="text" autocomplete="off" placeholder="Rechercher une référence (ex. 175)" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
+          <div id="it511-sugg-voyages" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:2000;background:#fff;border:1px solid #c9ced6;border-radius:4px;max-height:220px;overflow:auto;"></div>
+        </div>
+        <div id="it511-liste-voyages"></div>
+      </div>
+
+      <details style="margin-top:16px;border-top:1px solid #eef0f3;padding-top:10px;">
+        <summary style="font-size:13px;cursor:pointer;color:#5a6270;">Paramètres</summary>
+        <label style="display:block;font-size:12px;color:#5a6270;margin:8px 0 3px;">Clé OpenRouteService</label>
+        <div style="display:flex;gap:8px;">
+          <input id="it511-cle" type="text" autocomplete="off" style="flex:1;min-width:0;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
+          <button id="it511-sauver-cle" type="button" style="padding:7px 12px;border:1px solid #c9ced6;border-radius:4px;background:#fff;font-size:13px;cursor:pointer;">Enregistrer</button>
+        </div>
+        <label style="display:block;font-size:12px;color:#5a6270;margin:8px 0 3px;">Clé 511 Ontario (facultative)</label>
+        <div style="display:flex;gap:8px;">
+          <input id="it511-cle-on" type="text" autocomplete="off" style="flex:1;min-width:0;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
+          <button id="it511-sauver-cle-on" type="button" style="padding:7px 12px;border:1px solid #c9ced6;border-radius:4px;background:#fff;font-size:13px;cursor:pointer;">Enregistrer</button>
+        </div>
+      </details>
+      <div style="margin-top:12px;font-size:11px;color:#5a6270;line-height:1.4;">Outil d’aide à la planification. Il ne remplace pas le trajet autorisé par le permis spécial de circulation ni la vérification sur le terrain. Les entraves sont interprétées automatiquement à partir des données 511 et peuvent être incomplètes (horaires, directions).</div>
+    </div>
+
+    <div style="flex:1 1 480px;min-width:300px;">
+      <div id="it511-carte" style="height:78vh;min-height:460px;width:100%;border:1px solid #c9ced6;border-radius:6px;"></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
