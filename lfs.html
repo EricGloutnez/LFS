@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>LFS</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+geotab.addin.lfs = function () {
+  var ORS = 'https://api.heigit.org';
+  var carte = null, radarPluie = null, radarNeige = null, coucheActifs = null, coucheTrajet = null, minuterie = null;
+  var points = { depart: null, arrivee: null };
+  var dernierResultat = null;
+
+  function trouver(id) { return document.getElementById(id); }
+
+  function lire(cle, defaut) {
+    try { var v = localStorage.getItem('it511-' + cle); return v === null ? defaut : v; } catch (e) { return defaut; }
+  }
+  function ecrire(cle, valeur) {
+    try { localStorage.setItem('it511-' + cle, valeur); } catch (e) {}
+  }
+
+  function chargerStyleLeaflet() {
+    if (!trouver('it511-leaflet-css')) {
+      var lien = document.createElement('link');
+      lien.id = 'it511-leaflet-css';
+      lien.rel = 'stylesheet';
+      lien.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css';
+      document.head.appendChild(lien);
+    }
+  }
+
+  function statut(texte) { var el = trouver('it511-statut'); if (el) { el.textContent = texte; } }
+  function message(texte, erreur) {
+    var el = trouver('it511-message');
+    el.textContent = texte || '';
+    el.style.display = texte ? 'block' : 'none';
+    el.style.background = erreur ? '#fdecea' : '#e8f1fb';
+    el.style.color = erreur ? '#8a1c1c' : '#0c447c';
+  }
+
+  function nombreFr(n, dec) {
+    return n.toLocaleString('fr-CA', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+  }
+
+    function creerCarte() {
+    var conteneur = trouver('it511-carte');
+    carte = L.map(conteneur).setView([46.2, -72.6], 7);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 18, attribution: '&copy; contributeurs OpenStreetMap'
+    }).addTo(carte);
+
+    var optionsRadar = { format: 'image/png', transparent: true, version: '1.3.0', opacity: 0.6,
+      attribution: 'Radar : Environnement et Changement climatique Canada' };
+    radarPluie = L.tileLayer.wms('https://geo.weather.gc.ca/geomet', L.extend({ layers: 'RADAR_1KM_RRAI' }, optionsRadar));
+    radarNeige = L.tileLayer.wms('https://geo.weather.gc.ca/geomet', L.extend({ layers: 'RADAR_1KM_RSNO' }, optionsRadar));
+    radarPluie.addTo(carte);
+
+    coucheActifs = L.layerGroup().addTo(carte);
+    coucheTrajet = L.layerGroup().addTo(carte);
+
+    L.control.layers(null, {
+      'Trajet': coucheTrajet,
+      'Radar - pluie': radarPluie,
+      'Radar - neige': radarNeige,
+      'Actifs Geotab': coucheActifs
+    }, { collapsed: false }).addTo(carte);
+  }
+
+  function rafraichirRadar() {
+    var t = Date.now();
+    radarPluie.setParams({ _t: t });
+    radarNeige.setParams({ _t: t });
+  }
+
+  function chargerActifs(api) {
+    api.multiCall([
+      ['Get', { typeName: 'Device', search: { fromDate: new Date().toISOString() } }],
+      ['Get', { typeName: 'DeviceStatusInfo' }]
+    ], function (resultats) {
+      var noms = {};
+      resultats[0].forEach(function (d) { noms[d.id] = d.name; });
+      coucheActifs.clearLayers();
+      var nombre = 0;
+      resultats[1].forEach(function (s) {
+        if (s.latitude && s.longitude && s.device && noms[s.device.id]) {
+          var libelle = noms[s.device.id];
+          if (s.speed) { libelle += ' - ' + Math.round(s.speed) + ' km/h'; }
+          L.circleMarker([s.latitude, s.longitude], {
+            radius: 7, color: '#ffffff', weight: 2, fillColor: '#1565c0', fillOpacity: 1
+          }).bindTooltip(libelle).addTo(coucheActifs);
+          nombre++;
+        }
+      });
+      statut(nombre + ' actifs affichés - mis à jour à ' + new Date().toLocaleTimeString('fr-CA'));
+    }, function (erreur) {
+      statut('Geotab a refusé la lecture des actifs : ' + (erreur && erreur.message ? erreur.message : erreur));
+    });
+  }
+
+    function brancherAdresse(champ) {
+    var input = trouver('it511-' + champ), liste = trouver('it511-liste-' + champ), delai = null;
+
+    input.addEventListener('input', function () {
+      points[champ] = null;
+      clearTimeout(delai);
+      var texte = input.value.trim();
+      if (texte.length < 4) { liste.style.display = 'none'; return; }
+      delai = setTimeout(function () { suggerer(texte, liste, champ); }, 350);
+    });
+    input.addEventListener('blur', function () { setTimeout(function () { liste.style.display = 'none'; }, 250); });
+  }
+
+  function suggerer(texte, liste, champ) {
+    var cle = lire('cle', '');
+    if (!cle) { message('Entre d’abord ta clé OpenRouteService dans les paramètres.', true); return; }
+    var url = ORS + '/pelias/v1/autocomplete?text=' + encodeURIComponent(texte) +
+      '&boundary.country=CA&focus.point.lat=45.6&focus.point.lon=-73.2&size=6';
+    fetch(url, { headers: { 'Authorization': cle } }).then(function (r) { return r.json(); }).then(function (data) {
+      while (liste.firstChild) { liste.removeChild(liste.firstChild); }
+      var res = (data && data.features) || [];
+      if (!res.length) { liste.style.display = 'none'; return; }
+      res.forEach(function (f) {
+        var item = document.createElement('div');
+        item.textContent = f.properties.label;
+        item.style.cssText = 'padding:7px 10px;cursor:pointer;font-size:13px;border-bottom:1px solid #eef0f3;';
+        item.addEventListener('mouseenter', function () { item.style.background = '#f0f4f9'; });
+        item.addEventListener('mouseleave', function () { item.style.background = ''; });
+        item.addEventListener('mousedown', function () {
+          trouver('it511-' + champ).value = f.properties.label;
+          points[champ] = { lon: f.geometry.coordinates[0], lat: f.geometry.coordinates[1], label: f.properties.label };
+          liste.style.display = 'none';
+        });
+        liste.appendChild(item);
+      });
+      liste.style.display = 'block';
+    }).catch(function () { liste.style.display = 'none'; });
+  }
+
+  function geocoder(texte) {
+    var url = ORS + '/pelias/v1/search?text=' + encodeURIComponent(texte) + '&boundary.country=CA&size=1';
+    return fetch(url, { headers: { 'Authorization': lire('cle', '') } }).then(function (r) { return r.json(); }).then(function (data) {
+      if (!data.features || !data.features.length) { throw new Error('Adresse introuvable : ' + texte); }
+      var f = data.features[0];
+      return { lon: f.geometry.coordinates[0], lat: f.geometry.coordinates[1], label: f.properties.label };
+    });
+  }
+
+    function lireDimension(id) {
+    var v = parseFloat((trouver(id).value || '').replace(',', '.'));
+    return isNaN(v) || v <= 0 ? null : v;
+  }
+
+  function calculer() {
+    message('');
+    var cle = lire('cle', '');
+    if (!cle) { message('Entre d’abord ta clé OpenRouteService dans les paramètres (en bas du panneau).', true); return; }
+    var h = lireDimension('it511-hauteur'), w = lireDimension('it511-largeur');
+    if (!h || !w) { message('Indique la hauteur et la largeur en mètres (ex. 4,60).', true); return; }
+    if (!trouver('it511-depart').value.trim() || !trouver('it511-arrivee').value.trim()) { message('Indique une adresse de départ et d’arrivée.', true); return; }
+
+    ecrire('hauteur', trouver('it511-hauteur').value);
+    ecrire('largeur', trouver('it511-largeur').value);
+
+    var bouton = trouver('it511-calculer');
+    bouton.disabled = true; bouton.textContent = 'Calcul en cours...';
+
+    Promise.all([
+      points.depart ? Promise.resolve(points.depart) : geocoder(trouver('it511-depart').value.trim()),
+      points.arrivee ? Promise.resolve(points.arrivee) : geocoder(trouver('it511-arrivee').value.trim())
+    ]).then(function (p) {
+      points.depart = p[0]; points.arrivee = p[1];
+      return fetch(ORS + '/openrouteservice/v2/directions/driving-hgv/geojson', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': cle },
+        body: JSON.stringify({
+          coordinates: [[p[0].lon, p[0].lat], [p[1].lon, p[1].lat]],
+          units: 'km',
+          language: 'fr',
+          instructions: true,
+          options: { vehicle_type: 'hgv', profile_params: { restrictions: { height: h, width: w } } }
+        })
+      });
+    }).then(function (r) {
+      return r.json().then(function (data) { return { ok: r.ok, statut: r.status, data: data }; });
+    }).then(function (rep) {
+      if (!rep.ok) {
+        var code = rep.data && rep.data.error && rep.data.error.code;
+        if (rep.statut === 401 || rep.statut === 403) { throw new Error('La clé OpenRouteService est refusée. Vérifie-la dans les paramètres.'); }
+        if (code === 2009 || code === 2010) { throw new Error('Aucun trajet possible avec ces dimensions entre ces deux adresses.'); }
+        throw new Error('Le calcul a échoué (' + rep.statut + ') : ' + ((rep.data.error && rep.data.error.message) || 'erreur inconnue'));
+      }
+      afficherResultat(rep.data, h, w);
+    }).catch(function (e) {
+      message(e.message || String(e), true);
+    }).then(function () {
+      bouton.disabled = false; bouton.textContent = 'Calculer le trajet';
+    });
+  }
+
+  function regrouperRoutes(steps) {
+    var routes = [];
+    steps.forEach(function (s) {
+      if (s.type === 10) { return; }
+      var nom = (s.name && s.name !== '-') ? s.name.trim() : '';
+      var dernier = routes[routes.length - 1];
+      if (!nom) {
+        if (dernier) { dernier.km += s.distance; } else { routes.push({ nom: '(voie sans nom)', km: s.distance }); }
+        return;
+      }
+      if (dernier && dernier.nom === nom) { dernier.km += s.distance; }
+      else { routes.push({ nom: nom, km: s.distance }); }
+    });
+    return routes.filter(function (r) { return r.km >= 0.05 || routes.length === 1; });
+  }
+
+  function afficherResultat(geo, h, w) {
+    var f = geo.features[0];
+    var seg = f.properties.segments[0];
+    var totalKm = f.properties.summary.distance;
+    var duree = f.properties.summary.duration;
+    var routes = regrouperRoutes(seg.steps || []);
+
+    coucheTrajet.clearLayers();
+    var trace = L.geoJSON(f, { style: { color: '#c2410c', weight: 5, opacity: 0.85 } }).addTo(coucheTrajet);
+    L.circleMarker([points.depart.lat, points.depart.lon], { radius: 8, color: '#fff', weight: 2, fillColor: '#15803d', fillOpacity: 1 })
+      .bindTooltip('Départ : ' + points.depart.label).addTo(coucheTrajet);
+    L.circleMarker([points.arrivee.lat, points.arrivee.lon], { radius: 8, color: '#fff', weight: 2, fillColor: '#b91c1c', fillOpacity: 1 })
+      .bindTooltip('Arrivée : ' + points.arrivee.label).addTo(coucheTrajet);
+    carte.fitBounds(trace.getBounds(), { padding: [30, 30] });
+
+    var heures = Math.floor(duree / 3600), minutes = Math.round((duree % 3600) / 60);
+    trouver('it511-total').textContent = nombreFr(totalKm, 1) + ' km';
+    trouver('it511-duree').textContent = heures + ' h ' + (minutes < 10 ? '0' : '') + minutes;
+
+    var tableau = trouver('it511-routes');
+    while (tableau.firstChild) { tableau.removeChild(tableau.firstChild); }
+    routes.forEach(function (r) {
+      var ligne = document.createElement('div');
+      ligne.style.cssText = 'display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid #eef0f3;font-size:13px;';
+      var nom = document.createElement('span'); nom.textContent = r.nom;
+      var km = document.createElement('span'); km.textContent = nombreFr(r.km, 1) + ' km'; km.style.color = '#5a6270'; km.style.whiteSpace = 'nowrap';
+      ligne.appendChild(nom); ligne.appendChild(km);
+      tableau.appendChild(ligne);
+    });
+
+    var enLigne = routes.map(function (r) { return r.nom; }).join(' - ') + ' (' + nombreFr(totalKm, 1) + ' km)';
+    trouver('it511-enligne').textContent = enLigne;
+
+    dernierResultat = { routes: routes, totalKm: totalKm, enLigne: enLigne, hauteur: h, largeur: w };
+    trouver('it511-resultat').style.display = 'block';
+  }
+
+  function copier(texte) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(texte).then(function () {
+        message('Copié dans le presse-papiers.');
+        setTimeout(function () { message(''); }, 2500);
+      }, function () {
+        message('La copie automatique est bloquée par le navigateur.', true);
+      });
+    } else {
+      message('La copie automatique est bloquée par le navigateur.', true);
+    }
+  }
+
+    function brancherParametres() {
+    trouver('it511-cle').value = lire('cle', '');
+    trouver('it511-hauteur').value = lire('hauteur', '');
+    trouver('it511-largeur').value = lire('largeur', '');
+    trouver('it511-sauver-cle').addEventListener('click', function () {
+      ecrire('cle', trouver('it511-cle').value.trim());
+      message('Clé enregistrée sur ce poste.');
+    });
+    trouver('it511-calculer').addEventListener('click', calculer);
+    trouver('it511-copier-ligne').addEventListener('click', function () { if (dernierResultat) { copier(dernierResultat.enLigne); } });
+    trouver('it511-copier-liste').addEventListener('click', function () {
+      if (!dernierResultat) { return; }
+      var t = dernierResultat.routes.map(function (r) { return r.nom + ' : ' + nombreFr(r.km, 1) + ' km'; }).join(String.fromCharCode(10));
+      copier(t + String.fromCharCode(10) + 'Total : ' + nombreFr(dernierResultat.totalKm, 1) + ' km');
+    });
+    brancherAdresse('depart');
+    brancherAdresse('arrivee');
+  }
+
+  return {
+    initialize: function (api, state, callback) {
+      chargerStyleLeaflet();
+      creerCarte();
+      brancherParametres();
+      callback();
+    },
+    focus: function (api, state) {
+      setTimeout(function () { carte.invalidateSize(); }, 300);
+      setTimeout(function () { carte.invalidateSize(); }, 1500);
+      chargerActifs(api);
+      rafraichirRadar();
+      minuterie = setInterval(function () { chargerActifs(api); rafraichirRadar(); }, 120000);
+    },
+    blur: function (api, state) {
+      if (minuterie) { clearInterval(minuterie); minuterie = null; }
+    }
+  };
+};
+</script>
+</head>
+<body>
+<div id="it511-wrap" style="padding:12px 16px;box-sizing:border-box;">
+  <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px;margin-bottom:10px;">
+    <span style="font-size:18px;font-weight:600;">LFS - version test 0.3.3</span>
+    <span id="it511-statut" style="font-size:13px;color:#5a6270;">Démarrage...</span>
+  </div>
+
+  <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;">
+    <div style="flex:0 0 360px;max-width:100%;border:1px solid #c9ced6;border-radius:6px;padding:14px;box-sizing:border-box;background:#fff;">
+
+      <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Départ</label>
+      <div style="position:relative;margin-bottom:10px;">
+        <input id="it511-depart" type="text" autocomplete="off" placeholder="125 rue de l’Usine, Beloeil" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
+        <div id="it511-liste-depart" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:2000;background:#fff;border:1px solid #c9ced6;border-radius:4px;max-height:240px;overflow:auto;"></div>
+      </div>
+
+      <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Arrivée</label>
+      <div style="position:relative;margin-bottom:10px;">
+        <input id="it511-arrivee" type="text" autocomplete="off" placeholder="450 rue King O, Sherbrooke" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
+        <div id="it511-liste-arrivee" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:2000;background:#fff;border:1px solid #c9ced6;border-radius:4px;max-height:240px;overflow:auto;"></div>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-bottom:12px;">
+        <div style="flex:1;">
+          <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Hauteur (m)</label>
+          <input id="it511-hauteur" type="text" inputmode="decimal" placeholder="4,60" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
+        </div>
+        <div style="flex:1;">
+          <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Largeur (m)</label>
+          <input id="it511-largeur" type="text" inputmode="decimal" placeholder="4,90" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
+        </div>
+      </div>
+
+      <button id="it511-calculer" type="button" style="width:100%;padding:9px;border:none;border-radius:4px;background:#1565c0;color:#fff;font-size:14px;font-weight:600;cursor:pointer;">Calculer le trajet</button>
+
+      <div id="it511-message" style="display:none;margin-top:10px;padding:8px 10px;border-radius:4px;font-size:13px;"></div>
+
+      <div id="it511-resultat" style="display:none;margin-top:14px;">
+        <div style="display:flex;gap:10px;margin-bottom:12px;">
+          <div style="flex:1;background:#f3f5f8;border-radius:4px;padding:8px 10px;">
+            <div style="font-size:12px;color:#5a6270;">Distance totale</div>
+            <div id="it511-total" style="font-size:20px;font-weight:600;"></div>
+          </div>
+          <div style="flex:1;background:#f3f5f8;border-radius:4px;padding:8px 10px;">
+            <div style="font-size:12px;color:#5a6270;">Durée estimée</div>
+            <div id="it511-duree" style="font-size:20px;font-weight:600;"></div>
+          </div>
+        </div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:4px;">Routes empruntées</div>
+        <div id="it511-routes" style="border-top:1px solid #eef0f3;margin-bottom:10px;"></div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:4px;">En ligne</div>
+        <div id="it511-enligne" style="font-size:13px;background:#f3f5f8;border-radius:4px;padding:8px 10px;margin-bottom:10px;line-height:1.5;"></div>
+        <div style="display:flex;gap:8px;">
+          <button id="it511-copier-ligne" type="button" style="flex:1;padding:7px;border:1px solid #c9ced6;border-radius:4px;background:#fff;font-size:13px;cursor:pointer;">Copier la ligne</button>
+          <button id="it511-copier-liste" type="button" style="flex:1;padding:7px;border:1px solid #c9ced6;border-radius:4px;background:#fff;font-size:13px;cursor:pointer;">Copier la liste</button>
+        </div>
+      </div>
+
+      <details style="margin-top:16px;border-top:1px solid #eef0f3;padding-top:10px;">
+        <summary style="font-size:13px;cursor:pointer;color:#5a6270;">Paramètres</summary>
+        <label style="display:block;font-size:12px;color:#5a6270;margin:8px 0 3px;">Clé OpenRouteService</label>
+        <div style="display:flex;gap:8px;">
+          <input id="it511-cle" type="text" autocomplete="off" style="flex:1;min-width:0;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
+          <button id="it511-sauver-cle" type="button" style="padding:7px 12px;border:1px solid #c9ced6;border-radius:4px;background:#fff;font-size:13px;cursor:pointer;">Enregistrer</button>
+        </div>
+      </details>
+    </div>
+
+    <div style="flex:1 1 480px;min-width:300px;">
+      <div id="it511-carte" style="height:78vh;min-height:460px;width:100%;border:1px solid #c9ced6;border-radius:6px;"></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
