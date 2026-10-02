@@ -357,6 +357,8 @@ geotab.addin.lfs = function () {
       if (r.ref) {
         var dir = (coords && coords[r.debut] && coords[r.fin]) ? ' ' + capCardinal(coords[r.debut], coords[r.fin]) : '';
         nom = (r.ref.type === 'Hwy' ? 'Hwy ' : r.ref.type + '-') + r.ref.num + dir;
+      } else if (!r.cle && r.km < 1.5) {
+        return { nom: 'Bretelle', km: r.km, bretelle: true };
       } else if (nom.indexOf(',') > 0) {
         nom = nom.split(',')[0].trim();
       }
@@ -441,6 +443,7 @@ geotab.addin.lfs = function () {
       var ligne = document.createElement('div');
       ligne.style.cssText = 'display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid #eef0f3;font-size:13px;';
       var nom = document.createElement('span'); nom.textContent = r.nom;
+      if (r.bretelle || r.nom === 'Bretelle') { nom.style.color = '#8a8f98'; nom.style.fontStyle = 'italic'; }
       var km = document.createElement('span'); km.textContent = nombreFr(r.km, 1) + ' km'; km.style.color = '#5a6270'; km.style.whiteSpace = 'nowrap';
       ligne.appendChild(nom); ligne.appendChild(km);
       tableau.appendChild(ligne);
@@ -456,7 +459,7 @@ geotab.addin.lfs = function () {
     var totalKm = f.properties.summary.distance;
     var routes = regrouperRoutes(seg.steps || [], coords);
     var latlngs = coords.map(function (c) { return [c[1], c[0]]; });
-    var enLigne = routes.map(function (r) { return r.nom; }).join(' - ') + ' (' + nombreFr(totalKm, 1) + ' km)';
+    var enLigne = routes.filter(function (r) { return !r.bretelle; }).map(function (r) { return r.nom; }).join(' - ') + ' (' + nombreFr(totalKm, 1) + ' km)';
     var d = { routes: routes, totalKm: totalKm, dureeS: f.properties.summary.duration, enLigne: enLigne, latlngs: latlngs, depart: points.depart, arrivee: points.arrivee };
     voyageAffiche = null;
     if (coucheReel) { coucheReel.clearLayers(); }
@@ -1024,8 +1027,13 @@ geotab.addin.lfs = function () {
     }
     var total = cumul[cumul.length - 1];
     var fait = cumul[meilleur];
-    var texte = a.nom + ' : environ ' + nombreFr(fait, 1) + ' km parcourus, ' + nombreFr(Math.max(0, total - fait), 1) + ' km restants';
-    texte += dMin > 500 ? ' - ATTENTION : à ' + nombreFr(dMin / 1000, 1) + ' km du trajet prévu.' : ' - sur le trajet prévu.';
+    var texte;
+    if (dMin > 5000) {
+      texte = a.nom + ' n’est pas sur ce trajet : il se trouve à ' + nombreFr(dMin / 1000, 1) + ' km du trajet prévu.';
+    } else {
+      texte = a.nom + ' : environ ' + nombreFr(fait, 1) + ' km parcourus, ' + nombreFr(Math.max(0, total - fait), 1) + ' km restants';
+      texte += dMin > 500 ? ' - ATTENTION : à ' + nombreFr(dMin / 1000, 1) + ' km du trajet prévu.' : ' - sur le trajet prévu.';
+    }
     zone.textContent = texte;
     zone.style.color = dMin > 500 ? '#8a1c1c' : '#14532d';
   }
@@ -1123,7 +1131,8 @@ geotab.addin.lfs = function () {
 <body>
 <div id="it511-wrap" style="padding:12px 16px;box-sizing:border-box;">
   <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px;margin-bottom:10px;">
-    <span style="font-size:18px;font-weight:600;">LFS - version test 0.5.3</span>
+    <span style="font-size:18px;font-weight:600;">LFS</span>
+    <span style="font-size:12px;color:#8a8f98;">version 1.0</span>
     <span id="it511-statut" style="font-size:13px;color:#5a6270;">Démarrage...</span>
     <span id="it511-sources" style="font-size:13px;color:#5a6270;"></span>
   </div>
@@ -1230,7 +1239,7 @@ geotab.addin.lfs = function () {
         </div>
       </details>
       <details style="margin-top:8px;">
-        <summary style="font-size:12px;cursor:pointer;color:#5a6270;">Détail technique du trajet</summary>
+        <summary style="font-size:12px;cursor:pointer;color:#5a6270;">Détail technique du trajet (soutien)</summary>
         <div id="it511-diagnostic" style="max-height:260px;overflow:auto;margin-top:6px;"></div>
       </details>
       <div style="margin-top:12px;font-size:11px;color:#5a6270;line-height:1.4;">Outil d’aide à la planification. Il ne remplace pas le trajet autorisé par le permis spécial de circulation ni la vérification sur le terrain. Les entraves sont interprétées automatiquement à partir des données 511 et peuvent être incomplètes (horaires, directions).</div>
