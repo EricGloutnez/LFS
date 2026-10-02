@@ -19,7 +19,7 @@ geotab.addin.lfs = function () {
   }
   function ecrire(cle, valeur) {
     try { localStorage.setItem('it511-' + cle, valeur); } catch (e) {}
-    if (['cle', 'cle511on', 'hauteurPi', 'largeurPi'].indexOf(cle) >= 0 && parametres[cle] !== valeur) {
+    if (['cle', 'cle511on', 'hauteurPi', 'largeurPi', 'eviterPeages', 'eviterTraversiers'].indexOf(cle) >= 0 && parametres[cle] !== valeur) {
       parametres[cle] = valeur;
       sauverParametresPartages();
     }
@@ -66,6 +66,7 @@ geotab.addin.lfs = function () {
     coucheEntraves = L.layerGroup().addTo(carte);
     coucheCameras = L.layerGroup();
     coucheReel = L.layerGroup().addTo(carte);
+    coucheRestrictions = L.layerGroup().addTo(carte);
     var alertes = L.tileLayer.wms('https://geo.weather.gc.ca/geomet', L.extend({ layers: 'ALERTS' }, optionsRadar));
 
     L.control.layers(null, {
@@ -74,6 +75,7 @@ geotab.addin.lfs = function () {
       'Caméras 511': coucheCameras,
       'Avertissements météo': alertes,
       'Trajet réel': coucheReel,
+      'Restrictions LFS': coucheRestrictions,
       'Radar - pluie': radarPluie,
       'Radar - neige': radarNeige,
       'Actifs Geotab': coucheActifs
@@ -124,6 +126,7 @@ geotab.addin.lfs = function () {
 
     input.addEventListener('input', function () {
       points[champ] = null;
+      vias = [];
       clearTimeout(delai);
       var texte = input.value.trim();
       if (texte.length < 4) { liste.style.display = 'none'; return; }
@@ -186,12 +189,637 @@ geotab.addin.lfs = function () {
   }
 
   var nbEviteesCourant = 0;
-  function optionsTrajet(h, w, depart, arrivee) {
+  var vias = [];
+  var ligneTrajet = null;
+  var marqueursEdition = [];
+
+  function iconePoint(couleur, taille) {
+    return L.divIcon({
+      className: '',
+      html: '<div style="width:' + taille + 'px;height:' + taille + 'px;border-radius:50%;background:' + couleur + ';border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.5);cursor:grab;"></div>',
+      iconSize: [taille + 6, taille + 6],
+      iconAnchor: [(taille + 6) / 2, (taille + 6) / 2]
+    });
+  }
+
+  function indexPlusProche(latlngs, p) {
+    var meilleur = 0, dMin = Infinity;
+    for (var i = 0; i < latlngs.length; i++) {
+      var d = distanceM([p.lat, p.lon], latlngs[i]);
+      if (d < dMin) { dMin = d; meilleur = i; }
+    }
+    return meilleur;
+  }
+
+  function adresseInverse(p) {
+    var url = ORS + '/pelias/v1/reverse?point.lat=' + p.lat + '&point.lon=' + p.lon + '&size=1';
+    return fetch(url, { headers: { 'Authorization': lire('cle', '') } }).then(function (r) { return r.json(); }).then(function (d) {
+      var f = d.features && d.features[0];
+      return f ? f.properties.label : 'Point sur la carte (' + p.lat.toFixed(5) + ', ' + p.lon.toFixed(5) + ')';
+    }).catch(function () { return 'Point sur la carte (' + p.lat.toFixed(5) + ', ' + p.lon.toFixed(5) + ')'; });
+  }
+
+  function deplacerExtremite(champ, ll) {
+    var p = { lat: ll.lat, lon: ll.lng, label: '' };
+    adresseInverse(p).then(function (label) {
+      p.label = label;
+      points[champ] = p;
+      trouver('it511-' + champ).value = label;
+      calculer();
+    });
+  }
+
+  function ajouterVia(llAppui, llDepot) {
+    var trace = dernierResultat ? dernierResultat.latlngs : [];
+    var idxNouveau = indexPlusProche(trace, { lat: llAppui.lat, lon: llAppui.lng });
+    var avecIdx = vias.map(function (v) { return { v: v, i: indexPlusProche(trace, v) }; });
+    avecIdx.push({ v: { lat: llDepot.lat, lon: llDepot.lng }, i: idxNouveau });
+    avecIdx.sort(function (a, b) { return a.i - b.i; });
+    vias = avecIdx.map(function (x) { return x.v; });
+    calculer();
+  }
+
+  function activerEdition() {
+    marqueursEdition.forEach(function (m) { carte.removeLayer(m); });
+    marqueursEdition = [];
+    if (!ligneTrajet) { return; }
+    ligneTrajet.bindTooltip('Glisse le trajet pour le modifier', { sticky: true });
+    ligneTrajet.on('mousedown', function (e) {
+      if (e.originalEvent) { e.originalEvent.preventDefault(); }
+      carte.dragging.disable();
+      var appui = e.latlng;
+      var depart = carte.latLngToContainerPoint(appui);
+      var temp = L.marker(appui, { icon: iconePoint('#ffffff', 12), interactive: false }).addTo(carte);
+      function bouger(ev) { temp.setLatLng(ev.latlng); }
+      function relacher(ev) {
+        carte.off('mousemove', bouger); carte.off('mouseup', relacher);
+        carte.dragging.enable();
+        carte.removeLayer(temp);
+        var fin = carte.latLngToContainerPoint(ev.latlng);
+        if (Math.abs(fin.x - depart.x) + Math.abs(fin.y - depart.y) < 8) { return; }
+        ajouterVia(appui, ev.latlng);
+      }
+      carte.on('mousemove', bouger);
+      carte.on('mouseup', relacher);
+    });
+
+    [['depart', '#15803d'], ['arrivee', '#b91c1c']].forEach(function (x) {
+      var p = points[x[0]];
+      if (!p) { return; }
+      var m = L.marker([p.lat, p.lon], { icon: iconePoint(x[1], 14), draggable: true, zIndexOffset: 1000 })
+        .bindTooltip(x[0] === 'depart' ? 'Départ : glisse pour déplacer' : 'Arrivée : glisse pour déplacer')
+        .addTo(carte);
+      m.on('dragend', function () { deplacerExtremite(x[0], m.getLatLng()); });
+      marqueursEdition.push(m);
+    });
+
+    vias.forEach(function (v, i) {
+      var m = L.marker([v.lat, v.lon], { icon: iconePoint('#c2410c', 12), draggable: true, zIndexOffset: 900 })
+        .bindTooltip('Point de passage : glisse pour déplacer, double-clic pour retirer')
+        .addTo(carte);
+      m.on('dragend', function () { var ll = m.getLatLng(); vias[i] = { lat: ll.lat, lon: ll.lng }; calculer(); });
+      m.on('dblclick', function (ev) { L.DomEvent.stop(ev); vias.splice(i, 1); calculer(); });
+      marqueursEdition.push(m);
+    });
+
+    var bouton = trouver('it511-reinit-trace');
+    bouton.style.display = vias.length ? 'block' : 'none';
+    bouton.textContent = 'Annuler les modifications du tracé (' + vias.length + ' point' + (vias.length > 1 ? 's' : '') + ' de passage)';
+  }
+
+  function desactiverEdition() {
+    marqueursEdition.forEach(function (m) { carte.removeLayer(m); });
+    marqueursEdition = [];
+    var b = trouver('it511-reinit-trace');
+    if (b) { b.style.display = 'none'; }
+  }
+
+  var initRestrictionsFaite = false;
+  var BBOX_QC = '44.9,-79.8,49.6,-61.0';
+  var restrictions = [];
+  var preferences = [];
+  var geomRestrictions = {};
+  var boitesRestrictions = [];
+  var coucheRestrictions = null;
+  var restrictionEnEdition = null;
+  var preferenceEnEdition = null;
+  var preferenceActive = null;
+  var preferenceRefusee = null;
+  var bilanRestrictions = { evitees: {}, restantes: {} };
+
+  var RESTRICTIONS_DEFAUT = [
+    { nom: 'Autoroute 13', mode: 'interdit', critere: 'ref', valeur: 'A-13', heureDebut: '', heureFin: '', jours: 'tous' },
+    { nom: 'Tunnel Louis-Hippolyte-La Fontaine', mode: 'interdit', critere: 'nom', valeur: 'Hippolyte', heureDebut: '', heureFin: '', jours: 'tous' },
+    { nom: 'Pont Honoré-Mercier', mode: 'interdit', critere: 'nom', valeur: 'Honoré-Mercier', heureDebut: '', heureFin: '', jours: 'tous' },
+    { nom: 'Pont de Québec', mode: 'interdit', critere: 'nom', valeur: 'Pont de Québec', heureDebut: '', heureFin: '', jours: 'tous' },
+    { nom: 'Pont Jacques-Cartier', mode: 'interdit', critere: 'nom', valeur: 'Jacques-Cartier', heureDebut: '', heureFin: '', jours: 'tous' },
+    { nom: 'A-15 : aucun hors normes de 7 h à 9 h', mode: 'horaire', critere: 'ref', valeur: 'A-15', heureDebut: '07:00', heureFin: '09:00', jours: 'tous' }
+  ];
+
+  function ajouterDonnee(details) {
+    return appelGeotab('Add', { typeName: 'AddInData', entity: { addInId: ADDIN_ID, groups: [{ id: 'GroupCompanyId' }], details: details } });
+  }
+
+  function initialiserRestrictions() {
+    if (parametres.restrictionsInit) { return Promise.resolve(); }
+    parametres.restrictionsInit = '1';
+    sauverParametresPartages();
+    var chaine = Promise.resolve();
+    RESTRICTIONS_DEFAUT.forEach(function (r) {
+      chaine = chaine.then(function () { return ajouterDonnee(Object.assign({ type: 'restriction' }, r)); });
+    });
+    if (lire('cle', '')) {
+      chaine = chaine.then(function () {
+        return Promise.all([geocoder('Sainte-Anne-de-la-Rochelle, QC'), geocoder('Waterloo, QC')]).then(function (g) {
+          return ajouterDonnee({ type: 'preference', nom: 'Départ de Sainte-Anne-de-la-Rochelle : passer par Waterloo et l’A-10',
+            departLabel: g[0].label, departLat: g[0].lat, departLon: g[0].lon, rayonKm: 10,
+            viaLabel: g[1].label, viaLat: g[1].lat, viaLon: g[1].lon });
+        }).catch(function () {});
+      });
+    }
+    return chaine.then(function () { return chargerStockage(); });
+  }
+
+  function echapperRegex(t) { return String(t).replace(/["\\]/g, '').replace(/[.*+?^${}()|[\]]/g, '\\$&'); }
+
+  function requeteRestriction(r) {
+    if (r.d.critere === 'ref') {
+      var num = (String(r.d.valeur).match(/\d{1,3}/) || [])[0];
+      if (!num) { return ''; }
+      var lettre = /^R/i.test(r.d.valeur) ? 'R' : 'A';
+      var types = lettre === 'A' ? '^motorway$' : '^(trunk|primary|secondary)$';
+      return 'way["highway"~"' + types + '"]["ref"~"(^|;)(' + lettre + ')?[- ]?' + num + '($|;)"](' + BBOX_QC + ');out geom;';
+    }
+    return 'way["highway"]["name"~"' + echapperRegex(r.d.valeur) + '",i][~"^(bridge|tunnel)$"~"^yes$"](' + BBOX_QC + ');out geom;';
+  }
+
+  function chargerGeometriesRestrictions() {
+    var manquantes = restrictions.filter(function (r) { return !geomRestrictions[r.id]; });
+    if (!manquantes.length) { return Promise.resolve(); }
+    var q = '[out:json][timeout:60];';
+    manquantes.forEach(function (r, k) { q += requeteRestriction(r) + 'make m k=' + k + ';out;'; });
+    return fetch(OVERPASS, { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' } })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var tampon = [];
+        (data.elements || []).forEach(function (el) {
+          if (el.type === 'm') {
+            var r = manquantes[parseInt(el.tags.k, 10)];
+            if (r) { geomRestrictions[r.id] = tampon; }
+            tampon = [];
+          } else if (el.geometry) {
+            tampon.push(el.geometry.map(function (g) { return [g.lat, g.lon]; }));
+          }
+        });
+        dessinerRestrictions();
+      })
+      .catch(function () { message('Les restrictions n’ont pas pu être chargées (OpenStreetMap ne répond pas). Réessaie dans un moment.', true); });
+  }
+
+  function dessinerRestrictions() {
+    if (!coucheRestrictions) { return; }
+    coucheRestrictions.clearLayers();
+    restrictions.forEach(function (r) {
+      (geomRestrictions[r.id] || []).forEach(function (l) {
+        L.polyline(l, { color: r.d.mode === 'horaire' ? '#7c3aed' : '#111827', weight: 5, opacity: 0.7, dashArray: '8 6' })
+          .bindTooltip(r.d.nom).addTo(coucheRestrictions);
+      });
+    });
+  }
+
+  function distPointSegment(p, a, b) {
+    var mLon = 111320 * Math.cos(p[0] * Math.PI / 180), mLat = 111320;
+    var ax = (a[1] - p[1]) * mLon, ay = (a[0] - p[0]) * mLat, bx = (b[1] - p[1]) * mLon, by = (b[0] - p[0]) * mLat;
+    var dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+    var t = l2 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / l2)) : 0;
+    var x = ax + t * dx, y = ay + t * dy;
+    return Math.sqrt(x * x + y * y);
+  }
+
+  function boiteRestriction(lignes) {
+    var b = { s: 90, n: -90, o: 180, e: -180 };
+    lignes.forEach(function (l) { l.forEach(function (p) {
+      b.s = Math.min(b.s, p[0]); b.n = Math.max(b.n, p[0]); b.o = Math.min(b.o, p[1]); b.e = Math.max(b.e, p[1]);
+    }); });
+    b.s -= 0.002; b.n += 0.002; b.o -= 0.003; b.e += 0.003;
+    return b;
+  }
+
+  function passagesLeLong(latlngs, lignes) {
+    if (!lignes || !lignes.length) { return []; }
+    var b = boiteRestriction(lignes);
+    var proche = latlngs.map(function (p) {
+      if (p[0] < b.s || p[0] > b.n || p[1] < b.o || p[1] > b.e) { return false; }
+      for (var i = 0; i < lignes.length; i++) {
+        var l = lignes[i];
+        for (var j = 0; j < l.length - 1; j++) { if (distPointSegment(p, l[j], l[j + 1]) < 25) { return true; } }
+      }
+      return false;
+    });
+    var cumul = cumulKm(latlngs), passages = [], debut = -1;
+    for (var i = 0; i <= latlngs.length; i++) {
+      if (i < latlngs.length && proche[i]) { if (debut < 0) { debut = i; } }
+      else if (debut >= 0) {
+        var fin = i - 1;
+        if ((cumul[fin] - cumul[debut]) * 1000 >= 150) { passages.push({ debut: debut, fin: fin, kmDebut: cumul[debut], kmFin: cumul[fin] }); }
+        debut = -1;
+      }
+    }
+    return passages;
+  }
+
+  function boiteAuMilieu(latlngs, passage) {
+    var cumul = cumulKm(latlngs), cible = (passage.kmDebut + passage.kmFin) / 2, i = passage.debut;
+    while (i < passage.fin && cumul[i + 1] < cible) { i++; }
+    var a = latlngs[i], b = latlngs[Math.min(i + 1, latlngs.length - 1)];
+    var seg = (cumul[i + 1] || cumul[i]) - cumul[i];
+    var f = seg > 0 ? (cible - cumul[i]) / seg : 0;
+    var m = [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
+    var mLat = 111320, mLon = 111320 * Math.cos(m[0] * Math.PI / 180);
+    var dx = (b[1] - a[1]) * mLon, dy = (b[0] - a[0]) * mLat, long = Math.sqrt(dx * dx + dy * dy) || 1;
+    var ux = dx / long, uy = dy / long;
+    var p1 = [m[0] - uy * 0 - (uy * 10) / mLat, m[1] - (ux * 10) / mLon];
+    var p2 = [m[0] + (uy * 10) / mLat, m[1] + (ux * 10) / mLon];
+    return { centre: m, poly: rectangleCorridor(p1, p2, 12) };
+  }
+
+  function nouvellesBoites(coords) {
+    var latlngs = coords.map(function (c) { return [c[1], c[0]]; });
+    var boites = [];
+    restrictions.forEach(function (r) {
+      if (r.d.mode !== 'interdit') { return; }
+      passagesLeLong(latlngs, geomRestrictions[r.id]).forEach(function (p) {
+        var bt = boiteAuMilieu(latlngs, p);
+        bt.restriction = r.d.nom;
+        boites.push(bt);
+      });
+    });
+    return boites;
+  }
+
+  function avoidFeatures() {
+    var f = [];
+    if (lire('eviterPeages', '1') === '1') { f.push('tollways'); }
+    if (lire('eviterTraversiers', '1') === '1') { f.push('ferries'); }
+    return f;
+  }
+
+  function preferencePourDepart(depart) {
+    if (!depart) { return null; }
+    var trouvee = null;
+    preferences.forEach(function (p) {
+      if (trouvee || !p.d.viaLat) { return; }
+      if (distanceM([depart.lat, depart.lon], [p.d.departLat, p.d.departLon]) <= (parseFloat(p.d.rayonKm) || 10) * 1000) { trouvee = p; }
+    });
+    return trouvee;
+  }
+
+  function heureEnMinutes(t) { var m = String(t || '').match(/^(\d{1,2}):(\d{2})/); return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : null; }
+
+  function verifierHoraires(coords, dureeS, totalKm) {
+    var champ = trouver('it511-depart-prevu').value;
+    var depart = champ ? new Date(champ) : new Date();
+    var latlngs = coords.map(function (c) { return [c[1], c[0]]; });
+    var alertes = [];
+    restrictions.forEach(function (r) {
+      if (r.d.mode !== 'horaire') { return; }
+      var deb = heureEnMinutes(r.d.heureDebut), fin = heureEnMinutes(r.d.heureFin);
+      if (deb === null || fin === null) { return; }
+      passagesLeLong(latlngs, geomRestrictions[r.id]).forEach(function (p) {
+        var t1 = new Date(depart.getTime() + dureeS * 1000 * (p.kmDebut / totalKm));
+        var t2 = new Date(depart.getTime() + dureeS * 1000 * (p.kmFin / totalKm));
+        for (var jour = new Date(t1.getFullYear(), t1.getMonth(), t1.getDate()); jour <= t2; jour = new Date(jour.getTime() + 86400000)) {
+          var js = jour.getDay();
+          if (r.d.jours === 'semaine' && (js === 0 || js === 6)) { continue; }
+          var w1 = new Date(jour.getTime() + deb * 60000), w2 = new Date(jour.getTime() + fin * 60000);
+          if (t1 < w2 && t2 > w1) {
+            alertes.push(r.d.nom + ' : passage estimé de ' + t1.toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' }) +
+              ' à ' + t2.toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' }) + '. Change l’heure de départ ou le trajet.');
+            break;
+          }
+        }
+      });
+    });
+    return alertes;
+  }
+
+  function afficherBilanRestrictions(alertesHoraires) {
+    var boite = trouver('it511-restrictions-trajet');
+    while (boite.firstChild) { boite.removeChild(boite.firstChild); }
+    var lignes = [];
+    Object.keys(bilanRestrictions.evitees).forEach(function (n) {
+      if (!bilanRestrictions.restantes[n]) { lignes.push({ t: n + ' : évité', c: '#14532d' }); }
+    });
+    Object.keys(bilanRestrictions.restantes).forEach(function (n) { lignes.push({ t: n + ' : toujours sur le trajet, aucune solution trouvée. Vérifie le trajet ou ajoute un point de passage.', c: '#8a1c1c' }); });
+    alertesHoraires.forEach(function (a) { lignes.push({ t: a, c: '#8a1c1c' }); });
+    var f = avoidFeatures();
+    if (f.length) { lignes.push({ t: (f.indexOf('tollways') >= 0 ? 'Péages évités. ' : '') + (f.indexOf('ferries') >= 0 ? 'Traversiers évités.' : ''), c: '#5a6270' }); }
+    if (preferenceActive) { lignes.push({ t: 'Itinéraire privilégié appliqué : ' + preferenceActive.d.nom, c: '#5a6270' }); }
+    if (!lignes.length) { lignes.push({ t: 'Aucune restriction sur ce trajet.', c: '#5a6270' }); }
+    lignes.forEach(function (l) {
+      var d = document.createElement('div');
+      d.style.cssText = 'font-size:12px;margin-bottom:4px;color:' + l.c + ';';
+      d.textContent = l.t;
+      boite.appendChild(d);
+    });
+  }
+
+  function afficherListeRestrictions() {
+    var boite = trouver('it511-liste-restrictions');
+    if (!boite) { return; }
+    while (boite.firstChild) { boite.removeChild(boite.firstChild); }
+    restrictions.forEach(function (r) {
+      var item = document.createElement('div');
+      item.style.cssText = 'border:1px solid #e3e6eb;border-radius:4px;padding:5px 8px;margin-bottom:5px;font-size:12px;';
+      var t = document.createElement('div');
+      t.style.fontWeight = '600';
+      t.textContent = r.d.nom;
+      var s = document.createElement('div');
+      s.style.color = '#5a6270';
+      var nb = (geomRestrictions[r.id] || []).length;
+      s.textContent = (r.d.mode === 'horaire' ? 'Horaire ' + r.d.heureDebut + ' à ' + r.d.heureFin + (r.d.jours === 'semaine' ? ', lundi au vendredi' : ', tous les jours') : 'Interdit') +
+        ' - ' + (r.d.critere === 'ref' ? 'route ' : 'ouvrage ') + r.d.valeur + (geomRestrictions[r.id] ? ' (' + nb + ' tronçon' + (nb > 1 ? 's' : '') + ' trouvé' + (nb > 1 ? 's' : '') + ')' : '');
+      if (geomRestrictions[r.id] && !nb) { s.style.color = '#8a1c1c'; s.textContent += ' - introuvable dans OpenStreetMap, vérifie le nom'; }
+      var a = document.createElement('div');
+      a.style.cssText = 'display:flex;gap:6px;margin-top:4px;';
+      a.appendChild(bouton('Modifier', function () { editerRestriction(r); }));
+      a.appendChild(bouton('Supprimer', function () { supprimerDonnee(r, 'la restriction'); }, true));
+      item.appendChild(t); item.appendChild(s); item.appendChild(a);
+      boite.appendChild(item);
+    });
+    var bp = trouver('it511-liste-preferences');
+    while (bp.firstChild) { bp.removeChild(bp.firstChild); }
+    preferences.forEach(function (p) {
+      var item = document.createElement('div');
+      item.style.cssText = 'border:1px solid #e3e6eb;border-radius:4px;padding:5px 8px;margin-bottom:5px;font-size:12px;';
+      var t = document.createElement('div'); t.style.fontWeight = '600'; t.textContent = p.d.nom;
+      var s = document.createElement('div'); s.style.color = '#5a6270';
+      s.textContent = 'Départ à moins de ' + p.d.rayonKm + ' km de ' + p.d.departLabel + ' : passer par ' + p.d.viaLabel;
+      var a = document.createElement('div'); a.style.cssText = 'display:flex;gap:6px;margin-top:4px;';
+      a.appendChild(bouton('Modifier', function () { editerPreference(p); }));
+      a.appendChild(bouton('Supprimer', function () { supprimerDonnee(p, 'l’itinéraire privilégié'); }, true));
+      item.appendChild(t); item.appendChild(s); item.appendChild(a);
+      bp.appendChild(item);
+    });
+    trouver('it511-eviter-peages').checked = lire('eviterPeages', '1') === '1';
+    trouver('it511-eviter-traversiers').checked = lire('eviterTraversiers', '1') === '1';
+  }
+
+  function supprimerDonnee(x, quoi) {
+    if (!window.confirm('Supprimer ' + quoi + ' « ' + x.d.nom + ' » ?')) { return; }
+    appelGeotab('Remove', { typeName: 'AddInData', entity: { id: x.id } }).then(function () {
+      delete geomRestrictions[x.id];
+      return chargerStockage();
+    }).catch(function (e) { message('Suppression impossible : ' + (e && e.message ? e.message : e), true); });
+  }
+
+  function editerRestriction(r) {
+    restrictionEnEdition = r ? r.id : null;
+    var d = r ? r.d : { nom: '', mode: 'interdit', critere: 'ref', valeur: '', heureDebut: '07:00', heureFin: '09:00', jours: 'tous' };
+    trouver('it511-r-nom').value = d.nom;
+    trouver('it511-r-mode').value = d.mode;
+    trouver('it511-r-critere').value = d.critere;
+    trouver('it511-r-valeur').value = d.valeur;
+    trouver('it511-r-debut').value = d.heureDebut || '07:00';
+    trouver('it511-r-fin').value = d.heureFin || '09:00';
+    trouver('it511-r-jours').value = d.jours || 'tous';
+    majFormRestriction();
+    trouver('it511-form-restriction').style.display = 'block';
+  }
+
+  function majFormRestriction() {
+    trouver('it511-r-horaire').style.display = trouver('it511-r-mode').value === 'horaire' ? 'flex' : 'none';
+    trouver('it511-r-valeur').placeholder = trouver('it511-r-critere').value === 'ref' ? 'ex. A-13 ou R-138' : 'ex. Honoré-Mercier';
+  }
+
+  function sauverRestriction() {
+    var details = {
+      type: 'restriction', nom: trouver('it511-r-nom').value.trim(), mode: trouver('it511-r-mode').value,
+      critere: trouver('it511-r-critere').value, valeur: trouver('it511-r-valeur').value.trim(),
+      heureDebut: trouver('it511-r-debut').value, heureFin: trouver('it511-r-fin').value, jours: trouver('it511-r-jours').value
+    };
+    if (!details.nom || !details.valeur) { message('Indique un nom et une route ou un ouvrage.', true); return; }
+    var p = restrictionEnEdition
+      ? appelGeotab('Set', { typeName: 'AddInData', entity: { id: restrictionEnEdition, addInId: ADDIN_ID, groups: [{ id: 'GroupCompanyId' }], details: details } })
+      : ajouterDonnee(details);
+    p.then(function () {
+      if (restrictionEnEdition) { delete geomRestrictions[restrictionEnEdition]; }
+      trouver('it511-form-restriction').style.display = 'none';
+      message('Restriction enregistrée pour toute l’équipe.');
+      return chargerStockage();
+    }).catch(function (e) { message('Enregistrement impossible : ' + (e && e.message ? e.message : e), true); });
+  }
+
+  function editerPreference(p) {
+    preferenceEnEdition = p ? p.id : null;
+    var d = p ? p.d : { nom: '', departLabel: '', rayonKm: 10, viaLabel: '' };
+    trouver('it511-p-nom').value = d.nom;
+    trouver('it511-p-depart').value = d.departLabel;
+    trouver('it511-p-rayon').value = d.rayonKm;
+    trouver('it511-p-via').value = d.viaLabel;
+    trouver('it511-form-preference').style.display = 'block';
+  }
+
+  function sauverPreference() {
+    var nom = trouver('it511-p-nom').value.trim(), dep = trouver('it511-p-depart').value.trim(), via = trouver('it511-p-via').value.trim();
+    var rayon = parseFloat(trouver('it511-p-rayon').value.replace(',', '.')) || 10;
+    if (!nom || !dep || !via) { message('Indique un nom, un lieu de départ et un lieu de passage.', true); return; }
+    Promise.all([geocoder(dep), geocoder(via)]).then(function (g) {
+      var details = { type: 'preference', nom: nom, departLabel: g[0].label, departLat: g[0].lat, departLon: g[0].lon, rayonKm: rayon,
+        viaLabel: g[1].label, viaLat: g[1].lat, viaLon: g[1].lon };
+      return preferenceEnEdition
+        ? appelGeotab('Set', { typeName: 'AddInData', entity: { id: preferenceEnEdition, addInId: ADDIN_ID, groups: [{ id: 'GroupCompanyId' }], details: details } })
+        : ajouterDonnee(details);
+    }).then(function () {
+      trouver('it511-form-preference').style.display = 'none';
+      message('Itinéraire privilégié enregistré pour toute l’équipe.');
+      return chargerStockage();
+    }).catch(function (e) { message('Enregistrement impossible : ' + (e && e.message ? e.message : e), true); });
+  }
+
+  function brancherRestrictions() {
+    trouver('it511-r-mode').addEventListener('change', majFormRestriction);
+    trouver('it511-r-critere').addEventListener('change', majFormRestriction);
+    trouver('it511-r-ajouter').addEventListener('click', function () { editerRestriction(null); });
+    trouver('it511-r-sauver').addEventListener('click', sauverRestriction);
+    trouver('it511-r-annuler').addEventListener('click', function () { trouver('it511-form-restriction').style.display = 'none'; });
+    trouver('it511-p-ajouter').addEventListener('click', function () { editerPreference(null); });
+    trouver('it511-p-sauver').addEventListener('click', sauverPreference);
+    trouver('it511-p-annuler').addEventListener('click', function () { trouver('it511-form-preference').style.display = 'none'; });
+    trouver('it511-eviter-peages').addEventListener('change', function (e) { ecrire('eviterPeages', e.target.checked ? '1' : '0'); });
+    trouver('it511-eviter-traversiers').addEventListener('change', function (e) { ecrire('eviterTraversiers', e.target.checked ? '1' : '0'); });
+    trouver('it511-pref-appliquer').addEventListener('change', function (e) { preferenceRefusee = e.target.checked ? null : (preferenceActive ? preferenceActive.id : null); });
+    trouver('it511-depart-prevu').value = versChampDate(new Date(Math.ceil(Date.now() / 900000) * 900000));
+  }
+
+  function calculerAvecEvitements(arrets, h, w, bouton) {
+    var evitees = {};
+    var iter = 0;
+    function calculerAvec(avec, geoRef) {
+      if (!avec) { return requeteTrajet(arrets, h, w, false); }
+      var f = geoRef.features[0];
+      if (f.properties.summary.distance <= 140) { return requeteTrajet(arrets, h, w, true); }
+      var latlngsRef = f.geometry.coordinates.map(function (c) { return [c[1], c[0]]; });
+      var obstacles = bloquantesSurTrajet(f.geometry.coordinates, h, w).concat(
+        boitesRestrictions.map(function (b) { return { lignes: [[b.centre]] }; }),
+        restrictions.filter(function (r) { return r.d.mode === 'interdit'; }).map(function (r) { return { lignes: geomRestrictions[r.id] || [] }; })
+      );
+      var coupes = pointsDeCoupe(f.geometry.coordinates, obstacles, 100);
+      var fixes = arrets.slice(1, -1).map(function (v) { return { lat: v.lat, lon: v.lon, idx: indexPlusProche(latlngsRef, v) }; });
+      var intermediaires = coupes.concat(fixes);
+      intermediaires.sort(function (a, b) { return a.idx - b.idx; });
+      var etapes = [arrets[0]].concat(intermediaires, [arrets[arrets.length - 1]]);
+      var resultats = [];
+      var chaine = Promise.resolve();
+      etapes.slice(0, -1).forEach(function (depart, i) {
+        chaine = chaine.then(function () {
+          bouton.textContent = 'Calcul du tronçon ' + (i + 1) + ' de ' + (etapes.length - 1) + '...';
+          return requeteTrajet([depart, etapes[i + 1]], h, w, true).then(function (geo) { resultats.push(geo); });
+        });
+      });
+      return chaine.then(function () { return fusionnerTroncons(resultats); });
+    }
+    function boucle(geo) {
+      var coords = geo.features[0].geometry.coordinates;
+      var bloq = bloquantesSurTrajet(coords, h, w);
+      bloq.forEach(function (e) { evitees[e.id] = true; });
+      nbEviteesCourant = Object.keys(evitees).length;
+      var nb = nouvellesBoites(coords);
+      if ((!bloq.length && !nb.length) || iter >= 4) {
+        nb.forEach(function (b) { bilanRestrictions.restantes[b.restriction] = true; });
+        return geo;
+      }
+      nb.forEach(function (b) { bilanRestrictions.evitees[b.restriction] = true; boitesRestrictions.push(b); });
+      iter++;
+      bouton.textContent = 'Contournement des restrictions (' + iter + ')...';
+      return calculerAvec(true, geo).then(boucle);
+    }
+    return calculerAvec(false).then(boucle);
+  }
+
+  function majZonePreference() {
+    var zone = trouver('it511-zone-pref');
+    if (!preferenceActive) { zone.style.display = 'none'; return; }
+    zone.style.display = 'flex';
+    trouver('it511-pref-texte').textContent = 'Passer par ' + preferenceActive.d.viaLabel + ' (itinéraire privilégié)';
+    trouver('it511-pref-appliquer').checked = preferenceRefusee !== preferenceActive.id;
+  }
+
+  function optionsTrajet(h, w, depart, arrivee, avecEvitement) {
     var o = { vehicle_type: 'hgv', profile_params: { restrictions: { height: h, width: w } } };
+    var af = avoidFeatures();
+    if (af.length) { o.avoid_features = af; }
+    if (!avecEvitement) { return { options: o, nombre: 0 }; }
     var ev = polygonesAEviter(h, w, depart, arrivee);
-    nbEviteesCourant = ev.nombre;
-    if (ev.multi) { o.avoid_polygons = ev.multi; }
-    return o;
+    var polys = ev.multi ? ev.multi.coordinates.slice() : [];
+    var marge = 0.6;
+    boitesRestrictions.forEach(function (b) {
+      var c = b.centre;
+      if (c[0] >= Math.min(depart.lat, arrivee.lat) - marge && c[0] <= Math.max(depart.lat, arrivee.lat) + marge &&
+          c[1] >= Math.min(depart.lon, arrivee.lon) - marge && c[1] <= Math.max(depart.lon, arrivee.lon) + marge) { polys.push(b.poly); }
+    });
+    if (polys.length) { o.avoid_polygons = { type: 'MultiPolygon', coordinates: polys }; }
+    return { options: o, nombre: ev.nombre };
+  }
+
+  function requeteTrajet(pts, h, w, avecEvitement) {
+    var cle = lire('cle', '');
+    var lats = pts.map(function (p) { return p.lat; }), lons = pts.map(function (p) { return p.lon; });
+    var coin1 = { lat: Math.min.apply(null, lats), lon: Math.min.apply(null, lons) };
+    var coin2 = { lat: Math.max.apply(null, lats), lon: Math.max.apply(null, lons) };
+    var opt = optionsTrajet(h, w, coin1, coin2, avecEvitement);
+    return fetch(ORS + '/openrouteservice/v2/directions/driving-hgv/geojson', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': cle },
+      body: JSON.stringify({
+        coordinates: pts.map(function (p) { return [p.lon, p.lat]; }),
+        radiuses: pts.map(function () { return -1; }),
+        units: 'km', language: 'fr', instructions: true,
+        options: opt.options
+      })
+    }).then(function (r) {
+      return r.json().then(function (data) { return { ok: r.ok, statut: r.status, data: data }; });
+    }).then(function (rep) {
+      if (!rep.ok) {
+        var code = rep.data && rep.data.error && rep.data.error.code;
+        if (rep.statut === 401 || rep.statut === 403) { throw new Error('La clé OpenRouteService est refusée. Vérifie-la dans les paramètres.'); }
+        var detail = (rep.data && rep.data.error && rep.data.error.message) ? ' [code ' + code + ' : ' + rep.data.error.message + ']' : ' [code ' + code + ']';
+        if (code === 2010) { throw new Error('Une des adresses est trop loin d’une route accessible aux camions.' + detail); }
+        if (code === 2009) { throw new Error('Aucun trajet possible avec ces dimensions entre ces deux adresses.' + detail); }
+        throw new Error('Le calcul a échoué (' + rep.statut + ') : ' + ((rep.data.error && rep.data.error.message) || 'erreur inconnue'));
+      }
+      return aplatirSegments(rep.data);
+    });
+  }
+
+  function aplatirSegments(geo) {
+    var f = geo.features[0];
+    var segs = f.properties.segments || [];
+    if (segs.length <= 1) { return geo; }
+    var steps = [];
+    segs.forEach(function (seg, n) {
+      (seg.steps || []).forEach(function (s) {
+        if (s.type === 10 && n < segs.length - 1) { return; }
+        steps.push(s);
+      });
+    });
+    f.properties.segments = [{ steps: steps }];
+    return geo;
+  }
+
+  function bloquantesSurTrajet(coords, h, w) {
+    return entravesSurTrajet(coords).filter(function (e) { return bloquante(e, h, w); });
+  }
+
+  function pointsDeCoupe(coords, bloquantes, longueurKm) {
+    var latlngs = coords.map(function (c) { return [c[1], c[0]]; });
+    var cumul = cumulKm(latlngs);
+    var total = cumul[cumul.length - 1];
+    var pointsBloquants = [];
+    bloquantes.forEach(function (e) { e.lignes.forEach(function (l) { l.forEach(function (p) { pointsBloquants.push(p); }); }); });
+    function loinDesEntraves(p) {
+      for (var i = 0; i < pointsBloquants.length; i += Math.max(1, Math.floor(pointsBloquants.length / 400))) {
+        if (distanceM(p, pointsBloquants[i]) < 5000) { return false; }
+      }
+      return true;
+    }
+    var coupes = [], cible = longueurKm, i = 0;
+    while (cible < total - 20) {
+      while (i < cumul.length - 1 && cumul[i] < cible) { i++; }
+      var choix = -1;
+      for (var d = 0; d < 400 && choix < 0; d++) {
+        var avant = i - d, apres = i + d;
+        if (avant > 0 && cumul[i] - cumul[avant] < 15 && loinDesEntraves(latlngs[avant])) { choix = avant; }
+        else if (apres < cumul.length - 1 && cumul[apres] - cumul[i] < 15 && loinDesEntraves(latlngs[apres])) { choix = apres; }
+      }
+      if (choix < 0) { choix = i; }
+      coupes.push({ lat: latlngs[choix][0], lon: latlngs[choix][1], label: 'étape', idx: choix });
+      cible = cumul[choix] + longueurKm;
+    }
+    return coupes;
+  }
+
+  function fusionnerTroncons(resultats) {
+    var coords = [], steps = [], distance = 0, duree = 0;
+    resultats.forEach(function (geo, n) {
+      var f = geo.features[0];
+      var c = f.geometry.coordinates;
+      var decalage = coords.length > 0 ? coords.length - 1 : 0;
+      coords = coords.length ? coords.concat(c.slice(1)) : c.slice();
+      (f.properties.segments || []).forEach(function (seg) {
+        (seg.steps || []).forEach(function (s) {
+          if (s.type === 10 && n < resultats.length - 1) { return; }
+          var copie = {};
+          Object.keys(s).forEach(function (k) { copie[k] = s[k]; });
+          copie.way_points = [s.way_points[0] + decalage, s.way_points[1] + decalage];
+          steps.push(copie);
+        });
+      });
+      distance += f.properties.summary.distance;
+      duree += f.properties.summary.duration;
+    });
+    return { features: [{ type: 'Feature', geometry: { type: 'LineString', coordinates: coords },
+      properties: { segments: [{ steps: steps }], summary: { distance: distance, duration: duree } } }] };
   }
 
   function calculer() {
@@ -213,33 +841,20 @@ geotab.addin.lfs = function () {
       points.arrivee ? Promise.resolve(points.arrivee) : geocoder(trouver('it511-arrivee').value.trim())
     ]); }).then(function (p) {
       points.depart = p[0]; points.arrivee = p[1];
-      return fetch(ORS + '/openrouteservice/v2/directions/driving-hgv/geojson', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': cle },
-        body: JSON.stringify({
-          coordinates: [[p[0].lon, p[0].lat], [p[1].lon, p[1].lat]],
-          radiuses: [-1, -1],
-          units: 'km',
-          language: 'fr',
-          instructions: true,
-          options: optionsTrajet(h, w, p[0], p[1])
-        })
-      });
-    }).then(function (r) {
-      return r.json().then(function (data) { return { ok: r.ok, statut: r.status, data: data }; });
-    }).then(function (rep) {
-      if (!rep.ok) {
-        var code = rep.data && rep.data.error && rep.data.error.code;
-        if (rep.statut === 401 || rep.statut === 403) { throw new Error('La clé OpenRouteService est refusée. Vérifie-la dans les paramètres.'); }
-        var detail = (rep.data && rep.data.error && rep.data.error.message) ? ' [code ' + code + ' : ' + rep.data.error.message + ']' : ' [code ' + code + ']';
-        if (code === 2010) { throw new Error('Une des adresses est trop loin d’une route accessible aux camions.' + detail); }
-        if (code === 2009) { throw new Error('Aucun trajet possible avec ces dimensions entre ces deux adresses.' + detail); }
-        throw new Error('Le calcul a échoué (' + rep.statut + ') : ' + ((rep.data.error && rep.data.error.message) || 'erreur inconnue'));
-      }
-      var f0 = rep.data.features[0];
-      trouver('it511-calculer').textContent = 'Identification des routes...';
+      boitesRestrictions = [];
+      bilanRestrictions = { evitees: {}, restantes: {} };
+      preferenceActive = preferencePourDepart(p[0]);
+      majZonePreference();
+      var appliquerPref = preferenceActive && preferenceRefusee !== preferenceActive.id;
+      if (!appliquerPref) { preferenceActive = preferenceActive && preferenceRefusee === preferenceActive.id ? null : preferenceActive; }
+      var viaPref = appliquerPref ? [{ lat: preferenceActive.d.viaLat, lon: preferenceActive.d.viaLon }] : [];
+      var arrets = [p[0]].concat(viaPref, vias, [p[1]]);
+      return chargerGeometriesRestrictions().then(function () { return calculerAvecEvitements(arrets, h, w, bouton); });
+    }).then(function (geo) {
+      var f0 = geo.features[0];
+      bouton.textContent = 'Identification des routes...';
       return enrichirReferences(f0.properties.segments[0].steps || [], f0.geometry.coordinates).then(function () {
-        afficherResultat(rep.data, h, w);
+        afficherResultat(geo, h, w);
       });
     }).catch(function (e) {
       message(e.message || String(e), true);
@@ -421,7 +1036,8 @@ geotab.addin.lfs = function () {
   function afficherDonnees(d) {
     coucheTrajet.clearLayers();
     if (d.latlngs && d.latlngs.length) {
-      var trace = L.polyline(d.latlngs, { color: '#c2410c', weight: 5, opacity: 0.85 }).addTo(coucheTrajet);
+      var trace = L.polyline(d.latlngs, { color: '#c2410c', weight: 6, opacity: 0.85 }).addTo(coucheTrajet);
+      ligneTrajet = trace;
       carte.fitBounds(trace.getBounds(), { padding: [30, 30] });
     }
     if (d.depart) {
@@ -466,9 +1082,11 @@ geotab.addin.lfs = function () {
     afficherDonnees(d);
     trouver('it511-titre-resultat').textContent = voyageEnEdition ? 'Nouveau calcul (modification en cours)' : 'Nouveau trajet';
     afficherEntravesTrajet(entravesSurTrajet(coords), nbEviteesCourant);
+    afficherBilanRestrictions(verifierHoraires(coords, f.properties.summary.duration, totalKm));
     d.traceEnc = traceCompacte(latlngs);
     d.hauteur = h; d.largeur = w;
     dernierResultat = d;
+    activerEdition();
   }
 
   function copier(texte) {
@@ -871,15 +1489,23 @@ geotab.addin.lfs = function () {
 
   function chargerStockage() {
     return appelGeotab('Get', { typeName: 'AddInData', search: { addInId: ADDIN_ID } }).then(function (lignes) {
-      voyages = [];
+      voyages = []; restrictions = []; preferences = [];
       (lignes || []).forEach(function (l) {
         var d = l.details || {};
         if (d.type === 'parametres') { parametresId = l.id; parametres = d; }
         else if (d.type === 'voyage') { voyages.push({ id: l.id, d: d }); }
+        else if (d.type === 'restriction') { restrictions.push({ id: l.id, d: d }); }
+        else if (d.type === 'preference') { preferences.push({ id: l.id, d: d }); }
       });
       voyages.sort(function (a, b) { return (b.d.date || '').localeCompare(a.d.date || ''); });
       appliquerParametres();
       afficherListeVoyages();
+      afficherListeRestrictions();
+      if (!restrictions.length && !parametres.restrictionsInit && !initRestrictionsFaite) {
+        initRestrictionsFaite = true;
+        return initialiserRestrictions();
+      }
+      chargerGeometriesRestrictions().then(afficherListeRestrictions);
     }).catch(function (e) {
       message('Lecture du stockage Geotab impossible : ' + (e && e.message ? e.message : e), true);
     });
@@ -895,7 +1521,7 @@ geotab.addin.lfs = function () {
   function sauverParametresPartages() {
     clearTimeout(minuterieSauvegarde);
     minuterieSauvegarde = setTimeout(function () {
-      var details = { type: 'parametres', cle: parametres.cle || '', cle511on: parametres.cle511on || '', hauteurPi: parametres.hauteurPi || '', largeurPi: parametres.largeurPi || '' };
+      var details = Object.assign({}, parametres, { type: 'parametres' });
       var entite = { addInId: ADDIN_ID, groups: [{ id: 'GroupCompanyId' }], details: details };
       if (parametresId) {
         entite.id = parametresId;
@@ -922,6 +1548,7 @@ geotab.addin.lfs = function () {
       routes: dernierResultat.routes.map(function (r) { return { n: r.nom, k: Math.round(r.km * 10) / 10 }; }),
       enLigne: dernierResultat.enLigne,
       trace: dernierResultat.traceEnc,
+      vias: vias.map(function (v) { return { lat: Math.round(v.lat * 1e5) / 1e5, lon: Math.round(v.lon * 1e5) / 1e5 }; }),
       actifId: sel.value || '', actifNom: sel.value ? sel.options[sel.selectedIndex].text : ''
     };
     var taille = JSON.stringify(details).length;
@@ -965,6 +1592,7 @@ geotab.addin.lfs = function () {
     trouver('it511-largeur').value = d.largeurPi || ''; afficherConversion('it511-largeur');
     trouver('it511-actif').value = d.actifId || '';
     voyageEnEdition = v.id;
+    vias = (d.vias || []).slice();
     trouver('it511-sauver-voyage').textContent = 'Mettre à jour le voyage ' + d.ref;
     message('Modification du voyage ' + d.ref + ' : ajuste les champs, recalcule le trajet, puis clique sur « Mettre à jour ».');
     trouver('it511-wrap').scrollIntoView({ behavior: 'smooth' });
@@ -973,6 +1601,8 @@ geotab.addin.lfs = function () {
   function ouvrirVoyage(v) {
     var d = v.d;
     voyageAffiche = v;
+    desactiverEdition();
+    afficherBilanRestrictions([]);
     var latlngs = d.trace ? decoderPolyligne(d.trace) : [];
     afficherDonnees({
       routes: (d.routes || []).map(function (r) { return { nom: r.n, km: r.k }; }),
@@ -1162,8 +1792,10 @@ geotab.addin.lfs = function () {
     brancherAdresse('depart');
     brancherAdresse('arrivee');
     brancherRecherche();
+    brancherRestrictions();
     trouver('it511-sauver-voyage').addEventListener('click', sauverVoyage);
     trouver('it511-comparer').addEventListener('click', comparerReel);
+    trouver('it511-reinit-trace').addEventListener('click', function () { vias = []; calculer(); });
   }
 
   return {
@@ -1197,7 +1829,7 @@ geotab.addin.lfs = function () {
 <div id="it511-wrap" style="padding:12px 16px;box-sizing:border-box;">
   <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px;margin-bottom:10px;">
     <span style="font-size:18px;font-weight:600;">LFS</span>
-    <span style="font-size:12px;color:#8a8f98;">version 1.0.3</span>
+    <span style="font-size:12px;color:#8a8f98;">version 1.2</span>
     <span id="it511-statut" style="font-size:13px;color:#5a6270;">Démarrage...</span>
     <span id="it511-sources" style="font-size:13px;color:#5a6270;"></span>
   </div>
@@ -1228,6 +1860,13 @@ geotab.addin.lfs = function () {
         </div>
       </div>
 
+      <div style="margin-bottom:10px;">
+        <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Départ prévu</label>
+        <input id="it511-depart-prevu" type="datetime-local" style="width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
+      </div>
+      <label id="it511-zone-pref" style="display:none;align-items:center;gap:6px;font-size:12px;margin-bottom:10px;cursor:pointer;">
+        <input id="it511-pref-appliquer" type="checkbox" checked> <span id="it511-pref-texte"></span>
+      </label>
       <div style="display:flex;gap:10px;margin-bottom:12px;">
         <div style="flex:1;">
           <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Référence</label>
@@ -1255,6 +1894,7 @@ geotab.addin.lfs = function () {
             <div id="it511-duree" style="font-size:20px;font-weight:600;"></div>
           </div>
         </div>
+        <button id="it511-reinit-trace" type="button" style="display:none;width:100%;margin-bottom:10px;padding:6px;border:1px solid #c9ced6;border-radius:4px;background:#fff;font-size:12px;cursor:pointer;"></button>
         <div style="font-size:13px;font-weight:600;margin-bottom:4px;">Routes empruntées</div>
         <div id="it511-routes" style="border-top:1px solid #eef0f3;margin-bottom:10px;"></div>
         <div style="font-size:13px;font-weight:600;margin-bottom:4px;">En ligne</div>
@@ -1263,6 +1903,8 @@ geotab.addin.lfs = function () {
           <button id="it511-copier-ligne" type="button" style="flex:1;padding:7px;border:1px solid #c9ced6;border-radius:4px;background:#fff;font-size:13px;cursor:pointer;">Copier la ligne</button>
           <button id="it511-copier-liste" type="button" style="flex:1;padding:7px;border:1px solid #c9ced6;border-radius:4px;background:#fff;font-size:13px;cursor:pointer;">Copier la liste</button>
         </div>
+        <div style="font-size:13px;font-weight:600;margin:12px 0 4px;">Restrictions LFS</div>
+        <div id="it511-restrictions-trajet"></div>
         <div style="font-size:13px;font-weight:600;margin:12px 0 4px;">Entraves 511</div>
         <div id="it511-entraves"></div>
         <button id="it511-sauver-voyage" type="button" style="width:100%;margin-top:10px;padding:8px;border:none;border-radius:4px;background:#15803d;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">Enregistrer le voyage</button>
@@ -1287,6 +1929,39 @@ geotab.addin.lfs = function () {
         </div>
         <div id="it511-liste-voyages"></div>
       </div>
+
+      <details style="margin-top:16px;border-top:1px solid #eef0f3;padding-top:10px;">
+        <summary style="font-size:13px;cursor:pointer;font-weight:600;">Restrictions et itinéraires privilégiés</summary>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin-top:8px;"><input id="it511-eviter-peages" type="checkbox"> Éviter les péages (A-25 et A-30)</label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin:4px 0 8px;"><input id="it511-eviter-traversiers" type="checkbox"> Éviter les traversiers</label>
+        <div style="font-size:12px;font-weight:600;margin-bottom:4px;">Restrictions</div>
+        <div id="it511-liste-restrictions"></div>
+        <button id="it511-r-ajouter" type="button" style="padding:5px 10px;border:1px solid #c9ced6;border-radius:4px;background:#fff;font-size:12px;cursor:pointer;">+ Ajouter une restriction</button>
+        <div id="it511-form-restriction" style="display:none;border:1px solid #c9ced6;border-radius:4px;padding:8px;margin-top:6px;">
+          <input id="it511-r-nom" type="text" placeholder="Nom (ex. Pont Honoré-Mercier)" style="width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #c9ced6;border-radius:4px;font-size:12px;margin-bottom:6px;">
+          <div style="display:flex;gap:6px;margin-bottom:6px;">
+            <select id="it511-r-mode" style="width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #c9ced6;border-radius:4px;font-size:12px;"><option value="interdit">Interdit en tout temps</option><option value="horaire">Interdit selon l’horaire</option></select>
+            <select id="it511-r-critere" style="width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #c9ced6;border-radius:4px;font-size:12px;"><option value="ref">Numéro de route</option><option value="nom">Nom du pont ou tunnel</option></select>
+          </div>
+          <input id="it511-r-valeur" type="text" style="width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #c9ced6;border-radius:4px;font-size:12px;margin-bottom:6px;">
+          <div id="it511-r-horaire" style="display:none;gap:6px;margin-bottom:6px;">
+            <input id="it511-r-debut" type="time" style="width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #c9ced6;border-radius:4px;font-size:12px;">
+            <input id="it511-r-fin" type="time" style="width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #c9ced6;border-radius:4px;font-size:12px;">
+            <select id="it511-r-jours" style="width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #c9ced6;border-radius:4px;font-size:12px;"><option value="tous">Tous les jours</option><option value="semaine">Lundi au vendredi</option></select>
+          </div>
+          <div style="display:flex;gap:6px;"><button id="it511-r-sauver" type="button" style="padding:5px 10px;border:1px solid #c9ced6;border-radius:4px;background:#fff;font-size:12px;cursor:pointer;">Enregistrer</button><button id="it511-r-annuler" type="button" style="padding:5px 10px;border:1px solid #c9ced6;border-radius:4px;background:#fff;font-size:12px;cursor:pointer;">Annuler</button></div>
+        </div>
+        <div style="font-size:12px;font-weight:600;margin:10px 0 4px;">Itinéraires privilégiés</div>
+        <div id="it511-liste-preferences"></div>
+        <button id="it511-p-ajouter" type="button" style="padding:5px 10px;border:1px solid #c9ced6;border-radius:4px;background:#fff;font-size:12px;cursor:pointer;">+ Ajouter un itinéraire privilégié</button>
+        <div id="it511-form-preference" style="display:none;border:1px solid #c9ced6;border-radius:4px;padding:8px;margin-top:6px;">
+          <input id="it511-p-nom" type="text" placeholder="Nom" style="width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #c9ced6;border-radius:4px;font-size:12px;margin-bottom:6px;">
+          <input id="it511-p-depart" type="text" placeholder="Lieu de départ (ex. Sainte-Anne-de-la-Rochelle, QC)" style="width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #c9ced6;border-radius:4px;font-size:12px;margin-bottom:6px;">
+          <input id="it511-p-rayon" type="text" placeholder="Rayon en km (ex. 10)" style="width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #c9ced6;border-radius:4px;font-size:12px;margin-bottom:6px;">
+          <input id="it511-p-via" type="text" placeholder="Passer par (ex. Waterloo, QC)" style="width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #c9ced6;border-radius:4px;font-size:12px;margin-bottom:6px;">
+          <div style="display:flex;gap:6px;"><button id="it511-p-sauver" type="button" style="padding:5px 10px;border:1px solid #c9ced6;border-radius:4px;background:#fff;font-size:12px;cursor:pointer;">Enregistrer</button><button id="it511-p-annuler" type="button" style="padding:5px 10px;border:1px solid #c9ced6;border-radius:4px;background:#fff;font-size:12px;cursor:pointer;">Annuler</button></div>
+        </div>
+      </details>
 
       <details style="margin-top:16px;border-top:1px solid #eef0f3;padding-top:10px;">
         <summary style="font-size:13px;cursor:pointer;color:#5a6270;">Paramètres</summary>
