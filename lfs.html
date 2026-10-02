@@ -182,8 +182,7 @@ geotab.addin.lfs = function () {
   }
 
   function afficherConversion(id) {
-    var m = piedsEnMetres(trouver(id).value);
-    trouver(id + '-m').textContent = m ? '= ' + nombreFr(m, 2) + ' m' : '';
+    return id;
   }
 
   var nbEviteesCourant = 0;
@@ -734,6 +733,68 @@ geotab.addin.lfs = function () {
   var coucheCameras = null;
   var camerasChargees = 0;
 
+  var modaleCamera = null, minuterieCamera = null;
+
+  function fermerModaleCamera() {
+    if (minuterieCamera) { clearInterval(minuterieCamera); minuterieCamera = null; }
+    if (modaleCamera) { modaleCamera.parentNode.removeChild(modaleCamera); modaleCamera = null; }
+    document.removeEventListener('keydown', toucheModale);
+  }
+
+  function toucheModale(e) { if (e.key === 'Escape') { fermerModaleCamera(); } }
+
+  function ouvrirModaleCamera(titre, lien, image) {
+    fermerModaleCamera();
+    var fond = document.createElement('div');
+    fond.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.6);z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;';
+    fond.addEventListener('click', function (e) { if (e.target === fond) { fermerModaleCamera(); } });
+    var boite = document.createElement('div');
+    boite.style.cssText = 'background:#fff;border-radius:8px;width:min(960px,100%);max-height:100%;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,0.35);';
+    var entete = document.createElement('div');
+    entete.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;border-bottom:1px solid #e3e6eb;';
+    var t = document.createElement('div');
+    t.style.cssText = 'font-weight:600;font-size:14px;';
+    t.textContent = titre;
+    var fermer = document.createElement('button');
+    fermer.type = 'button';
+    fermer.textContent = 'Fermer ✕';
+    fermer.style.cssText = 'padding:5px 10px;border:1px solid #c9ced6;border-radius:4px;background:#fff;font-size:13px;cursor:pointer;';
+    fermer.addEventListener('click', fermerModaleCamera);
+    entete.appendChild(t); entete.appendChild(fermer);
+    var corps = document.createElement('div');
+    corps.style.cssText = 'flex:1;min-height:0;background:#0f172a;display:flex;align-items:center;justify-content:center;';
+    if (image) {
+      var img = document.createElement('img');
+      img.alt = titre;
+      img.style.cssText = 'max-width:100%;max-height:75vh;display:block;';
+      var charger = function () { img.src = image + (image.indexOf('?') >= 0 ? '&' : '?') + 't=' + Date.now(); };
+      charger();
+      minuterieCamera = setInterval(charger, 30000);
+      corps.appendChild(img);
+    } else if (lien) {
+      var cadre = document.createElement('iframe');
+      cadre.src = lien;
+      cadre.title = titre;
+      cadre.style.cssText = 'width:100%;height:70vh;border:0;background:#fff;';
+      cadre.setAttribute('allow', 'autoplay; fullscreen');
+      corps.appendChild(cadre);
+    }
+    var pied = document.createElement('div');
+    pied.style.cssText = 'padding:8px 14px;font-size:12px;color:#5a6270;border-top:1px solid #e3e6eb;';
+    pied.textContent = image ? 'Image actualisée toutes les 30 secondes. ' : 'Si la vidéo ne s’affiche pas, ';
+    if (lien) {
+      var a = document.createElement('a');
+      a.href = lien; a.target = '_blank'; a.rel = 'noopener';
+      a.textContent = image ? 'Ouvrir dans un nouvel onglet' : 'ouvre-la dans un nouvel onglet';
+      pied.appendChild(a);
+    }
+    boite.appendChild(entete); boite.appendChild(corps); boite.appendChild(pied);
+    fond.appendChild(boite);
+    document.body.appendChild(fond);
+    modaleCamera = fond;
+    document.addEventListener('keydown', toucheModale);
+  }
+
   function popupCamera(titre, lien, image) {
     var boite = document.createElement('div');
     boite.style.cssText = 'max-width:300px;font-size:12px;';
@@ -745,14 +806,17 @@ geotab.addin.lfs = function () {
       var img = document.createElement('img');
       img.src = image + (image.indexOf('?') >= 0 ? '&' : '?') + 't=' + Date.now();
       img.alt = titre;
-      img.style.cssText = 'width:100%;border-radius:4px;display:block;margin-bottom:4px;';
+      img.style.cssText = 'width:100%;border-radius:4px;display:block;margin-bottom:4px;cursor:zoom-in;';
+      img.addEventListener('click', function () { ouvrirModaleCamera(titre, lien, image); });
       boite.appendChild(img);
     }
-    if (lien) {
-      var a = document.createElement('a');
-      a.href = lien; a.target = '_blank'; a.rel = 'noopener';
-      a.textContent = 'Voir la caméra';
-      boite.appendChild(a);
+    if (lien || image) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = 'Voir la caméra';
+      b.style.cssText = 'padding:4px 10px;border:1px solid #c9ced6;border-radius:4px;background:#fff;font-size:12px;cursor:pointer;';
+      b.addEventListener('click', function () { ouvrirModaleCamera(titre, lien, image); });
+      boite.appendChild(b);
     }
     return boite;
   }
@@ -1122,6 +1186,7 @@ geotab.addin.lfs = function () {
       minuterie = setInterval(function () { chargerActifs(api); rafraichirRadar(); chargerEntraves(false); }, 120000);
     },
     blur: function (api, state) {
+      fermerModaleCamera();
       if (minuterie) { clearInterval(minuterie); minuterie = null; }
     }
   };
@@ -1132,7 +1197,7 @@ geotab.addin.lfs = function () {
 <div id="it511-wrap" style="padding:12px 16px;box-sizing:border-box;">
   <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px;margin-bottom:10px;">
     <span style="font-size:18px;font-weight:600;">LFS</span>
-    <span style="font-size:12px;color:#8a8f98;">version 1.0</span>
+    <span style="font-size:12px;color:#8a8f98;">version 1.0.3</span>
     <span id="it511-statut" style="font-size:13px;color:#5a6270;">Démarrage...</span>
     <span id="it511-sources" style="font-size:13px;color:#5a6270;"></span>
   </div>
@@ -1156,12 +1221,10 @@ geotab.addin.lfs = function () {
         <div style="flex:1;">
           <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Hauteur (pi)</label>
           <input id="it511-hauteur" type="text" placeholder="15'6&quot; ou 15,5" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
-          <div id="it511-hauteur-m" style="font-size:11px;color:#5a6270;margin-top:2px;min-height:14px;"></div>
         </div>
         <div style="flex:1;">
           <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Largeur (pi)</label>
           <input id="it511-largeur" type="text" placeholder="16' ou 16,0" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
-          <div id="it511-largeur-m" style="font-size:11px;color:#5a6270;margin-top:2px;min-height:14px;"></div>
         </div>
       </div>
 
@@ -1242,7 +1305,6 @@ geotab.addin.lfs = function () {
         <summary style="font-size:12px;cursor:pointer;color:#5a6270;">Détail technique du trajet (soutien)</summary>
         <div id="it511-diagnostic" style="max-height:260px;overflow:auto;margin-top:6px;"></div>
       </details>
-      <div style="margin-top:12px;font-size:11px;color:#5a6270;line-height:1.4;">Outil d’aide à la planification. Il ne remplace pas le trajet autorisé par le permis spécial de circulation ni la vérification sur le terrain. Les entraves sont interprétées automatiquement à partir des données 511 et peuvent être incomplètes (horaires, directions).</div>
     </div>
 
     <div style="flex:1 1 480px;min-width:300px;">
