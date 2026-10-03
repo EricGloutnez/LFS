@@ -91,6 +91,29 @@
 
   #lfsd .autre { display: block; width: calc(100% - 32px) !important; margin: 16px !important; padding: 14px !important; font-weight: 700 !important; text-align: center !important; }
   #lfsd .pied { padding: 0 16px 24px; font-size: 13px; color: var(--doux); }
+  #lfsd .demarrer { display: block; width: 100% !important; margin-top: 16px !important; padding: 16px !important; font-size: 20px !important; font-weight: 800 !important; text-align: center !important; background: var(--accent) !important; color: #1d2329 !important; border-color: var(--accent) !important; }
+
+  /* ----- Mode navigation */
+  #lfsd .nav { display: none; position: relative; background: var(--fond); }
+  #lfsd.en-nav .entete, #lfsd.en-nav .bloc, #lfsd.en-nav .voyage, #lfsd.en-nav .pied { display: none !important; }
+  #lfsd.en-nav .nav { display: block !important; }
+  #lfsd .nav-carte { width: 100%; height: 70vh; background: #d9dee3; }
+  #lfsd .manoeuvre { position: absolute; top: 10px; left: 10px; right: 10px; z-index: 1000; display: flex; align-items: center; gap: 14px;
+    background: #1b5e3b; color: #fff; border-radius: 14px; padding: 12px 16px; box-shadow: 0 4px 14px rgba(0,0,0,.35); }
+  #lfsd .manoeuvre.hors { background: var(--signal); }
+  #lfsd .manoeuvre svg { width: 54px; height: 54px; flex: 0 0 54px; }
+  #lfsd .manoeuvre .dist { font-size: 30px; font-weight: 800; line-height: 1; }
+  #lfsd .manoeuvre .rue { font-size: 20px; font-weight: 600; margin-top: 4px; line-height: 1.15; }
+  #lfsd .manoeuvre .ensuite { font-size: 14px; opacity: .85; margin-top: 4px; }
+  #lfsd .nav-boutons { position: absolute; right: 10px; bottom: 96px; z-index: 1000; display: flex; flex-direction: column; gap: 10px; }
+  #lfsd .nav-boutons button { width: 56px !important; height: 56px !important; border-radius: 50% !important; padding: 0 !important; text-align: center !important; font-size: 22px !important; font-weight: 800 !important; box-shadow: 0 2px 8px rgba(0,0,0,.3) !important; }
+  #lfsd .nav-bas { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1000; display: flex; align-items: center; gap: 12px; background: var(--surface); border-top: 1px solid var(--ligne); padding: 10px 14px; }
+  #lfsd .nav-bas .temps { font-size: 26px; font-weight: 800; color: #1b7f3b; line-height: 1; }
+  #lfsd .nav-bas .details { font-size: 15px; color: var(--doux); margin-top: 4px; }
+  #lfsd .nav-bas .milieu { flex: 1; text-align: center; }
+  #lfsd .nav-bas .quitter { width: 56px !important; height: 56px !important; border-radius: 50% !important; padding: 0 !important; text-align: center !important; font-size: 24px !important; }
+  #lfsd .nav-bas .camion-nav { font-size: 13px; color: var(--doux); margin-top: 2px; }
+  #lfsd .moi { width: 34px; height: 34px; }
   @media (min-width: 700px) { #lfsd { max-width: 720px; margin: 0 auto; } }
 </style>
   <div class="entete">
@@ -110,6 +133,7 @@
       <div id="lfsd-ref" class="ref"></div>
       <div id="lfsd-trajet" class="trajet"></div>
       <div id="lfsd-chiffres" class="chiffres"></div>
+      <button id="lfsd-demarrer" type="button" class="demarrer">Démarrer la navigation</button>
     </div>
     <div id="lfsd-carte" class="carte" style="height:42vh;min-height:240px;"></div>
     <div class="progression" aria-live="polite">
@@ -140,12 +164,37 @@
     <button id="lfsd-autre" type="button" class="autre">Chercher un autre voyage</button>
   </div>
 
+  <div id="lfsd-nav" class="nav">
+    <div id="lfsd-nav-carte" class="nav-carte" style="height:70vh;"></div>
+    <div id="lfsd-manoeuvre" class="manoeuvre" aria-live="polite">
+      <div id="lfsd-fleche"></div>
+      <div>
+        <div id="lfsd-m-dist" class="dist">-</div>
+        <div id="lfsd-m-rue" class="rue">Position en attente…</div>
+        <div id="lfsd-m-ensuite" class="ensuite"></div>
+      </div>
+    </div>
+    <div class="nav-boutons">
+      <button id="lfsd-son" type="button" aria-label="Voix">🔊</button>
+      <button id="lfsd-recentrer" type="button" aria-label="Recentrer">◎</button>
+    </div>
+    <div class="nav-bas">
+      <button id="lfsd-quitter" type="button" class="quitter" aria-label="Quitter la navigation">✕</button>
+      <div class="milieu">
+        <div id="lfsd-n-temps" class="temps">-</div>
+        <div id="lfsd-n-details" class="details"></div>
+        <div id="lfsd-n-camion" class="camion-nav"></div>
+      </div>
+      <div style="width:56px;"></div>
+    </div>
+  </div>
+
   <div class="pied">Consulter avant le départ ou à l'arrêt. Ouvrir la page pendant que le réseau est bon : les voyages et leurs directions restent ensuite disponibles sans connexion sur ce téléphone. Les conditions inscrites au permis ont préséance.</div>
 </div>
 <script>
 (function () {
   var ADDIN_ID = 'aXdeNEZ7tQ7eMPNywYFFKrA';
-  var VERSION = '1.2';
+  var VERSION = '1.4';
   var CLE_CACHE = 'lfsd-voyages', CLE_DERNIER = 'lfsd-dernier', CLE_PARAM = 'lfsd-parametres';
 
   var api = null, carte = null, coucheTrace = null, marqueurMoi = null, marqueurCamion = null;
@@ -247,12 +296,18 @@
     var zone = $('lfsd-suggestions');
     while (zone.firstChild) { zone.removeChild(zone.firstChild); }
     var texte = $('lfsd-recherche').value.trim();
-    var trouves = voyages.filter(function (v) { return !texte || String(v.d.ref || '').indexOf(texte) === 0; });
-    if (!texte) { trouves = trouves.slice(0, 6); }
+    if (texte.length < 3) {
+      var aide = document.createElement('div');
+      aide.className = 'vide';
+      aide.textContent = 'Tape au moins les 3 premiers chiffres du numéro de voyage.';
+      zone.appendChild(aide);
+      return;
+    }
+    var trouves = voyages.filter(function (v) { return String(v.d.ref || '').indexOf(texte) === 0; });
     if (!trouves.length) {
       var vide = document.createElement('div');
       vide.className = 'vide';
-      vide.textContent = texte ? 'Aucun voyage ne commence par ' + texte + '.' : 'Aucun voyage enregistré.';
+      vide.textContent = 'Aucun voyage ne commence par ' + texte + '.';
       zone.appendChild(vide);
       return;
     }
@@ -458,6 +513,221 @@
     });
   }
 
+
+  // ===================== Navigation (suit le trajet LFS, ne recalcule jamais) =====================
+  var nav = { actif: false, carte: null, couche: null, marqueur: null, suivre: true, voix: true, manoeuvres: [], annonces: {},
+    horsCompte: 0, horsAnnonce: false, verrou: null, segInfo: null, dernierKm: 0 };
+
+  var FLECHES = {
+    gauche: 'M34 46V26H20 M20 26l8-8 M20 26l8 8', droite: 'M20 46V26h14 M34 26l-8-8 M34 26l-8 8',
+    legere_gauche: 'M32 46V30L22 20 M22 20h9 M22 20v9', legere_droite: 'M22 46V30l10-10 M32 20h-9 M32 20v9',
+    tout_droit: 'M27 46V12 M27 12l-8 8 M27 12l8 8', demi_tour: 'M34 46V22a7 7 0 0 0-14 0v10 M20 32l-6-6 M20 32l6-6',
+    giratoire: 'M27 46V34 M27 34a8 8 0 1 0-8-8 M19 26l-5 5 M19 26l5 5', arrivee: 'M18 46V10 M18 10h18l-5 6 5 6H18',
+    depart: 'M27 46V12 M27 12l-8 8 M27 12l8 8'
+  };
+  function nomFleche(type, texte) {
+    switch (type) {
+      case 0: case 2: return 'gauche';
+      case 1: case 3: return 'droite';
+      case 4: case 12: return 'legere_gauche';
+      case 5: case 13: return 'legere_droite';
+      case 9: return 'demi_tour';
+      case 7: case 8: return 'giratoire';
+      case 10: return 'arrivee';
+      case 11: return 'depart';
+      default:
+        if (/gauche/i.test(texte || '')) { return 'gauche'; }
+        if (/droite/i.test(texte || '')) { return 'droite'; }
+        return 'tout_droit';
+    }
+  }
+  function svgFleche(nom) {
+    return '<svg viewBox="0 0 54 54" aria-hidden="true"><path d="' + (FLECHES[nom] || FLECHES.tout_droit) +
+      '" fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  }
+
+  // Projection précise sur le tracé : segment le plus proche, km le long du trajet
+  function preparerSegments() {
+    var seg = [];
+    for (var i = 0; i < trace.length - 1; i++) { seg.push({ a: trace[i], b: trace[i + 1], km0: cumul[i], km1: cumul[i + 1] }); }
+    nav.segInfo = seg;
+  }
+  function projeterPrecis(p, depuis) {
+    var meilleur = null, dMin = Infinity, seg = nav.segInfo || [];
+    var mLon = 111320 * Math.cos(p[0] * Math.PI / 180), mLat = 111320;
+    for (var i = depuis || 0; i < seg.length; i++) {
+      var s = seg[i];
+      var ax = (s.a[1] - p[1]) * mLon, ay = (s.a[0] - p[0]) * mLat, bx = (s.b[1] - p[1]) * mLon, by = (s.b[0] - p[0]) * mLat;
+      var dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+      var t = l2 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / l2)) : 0;
+      var x = ax + t * dx, y = ay + t * dy, d = Math.sqrt(x * x + y * y);
+      if (d < dMin) { dMin = d; meilleur = { seg: i, ecartM: d, km: s.km0 + t * (s.km1 - s.km0) }; }
+    }
+    return meilleur || { seg: 0, ecartM: Infinity, km: 0 };
+  }
+
+  function preparerManoeuvres() {
+    var etapes = (voyageActif && directions[voyageActif.d.ref]) || [];
+    var liste = [], depuis = 0;
+    etapes.forEach(function (e) {
+      if (e.length < 4 || e[2] === null || e[3] === null) { return; }
+      var pr = projeterPrecis([e[2], e[3]], depuis);
+      depuis = pr.seg;
+      liste.push({ texte: e[0], km: pr.km, type: e[4], cible: e[5] || '' });
+    });
+    nav.manoeuvres = liste;
+    nav.annonces = {};
+  }
+
+  function parler(texte) {
+    if (!nav.voix || !window.speechSynthesis) { return; }
+    try {
+      var u = new SpeechSynthesisUtterance(texte);
+      u.lang = 'fr-CA'; u.rate = 1;
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(u);
+    } catch (e) {}
+  }
+
+  function distanceTexte(km) {
+    if (km >= 1) { return nombreFr(km, km >= 10 ? 0 : 1) + ' km'; }
+    var m = Math.max(0, Math.round(km * 1000 / 10) * 10);
+    return m + ' m';
+  }
+  function distanceParlee(km) {
+    if (km >= 1) { return nombreFr(Math.round(km * 10) / 10, km >= 10 ? 0 : 1).replace(',0', '') + ' kilomètres'; }
+    return (Math.round(km * 1000 / 50) * 50) + ' mètres';
+  }
+
+  function creerCarteNav() {
+    if (nav.carte || typeof L === 'undefined') { return; }
+    nav.carte = L.map($('lfsd-nav-carte'), { zoomControl: false, attributionControl: true });
+    var url = parametres.cleCarto ? 'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=' + encodeURIComponent(parametres.cleCarto)
+      : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+    var fond = L.tileLayer(url, { maxZoom: 20, attribution: parametres.cleCarto ? '&copy; OpenStreetMap, &copy; CARTO' : '&copy; OpenStreetMap' });
+    var ok = 0, err = 0;
+    fond.on('tileload', function () { ok++; });
+    fond.on('tileerror', function () { err++; if (err >= 6 && !ok && parametres.cleCarto) { fond.setUrl('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'); } });
+    fond.addTo(nav.carte);
+    nav.couche = L.layerGroup().addTo(nav.carte);
+    nav.carte.on('dragstart', function () { nav.suivre = false; });
+  }
+
+  function ajusterHauteurNav() {
+    var el = $('lfsd-nav-carte');
+    var haut = el.getBoundingClientRect().top + (window.scrollY || 0);
+    var h = Math.max(320, window.innerHeight - Math.max(0, el.getBoundingClientRect().top));
+    el.style.height = h + 'px';
+    if (nav.carte) { nav.carte.invalidateSize(); }
+    return haut;
+  }
+
+  function demarrerNavigation() {
+    if (!voyageActif || !trace.length) { return; }
+    if (typeof L === 'undefined') { alert('La carte n’a pas pu être chargée (pas de connexion à l’ouverture de la page).'); return; }
+    $('lfsd').className = 'en-nav';
+    window.scrollTo(0, 0);
+    creerCarteNav();
+    ajusterHauteurNav();
+    nav.couche.clearLayers();
+    L.polyline(trace, { color: '#ffffff', weight: 12, opacity: 0.9 }).addTo(nav.couche);
+    L.polyline(trace, { color: '#1a73e8', weight: 8, opacity: 0.95 }).addTo(nav.couche);
+    L.circleMarker(trace[trace.length - 1], { radius: 10, color: '#fff', weight: 3, fillColor: '#c8102e', fillOpacity: 1 }).addTo(nav.couche);
+    nav.marqueur = null;
+    nav.suivre = true;
+    nav.actif = true;
+    nav.horsCompte = 0; nav.horsAnnonce = false; nav.dernierKm = 0;
+    preparerSegments();
+    preparerManoeuvres();
+    nav.carte.fitBounds(L.polyline(trace).getBounds(), { padding: [30, 30] });
+    if (!nav.manoeuvres.length) {
+      $('lfsd-fleche').innerHTML = svgFleche('tout_droit');
+      $('lfsd-m-dist').textContent = 'Suivre la ligne bleue';
+      $('lfsd-m-rue').textContent = 'Directions détaillées absentes de ce voyage';
+      $('lfsd-m-ensuite').textContent = 'Au bureau : Modifier, recalculer et mettre à jour le voyage dans LFS.';
+    }
+    $('lfsd-son').textContent = nav.voix ? '🔊' : '🔇';
+    try { if (navigator.wakeLock) { navigator.wakeLock.request('screen').then(function (v) { nav.verrou = v; }).catch(function () {}); } } catch (e) {}
+    demarrerGps();
+    if (positionMoi) { majNavigation(positionMoi, null, null); }
+    parler('Navigation démarrée. Suivez le trajet du voyage ' + voyageActif.d.ref + '.');
+  }
+
+  function quitterNavigation() {
+    nav.actif = false;
+    $('lfsd').className = '';
+    if (nav.verrou) { try { nav.verrou.release(); } catch (e) {} nav.verrou = null; }
+    if (window.speechSynthesis) { try { window.speechSynthesis.cancel(); } catch (e) {} }
+    if (carte) { setTimeout(function () { carte.invalidateSize(); }, 200); }
+  }
+
+  function majNavigation(p, cap, vitesse) {
+    if (!nav.actif || !nav.carte) { return; }
+    var icone = L.divIcon({ className: '', iconSize: [34, 34], iconAnchor: [17, 17],
+      html: '<svg class="moi" viewBox="0 0 34 34" style="transform:rotate(' + (cap || 0) + 'deg)"><circle cx="17" cy="17" r="15" fill="#ffffff"/><path d="M17 5 L26 27 L17 22 L8 27 Z" fill="#1a73e8"/></svg>' });
+    if (!nav.marqueur) { nav.marqueur = L.marker(p, { icon: icone, interactive: false }).addTo(nav.carte); }
+    else { nav.marqueur.setLatLng(p); nav.marqueur.setIcon(icone); }
+    if (nav.suivre) {
+      var zoom = vitesse && vitesse > 20 ? 15 : 16;
+      nav.carte.setView(p, zoom, { animate: true });
+    }
+
+    var pr = projeterPrecis(p, 0);
+    var total = cumul[cumul.length - 1] || 0;
+    var boite = $('lfsd-manoeuvre');
+
+    // Hors du trajet : on ne recalcule pas, on ramène l'escorte sur le trajet du permis
+    if (pr.ecartM > 150) { nav.horsCompte++; } else { nav.horsCompte = 0; nav.horsAnnonce = false; }
+    if (nav.horsCompte >= 2) {
+      boite.className = 'manoeuvre hors';
+      $('lfsd-fleche').innerHTML = svgFleche('demi_tour');
+      $('lfsd-m-dist').textContent = 'Hors du trajet';
+      $('lfsd-m-rue').textContent = 'À ' + distanceTexte(pr.ecartM / 1000) + ' du trajet du permis';
+      $('lfsd-m-ensuite').textContent = 'Revenez sur la ligne bleue. Le trajet n’est pas recalculé.';
+      if (!nav.horsAnnonce) { parler('Attention, vous êtes hors du trajet du permis. Revenez sur le trajet prévu.'); nav.horsAnnonce = true; }
+      majBas(Math.max(0, total - pr.km));
+      return;
+    }
+    boite.className = 'manoeuvre';
+    nav.dernierKm = pr.km;
+
+    var prochaine = null, suivante = null;
+    for (var i = 0; i < nav.manoeuvres.length; i++) {
+      if (nav.manoeuvres[i].km > pr.km + 0.015) { prochaine = nav.manoeuvres[i]; suivante = nav.manoeuvres[i + 1] || null; break; }
+    }
+    if (nav.manoeuvres.length) {
+      if (!prochaine) {
+        $('lfsd-fleche').innerHTML = svgFleche('arrivee');
+        $('lfsd-m-dist').textContent = 'Arrivée';
+        $('lfsd-m-rue').textContent = voyageActif.d.arrivee ? voyageActif.d.arrivee.label : '';
+        $('lfsd-m-ensuite').textContent = '';
+        if (!nav.annonces.fin) { parler('Vous êtes arrivé à destination.'); nav.annonces.fin = 1; }
+      } else {
+        var reste = prochaine.km - pr.km;
+        $('lfsd-fleche').innerHTML = svgFleche(nomFleche(prochaine.type, prochaine.texte));
+        $('lfsd-m-dist').textContent = distanceTexte(reste);
+        $('lfsd-m-rue').textContent = prochaine.texte;
+        $('lfsd-m-ensuite').textContent = suivante ? 'Ensuite : ' + suivante.texte : '';
+        var cle = String(prochaine.km);
+        var a = nav.annonces[cle] = nav.annonces[cle] || {};
+        if (reste <= 0.12 && !a.maintenant) { a.maintenant = a.proche = a.loin = 1; parler(prochaine.texte); }
+        else if (reste <= 0.6 && reste > 0.12 && !a.proche) { a.proche = a.loin = 1; parler('Dans ' + distanceParlee(reste) + ', ' + prochaine.texte); }
+        else if (reste <= 2.2 && reste > 1.2 && vitesse && vitesse > 19 && !a.loin) { a.loin = 1; parler('Dans ' + distanceParlee(reste) + ', ' + prochaine.texte); }
+      }
+    }
+    majBas(Math.max(0, total - pr.km));
+  }
+
+  function majBas(resteKm) {
+    var d = voyageActif.d;
+    var vitesseMoy = (d.totalKm && d.dureeS) ? d.totalKm / (d.dureeS / 3600) : 60;
+    var resteS = resteKm / (vitesseMoy || 60) * 3600;
+    var h = Math.floor(resteS / 3600), m = Math.round((resteS % 3600) / 60);
+    $('lfsd-n-temps').textContent = h ? h + ' h ' + (m < 10 ? '0' : '') + m : m + ' min';
+    var eta = new Date(Date.now() + resteS * 1000);
+    $('lfsd-n-details').textContent = distanceTexte(resteKm) + ' - arrivée vers ' + eta.toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' });
+  }
+
   // ----- Position de l'escorte
   function demarrerGps() {
     if (surveillanceGps !== null || !navigator.geolocation) {
@@ -467,9 +737,11 @@
     surveillanceGps = navigator.geolocation.watchPosition(function (pos) {
       positionMoi = [pos.coords.latitude, pos.coords.longitude];
       majProgression(positionMoi);
+      var vitesseKmh = pos.coords.speed !== null && pos.coords.speed !== undefined ? pos.coords.speed * 3.6 : null;
+      majNavigation(positionMoi, pos.coords.heading, vitesseKmh);
     }, function () {
       $('lfsd-ici').textContent = 'Position GPS refusée ou indisponible';
-    }, { enableHighAccuracy: true, maximumAge: 10000, timeout: 30000 });
+    }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 30000 });
   }
 
   function arreterGps() {
@@ -532,6 +804,7 @@
         var texte = 'Camion ' + (voyageActif.d.actifNom || '') + (s.speed ? ' - ' + Math.round(s.speed) + ' km/h' : '');
         if (positionMoi) { texte += ' - à ' + nombreFr(distanceM(positionMoi, p) / 1000, 1) + ' km de moi'; }
         $('lfsd-camion').textContent = texte;
+        $('lfsd-n-camion').textContent = texte;
       }).catch(function () { $('lfsd-camion').textContent = ''; });
     };
     lire();
@@ -551,6 +824,16 @@
       suggerer();
     });
     $('lfsd-telecharger').addEventListener('click', telechargerDirections);
+    nav.voix = lireCache('lfsd-voix') !== false;
+    $('lfsd-demarrer').addEventListener('click', demarrerNavigation);
+    $('lfsd-quitter').addEventListener('click', quitterNavigation);
+    $('lfsd-recentrer').addEventListener('click', function () { nav.suivre = true; if (positionMoi && nav.carte) { nav.carte.setView(positionMoi, 16); } });
+    $('lfsd-son').addEventListener('click', function () {
+      nav.voix = !nav.voix; ecrireCache('lfsd-voix', nav.voix);
+      $('lfsd-son').textContent = nav.voix ? '🔊' : '🔇';
+      if (!nav.voix && window.speechSynthesis) { window.speechSynthesis.cancel(); } else { parler('Voix activée'); }
+    });
+    window.addEventListener('resize', function () { if (nav.actif) { ajusterHauteurNav(); } });
     $('lfsd-autre').addEventListener('click', function () {
       voyageActif = null;
       $('lfsd-voyage').style.display = 'none';
@@ -577,6 +860,7 @@
         if (voyageActif) { demarrerGps(); demarrerCamion(); }
       },
       blur: function () {
+        if (nav.actif) { quitterNavigation(); }
         arreterGps();
         if (minuterieCamion) { clearInterval(minuterieCamion); minuterieCamion = null; }
       }
