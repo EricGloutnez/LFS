@@ -1,0 +1,17 @@
+{
+  "name": "LFS Escortes",
+  "supportEmail": "ton.adresse@exemple.com",
+  "version": "1.2",
+  "items": [
+    {
+      "url": "https://ericgloutnez.github.io/LFS/lfs-drive.html",
+      "path": "DriveAppLink/",
+      "icon": "https://ericgloutnez.github.io/LFS/logo-bonneville.png",
+      "menuName": {
+        "fr": "Bonneville",
+        "en": "Bonneville"
+      }
+    }
+  ],
+  "isSigned": false
+}
