@@ -774,6 +774,7 @@ geotab.addin.lfs = function () {
 
   function calculerAvecEvitements(arrets, h, w, bouton) {
     var evitees = {};
+    eviteesDetail = {};
     var iter = 0;
     function calculerAvec(avec, geoRef) {
       if (!avec) { return requeteTrajet(arrets, h, w, false); }
@@ -802,7 +803,7 @@ geotab.addin.lfs = function () {
     function boucle(geo) {
       var coords = geo.features[0].geometry.coordinates;
       var bloq = bloquantesSurTrajet(coords, h, w);
-      bloq.forEach(function (e) { evitees[e.id] = true; });
+      bloq.forEach(function (e) { evitees[e.id] = true; eviteesDetail[e.id] = e; });
       nbEviteesCourant = Object.keys(evitees).length;
       var nb = nouvellesBoites(coords);
       if ((!bloq.length && !nb.length) || iter >= 4) {
@@ -1316,7 +1317,7 @@ geotab.addin.lfs = function () {
     return {
       toit: w, base: base || w, baseSaisie: !!base, hauteur: h,
       longueur: lireDimension('it511-longueur'),
-      batiment: trouver('it511-batiment').value,
+      batiment: 'section',
       av: lireDimension('it511-exc-av') || 0,
       ar: lireDimension('it511-exc-ar') || 0,
       lat: lireDimension('it511-exc-lat') || 0
@@ -1401,6 +1402,11 @@ geotab.addin.lfs = function () {
   function nombre(texte) { return parseFloat(String(texte).replace(',', '.')); }
 
   function valeursMetres(texte, motCle) {
+    if (motCle === 'largeur') {
+      texte = String(texte || '')
+        .replace(/largeurs?\s+(?:des|de\s+la|de|d['’]une|de\s+chaque)\s+voies?[^\n]*/gi, ' ')
+        .replace(/voies?\s+(?:de|d['’]une\s+largeur\s+de)\s+\d+(?:[.,]\d+)?\s*m\S*(?:\s+de\s+largeur)?/gi, ' ');
+    }
     var vals = [], m, reste = texte;
     var apres = new RegExp('(\\d+(?:[.,]\\d+)?)\\s*m\\S*\\s+de\\s+' + motCle, 'gi');
     while ((m = apres.exec(texte)) !== null) { vals.push(nombre(m[1])); }
@@ -1617,6 +1623,8 @@ geotab.addin.lfs = function () {
     });
   }
 
+  var eviteesDetail = {};
+
   function afficherEntravesTrajet(liste, nbEvitees) {
     var boite = trouver('it511-entraves');
     while (boite.firstChild) { boite.removeChild(boite.firstChild); }
@@ -1624,6 +1632,16 @@ geotab.addin.lfs = function () {
     entete.style.cssText = 'font-size:13px;margin-bottom:6px;color:#5a6270;';
     entete.textContent = nbEvitees + ' entrave(s) bloquante(s) contournée(s) - ' + liste.length + ' entrave(s) sur le trajet';
     boite.appendChild(entete);
+    if (nbEvitees) {
+      Object.keys(eviteesDetail).forEach(function (id) {
+        var en = eviteesDetail[id];
+        var raison = en.fermeture ? 'fermeture' : (en.largeurMax ? 'largeur max. ' + nombreFr(en.largeurMax, 2) + ' m' : (en.hauteurMax ? 'hauteur max. ' + nombreFr(en.hauteurMax, 2) + ' m' : 'restriction'));
+        var c = document.createElement('div');
+        c.style.cssText = 'font-size:12px;color:#5a6270;margin:0 0 4px 0;';
+        c.textContent = 'Contournée : ' + en.titre + (en.lieu ? ' - ' + en.lieu : '') + ' (' + raison + ')';
+        boite.appendChild(c);
+      });
+    }
     liste.forEach(function (en) {
       var item = document.createElement('div');
       item.style.cssText = 'border-left:4px solid ' + couleurEntrave(en) + ';padding:4px 8px;margin-bottom:6px;font-size:12px;background:#f8f9fb;';
@@ -1834,7 +1852,7 @@ geotab.addin.lfs = function () {
       date: new Date().toISOString(),
       depart: dernierResultat.depart, arrivee: dernierResultat.arrivee,
       hauteurPi: trouver('it511-hauteur').value, largeurPi: trouver('it511-largeur').value,
-      largeurBasePi: trouver('it511-largeur-base').value, batiment: trouver('it511-batiment').value,
+      largeurBasePi: trouver('it511-largeur-base').value, batiment: 'section',
       longueurPi: trouver('it511-longueur').value,
       excAvPi: trouver('it511-exc-av').value, excArPi: trouver('it511-exc-ar').value, excLatPi: trouver('it511-exc-lat').value,
       totalKm: Math.round(dernierResultat.totalKm * 10) / 10, dureeS: Math.round(dernierResultat.dureeS),
@@ -1884,7 +1902,6 @@ geotab.addin.lfs = function () {
     trouver('it511-hauteur').value = d.hauteurPi || ''; afficherConversion('it511-hauteur');
     trouver('it511-largeur').value = d.largeurPi || ''; afficherConversion('it511-largeur');
     trouver('it511-largeur-base').value = d.largeurBasePi || '';
-    trouver('it511-batiment').value = d.batiment || 'entier';
     trouver('it511-longueur').value = d.longueurPi || '';
     trouver('it511-exc-av').value = d.excAvPi || '';
     trouver('it511-exc-ar').value = d.excArPi || '';
@@ -2155,7 +2172,7 @@ geotab.addin.lfs = function () {
 <div id="it511-wrap" style="padding:12px 16px;box-sizing:border-box;">
   <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px;margin-bottom:10px;">
     <span style="font-size:18px;font-weight:600;">LFS</span>
-    <span style="font-size:12px;color:#8a8f98;">version 1.2.9</span>
+    <span style="font-size:12px;color:#8a8f98;">version 1.3.0</span>
     <span id="it511-statut" style="font-size:13px;color:#5a6270;">Démarrage...</span>
     <span id="it511-sources" style="font-size:13px;color:#5a6270;"></span>
   </div>
@@ -2190,10 +2207,7 @@ geotab.addin.lfs = function () {
           <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Largeur au corps (pi)</label>
           <input id="it511-largeur-base" type="text" placeholder="14' ou 14,0" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
         </div>
-        <div style="flex:1;">
-          <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Bâtiment</label>
-          <select id="it511-batiment" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;background:#fff;"><option value="entier">Entier</option><option value="section">En section</option></select>
-        </div>
+        
       </div>
       <div style="display:flex;gap:10px;margin-bottom:12px;">
         <div style="flex:1;">
