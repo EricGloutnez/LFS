@@ -19,7 +19,7 @@ geotab.addin.lfs = function () {
   }
   function ecrire(cle, valeur) {
     try { localStorage.setItem('it511-' + cle, valeur); } catch (e) {}
-    if (['cle', 'cle511on', 'hauteurPi', 'largeurPi', 'eviterPeages', 'eviterTraversiers'].indexOf(cle) >= 0 && parametres[cle] !== valeur) {
+    if (['cle', 'cle511on', 'cleCarto', 'hauteurPi', 'largeurPi', 'eviterPeages', 'eviterTraversiers'].indexOf(cle) >= 0 && parametres[cle] !== valeur) {
       parametres[cle] = valeur;
       sauverParametresPartages();
     }
@@ -69,9 +69,24 @@ geotab.addin.lfs = function () {
     function creerCarte() {
     var conteneur = trouver('it511-carte');
     carte = L.map(conteneur).setView([46.2, -72.6], 7);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 18, attribution: '&copy; contributeurs OpenStreetMap'
-    }).addTo(carte);
+    fondOsm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19, attribution: '&copy; contributeurs OpenStreetMap'
+    });
+    fondVoyager = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=', {
+      subdomains: 'abcd', maxZoom: 20,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, &copy; <a href="https://carto.com/attributions">CARTO</a>'
+    });
+    fondVoyager.on('tileload', function () { tuilesVoyagerOk++; });
+    fondVoyager.on('tileerror', function () {
+      tuilesVoyagerErreur++;
+      if (tuilesVoyagerErreur >= 6 && tuilesVoyagerOk === 0 && carte.hasLayer(fondVoyager)) {
+        carte.removeLayer(fondVoyager);
+        fondOsm.addTo(carte);
+        message('Le fond de carte Voyager ne répond pas (clé CARTO refusée ou service indisponible). Retour au fond OpenStreetMap.', true);
+      }
+    });
+    fondOsm.addTo(carte);
+    carte.on('baselayerchange', function (e) { ecrire('fondCarte', e.layer === fondOsm ? 'osm' : 'voyager'); });
 
     var optionsRadar = { format: 'image/png', transparent: true, version: '1.3.0', opacity: 0.6,
       attribution: 'Radar : Environnement et Changement climatique Canada' };
@@ -87,7 +102,10 @@ geotab.addin.lfs = function () {
     coucheRestrictions = L.layerGroup().addTo(carte);
     var alertes = L.tileLayer.wms('https://geo.weather.gc.ca/geomet', L.extend({ layers: 'ALERTS' }, optionsRadar));
 
-    L.control.layers(null, {
+    L.control.layers({
+      'Carte routière (Voyager)': fondVoyager,
+      'OpenStreetMap': fondOsm
+    }, {
       'Trajet': coucheTrajet,
       'Entraves 511': coucheEntraves,
       'Caméras 511': coucheCameras,
@@ -98,6 +116,27 @@ geotab.addin.lfs = function () {
       'Radar - neige': radarNeige,
       'Actifs Geotab': coucheActifs
     }, { collapsed: false }).addTo(carte);
+  }
+
+  var fondOsm = null, fondVoyager = null;
+  var tuilesVoyagerOk = 0, tuilesVoyagerErreur = 0;
+
+  function appliquerFondCarte() {
+    if (!carte || !fondVoyager) { return; }
+    var cle = lire('cleCarto', '');
+    if (!cle) {
+      if (carte.hasLayer(fondVoyager)) { carte.removeLayer(fondVoyager); fondOsm.addTo(carte); }
+      return;
+    }
+    tuilesVoyagerOk = 0; tuilesVoyagerErreur = 0;
+    fondVoyager.setUrl('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=' + encodeURIComponent(cle));
+    var choix = '';
+    try { choix = localStorage.getItem('it511-fondCarte') || ''; } catch (e) {}
+    if (choix !== 'osm' && !carte.hasLayer(fondVoyager)) {
+      carte.removeLayer(fondOsm);
+      fondVoyager.addTo(carte);
+      fondVoyager.bringToBack();
+    }
   }
 
   function rafraichirRadar() {
@@ -719,6 +758,16 @@ geotab.addin.lfs = function () {
     trouver('it511-eviter-traversiers').addEventListener('change', function (e) { ecrire('eviterTraversiers', e.target.checked ? '1' : '0'); });
     trouver('it511-pref-appliquer').addEventListener('change', function (e) { preferenceRefusee = e.target.checked ? null : (preferenceActive ? preferenceActive.id : null); });
     trouver('it511-depart-prevu').value = versChampDate(new Date(Math.ceil(Date.now() / 900000) * 900000));
+    trouver('it511-depart-prevu').addEventListener('change', function (e) {
+      var v = e.target.value;
+      if (!v) { return; }
+      var d = new Date(v);
+      if (isNaN(d.getTime())) { return; }
+      var arrondi = new Date(Math.round(d.getTime() / 900000) * 900000);
+      var texte = versChampDate(arrondi);
+      if (texte !== v) { e.target.value = texte; }
+    });
+    trouver('it511-reessayer-routes').addEventListener('click', reessayerIdentification);
   }
 
   function calculerAvecEvitements(arrets, h, w, bouton) {
@@ -909,6 +958,7 @@ geotab.addin.lfs = function () {
 
     var bouton = trouver('it511-calculer');
     bouton.disabled = true; bouton.textContent = 'Calcul en cours...';
+    identificationIncomplete = false; afficherAvisIdentification();
     var jeton = ++numeroCalcul;
     var minuteurGarde = null;
 
@@ -937,7 +987,9 @@ geotab.addin.lfs = function () {
       bouton.textContent = 'Identification des routes...';
       return enrichirReferences(f0.properties.segments[0].steps || [], f0.geometry.coordinates).then(function () {
         if (jeton !== numeroCalcul) { throw new Error('annule'); }
+        dernierCalcul = { geo: geo, h: h, w: w };
         afficherResultat(geo, h, w);
+        afficherAvisIdentification();
       });
     });
 
@@ -989,8 +1041,14 @@ geotab.addin.lfs = function () {
     return tache;
   }
 
-  function essaiServeursOverpass(q) {
-    var liste = SERVEURS_OVERPASS.filter(function (u) { return !(pauseOverpass[u] > Date.now()); });
+  function requeteOverpassForcee(q) {
+    var tache = fileOverpass.then(function () { return essaiServeursOverpass(q, true); });
+    fileOverpass = tache.catch(function () {}).then(function () { return attendre(1500); });
+    return tache;
+  }
+
+  function essaiServeursOverpass(q, forcer) {
+    var liste = forcer ? SERVEURS_OVERPASS.slice() : SERVEURS_OVERPASS.filter(function (u) { return !(pauseOverpass[u] > Date.now()); });
     if (!liste.length) { return Promise.reject(new Error('OpenStreetMap en pause (trop de demandes)')); }
     var i = 0;
     function essai() {
@@ -1053,7 +1111,8 @@ geotab.addin.lfs = function () {
         if (coords[k]) { cibles.push({ etape: i, lat: coords[k][1], lon: coords[k][0] }); }
       });
     });
-    if (!cibles.length || !overpassDisponible()) { return Promise.resolve(); }
+    identificationIncomplete = false;
+    if (!cibles.length) { return Promise.resolve(); }
     if (cibles.length > 80) {
       var pas = Math.ceil(cibles.length / 80);
       cibles = cibles.filter(function (c, k) { return k % pas === 0; });
@@ -1062,7 +1121,7 @@ geotab.addin.lfs = function () {
     cibles.forEach(function (c, k) {
       q += 'way(around:20,' + c.lat.toFixed(6) + ',' + c.lon.toFixed(6) + ')["highway"~"^(motorway|trunk|primary|secondary|tertiary|motorway_link|trunk_link|primary_link)$"];out tags;make m k=' + k + ';out;';
     });
-    return requeteOverpass(q)
+    return requeteOverpassForcee(q)
       .then(function (data) {
         var tampon = [], votes = {}, nomsVotes = {};
         (data.elements || []).forEach(function (el) {
@@ -1101,7 +1160,7 @@ geotab.addin.lfs = function () {
           if (noms.length) { steps[i].nomOsm = noms[0]; }
         });
       })
-      .catch(function () {});
+      .catch(function () { identificationIncomplete = true; });
   }
 
   function regrouperRoutes(steps, coords) {
@@ -1144,6 +1203,26 @@ geotab.addin.lfs = function () {
   }
 
   var derniersSteps = [];
+  var identificationIncomplete = false;
+  var dernierCalcul = null;
+
+  function afficherAvisIdentification() {
+    var zone = trouver('it511-avis-routes');
+    if (zone) { zone.style.display = identificationIncomplete ? 'block' : 'none'; }
+  }
+
+  function reessayerIdentification() {
+    if (!dernierCalcul) { return; }
+    var b = trouver('it511-reessayer-routes');
+    b.disabled = true; b.textContent = 'Identification en cours...';
+    var f0 = dernierCalcul.geo.features[0];
+    enrichirReferences(f0.properties.segments[0].steps || [], f0.geometry.coordinates).then(function () {
+      afficherResultat(dernierCalcul.geo, dernierCalcul.h, dernierCalcul.w);
+      afficherAvisIdentification();
+    }).then(function () {
+      b.disabled = false; b.textContent = 'Réessayer l’identification des routes';
+    });
+  }
   function afficherDiagnostic() {
     var boite = trouver('it511-diagnostic');
     if (!boite) { return; }
@@ -1677,6 +1756,8 @@ geotab.addin.lfs = function () {
   function appliquerParametres() {
     if (parametres.cle && !trouver('it511-cle').value) { trouver('it511-cle').value = parametres.cle; }
     if (parametres.cle511on && !trouver('it511-cle-on').value) { trouver('it511-cle-on').value = parametres.cle511on; }
+    if (parametres.cleCarto && !trouver('it511-cle-carto').value) { trouver('it511-cle-carto').value = parametres.cleCarto; }
+    appliquerFondCarte();
     if (parametres.hauteurPi && !trouver('it511-hauteur').value) { trouver('it511-hauteur').value = parametres.hauteurPi; afficherConversion('it511-hauteur'); }
     if (parametres.largeurPi && !trouver('it511-largeur').value) { trouver('it511-largeur').value = parametres.largeurPi; afficherConversion('it511-largeur'); }
   }
@@ -1927,6 +2008,14 @@ geotab.addin.lfs = function () {
   function brancherParametres() {
     trouver('it511-cle').value = lire('cle', '');
     trouver('it511-cle-on').value = lire('cle511on', '');
+    trouver('it511-cle-carto').value = lire('cleCarto', '');
+    appliquerFondCarte();
+    trouver('it511-sauver-cle-carto').addEventListener('click', function () {
+      ecrire('cleCarto', trouver('it511-cle-carto').value.trim());
+      try { localStorage.removeItem('it511-fondCarte'); } catch (e) {}
+      appliquerFondCarte();
+      message('Clé CARTO enregistrée pour toute l’équipe.');
+    });
     trouver('it511-sauver-cle-on').addEventListener('click', function () {
       ecrire('cle511on', trouver('it511-cle-on').value.trim());
       message('Clé 511 Ontario enregistrée pour toute l’équipe.');
@@ -1992,7 +2081,7 @@ geotab.addin.lfs = function () {
 <div id="it511-wrap" style="padding:12px 16px;box-sizing:border-box;">
   <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px;margin-bottom:10px;">
     <span style="font-size:18px;font-weight:600;">LFS</span>
-    <span style="font-size:12px;color:#8a8f98;">version 1.2.2</span>
+    <span style="font-size:12px;color:#8a8f98;">version 1.2.4</span>
     <span id="it511-statut" style="font-size:13px;color:#5a6270;">Démarrage...</span>
     <span id="it511-sources" style="font-size:13px;color:#5a6270;"></span>
   </div>
@@ -2025,7 +2114,7 @@ geotab.addin.lfs = function () {
 
       <div style="margin-bottom:10px;">
         <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Départ prévu</label>
-        <input id="it511-depart-prevu" type="datetime-local" style="width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
+        <input id="it511-depart-prevu" type="datetime-local" step="900" style="width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
       </div>
       <label id="it511-zone-pref" style="display:none;align-items:center;gap:6px;font-size:12px;margin-bottom:10px;cursor:pointer;">
         <input id="it511-pref-appliquer" type="checkbox" checked> <span id="it511-pref-texte"></span>
@@ -2044,6 +2133,10 @@ geotab.addin.lfs = function () {
       <button id="it511-calculer" type="button" style="width:100%;padding:9px;border:none;border-radius:4px;background:#1565c0;color:#fff;font-size:14px;font-weight:600;cursor:pointer;">Calculer le trajet</button>
 
       <div id="it511-message" style="display:none;margin-top:10px;padding:8px 10px;border-radius:4px;font-size:13px;"></div>
+      <div id="it511-avis-routes" style="display:none;margin-top:10px;padding:8px 10px;border-radius:4px;font-size:13px;background:#fff4e5;color:#7a4b00;">
+        Les numéros d’autoroutes et de routes n’ont pas pu être identifiés (OpenStreetMap ne répond pas). Les tronçons « (route sans nom) » sont probablement des autoroutes : ne pas utiliser cette liste pour un permis avant de réessayer.
+        <button id="it511-reessayer-routes" type="button" style="display:block;margin-top:8px;padding:6px 10px;border:1px solid #c98a1a;background:#fff;color:#7a4b00;border-radius:4px;font-size:13px;cursor:pointer;">Réessayer l’identification des routes</button>
+      </div>
 
       <div id="it511-resultat" style="display:none;margin-top:14px;">
         <div id="it511-titre-resultat" style="font-size:13px;font-weight:600;margin-bottom:8px;"></div>
@@ -2137,6 +2230,11 @@ geotab.addin.lfs = function () {
         <div style="display:flex;gap:8px;">
           <input id="it511-cle-on" type="text" autocomplete="off" style="flex:1;min-width:0;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
           <button id="it511-sauver-cle-on" type="button" style="padding:7px 12px;border:1px solid #c9ced6;border-radius:4px;background:#fff;font-size:13px;cursor:pointer;">Enregistrer</button>
+        </div>
+        <label style="display:block;font-size:12px;color:#5a6270;margin:8px 0 3px;">Clé CARTO (fond de carte Voyager, facultative)</label>
+        <div style="display:flex;gap:8px;">
+          <input id="it511-cle-carto" type="text" autocomplete="off" style="flex:1;min-width:0;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
+          <button id="it511-sauver-cle-carto" type="button" style="padding:7px 12px;border:1px solid #c9ced6;border-radius:4px;background:#fff;font-size:13px;cursor:pointer;">Enregistrer</button>
         </div>
       </details>
       <details style="margin-top:8px;">
