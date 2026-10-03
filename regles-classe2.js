@@ -5,7 +5,7 @@
  * Toute modification des règles se fait ici seulement.
  */
 (function () {
-  var VERSION = '1.2.9';
+  var VERSION = '1.3.1';
 
   function nombreFr(n, dec) {
     return n.toLocaleString('fr-CA', { minimumFractionDigits: dec, maximumFractionDigits: dec });
@@ -147,7 +147,8 @@
     else if (specif.length) { L.push({ t: 'Permis SPÉCIFIQUE requis : ' + specif.join(', ') + '.', c: '#9a3412', g: 1 }); }
     else { L.push({ t: 'Dimensions dans les limites du permis général.', c: '#14532d', g: 1 }); }
     if (dims.batiment === 'section' && dims.toit > 4.60) { L.push({ t: 'En section : l’excédent de 45 cm doit être du côté de l’accotement droit à au moins 2,10 m du sol, et celui de 30 cm à gauche à au moins 3,65 m du sol.', c: '#5a6270' }); }
-    if (!dims.baseSaisie) { L.push({ t: 'Largeur au corps du bâtiment non saisie : la largeur à la toiture est utilisée pour les escortes et les interdictions (plus sévère).', c: '#9a3412' }); }
+    if (dims.corpsDeduit) { L.push({ t: 'La largeur maximale saisie est utilisée comme largeur au corps du bâtiment pour les escortes et les interdictions (règle la plus sévère).', c: '#5a6270' }); }
+    else if (!dims.baseSaisie) { L.push({ t: 'Largeur au corps du bâtiment non saisie : la largeur à la toiture est utilisée pour les escortes et les interdictions (plus sévère).', c: '#9a3412' }); }
     if (!dims.longueur) { L.push({ t: 'Longueur hors tout non saisie : la limite de 30 m n’est pas vérifiée.', c: '#9a3412' }); }
 
     // 2. Signalisation (art. 7)
