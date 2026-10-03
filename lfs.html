@@ -5,6 +5,8 @@
 <title>LFS</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://ericgloutnez.github.io/LFS/regles-classe2.js?v=1.3.1"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://ericgloutnez.github.io/LFS/formulaires-bonneville.js?v=1.1"></script>
 <script>
 geotab.addin.lfs = function () {
   var ORS = 'https://api.heigit.org';
@@ -357,6 +359,7 @@ geotab.addin.lfs = function () {
   var restrictions = [];
   var preferences = [];
   var directionsEnregistrees = [];
+  var formulairesRecus = {};
   var geomRestrictions = {};
   var boitesRestrictions = [];
   var coucheRestrictions = null;
@@ -773,6 +776,7 @@ geotab.addin.lfs = function () {
       trouver(id).addEventListener('change', composerDepart);
     });
     trouver('it511-reessayer-routes').addEventListener('click', reessayerIdentification);
+    trouver('it511-forms-serie').addEventListener('input', afficherFormulairesRecus);
   }
 
   function calculerAvecEvitements(arrets, h, w, bouton) {
@@ -1816,7 +1820,7 @@ geotab.addin.lfs = function () {
 
   function chargerStockage() {
     return appelGeotab('Get', { typeName: 'AddInData', search: { addInId: ADDIN_ID } }).then(function (lignes) {
-      voyages = []; restrictions = []; preferences = []; directionsEnregistrees = [];
+      voyages = []; restrictions = []; preferences = []; directionsEnregistrees = []; formulairesRecus = {};
       (lignes || []).forEach(function (l) {
         var d = l.details || {};
         if (d.type === 'parametres') { parametresId = l.id; parametres = d; }
@@ -1824,11 +1828,17 @@ geotab.addin.lfs = function () {
         else if (d.type === 'restriction') { restrictions.push({ id: l.id, d: d }); }
         else if (d.type === 'preference') { preferences.push({ id: l.id, d: d }); }
         else if (d.type === 'directions') { directionsEnregistrees.push({ id: l.id, d: d }); }
+        else if (d.type === 'formulaire' && d.fid) {
+          var fr = formulairesRecus[d.fid] = formulairesRecus[d.fid] || { fid: d.fid, code: d.code, serie: d.serie, module: d.module, auteur: d.auteur, date: d.date, total: d.total, morceaux: {}, resume: null };
+          fr.morceaux[d.partie] = d.morceau;
+          if (d.resume) { fr.resume = d.resume; }
+        }
       });
       voyages.sort(function (a, b) { return (b.d.date || '').localeCompare(a.d.date || ''); });
       appliquerParametres();
       afficherListeVoyages();
       afficherListeRestrictions();
+      afficherFormulairesRecus();
       if (!restrictions.length && !parametres.restrictionsInit && !initRestrictionsFaite) {
         initRestrictionsFaite = true;
         return initialiserRestrictions();
@@ -1923,14 +1933,88 @@ geotab.addin.lfs = function () {
     });
   }
 
+  // ----- Formulaires reçus des chauffeurs et des équipes (page Bonneville de Geotab Drive)
+  function formulaireComplet(fr) {
+    var n = fr.total || 1, txt = '';
+    for (var i = 1; i <= n; i++) { if (fr.morceaux[i] === undefined) { return null; } txt += fr.morceaux[i]; }
+    try { return JSON.parse(txt); } catch (e) { return null; }
+  }
+
+  function formulairesDeSerie(serie) {
+    var FB = window.BonnevilleFormulaires;
+    var ordre = FB ? FB.ordre : [];
+    return Object.keys(formulairesRecus).map(function (k) { return formulairesRecus[k]; })
+      .filter(function (fr) { return String(fr.serie || '') === serie; })
+      .sort(function (a, b) {
+        var oa = ordre.indexOf(a.code), ob = ordre.indexOf(b.code);
+        if (oa !== ob) { return oa - ob; }
+        if (String(a.module || '') !== String(b.module || '')) { return String(a.module || '').localeCompare(String(b.module || '')); }
+        return String(a.date || '').localeCompare(String(b.date || ''));
+      });
+  }
+
+  function telechargerPdf(liste, nom) {
+    var FB = window.BonnevilleFormulaires;
+    if (!FB) { message('Le fichier des formulaires (formulaires-bonneville.js) n’a pas été chargé. Vérifie qu’il est dans le dépôt GitHub, puis fais Ctrl + F5.', true); return; }
+    var complets = liste.map(formulaireComplet).filter(Boolean);
+    if (!complets.length) { message('Aucun formulaire complet à mettre dans le PDF (envoi encore en cours depuis le téléphone?).', true); return; }
+    try { FB.pdf(complets, nom); message('PDF produit : ' + nom); }
+    catch (e) { message('PDF impossible : ' + (e && e.message ? e.message : e), true); }
+  }
+
+  function afficherFormulairesRecus() {
+    var zone = trouver('it511-forms-liste');
+    if (!zone) { return; }
+    while (zone.firstChild) { zone.removeChild(zone.firstChild); }
+    var serie = trouver('it511-forms-serie').value.trim().split('-')[0];
+    var boutonSerie = trouver('it511-forms-pdf-serie');
+    boutonSerie.style.display = 'none';
+    var aide = function (t) { var d = document.createElement('div'); d.style.cssText = 'font-size:12px;color:#5a6270;'; d.textContent = t; zone.appendChild(d); };
+    if (serie.length < 3) { aide('Tape la série pour voir ses formulaires.'); return; }
+    var series = {};
+    Object.keys(formulairesRecus).forEach(function (k) { var s = String(formulairesRecus[k].serie || ''); if (s.indexOf(serie) === 0) { series[s] = true; } });
+    var cles = Object.keys(series).sort();
+    if (!cles.length) { aide('Aucun formulaire reçu pour cette série.'); return; }
+    if (cles.length > 1 && cles.indexOf(serie) < 0) {
+      aide('Séries trouvées : ' + cles.slice(0, 10).join(', ') + '. Précise la série.');
+      return;
+    }
+    var FB = window.BonnevilleFormulaires;
+    var liste = formulairesDeSerie(serie);
+    liste.forEach(function (fr) {
+      var def = FB && FB.defs[fr.code];
+      var ligne = document.createElement('div');
+      ligne.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #eef0f3;';
+      var code = document.createElement('div');
+      code.style.cssText = 'flex:0 0 38px;height:34px;border-radius:4px;background:#e3e6e9;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;';
+      code.textContent = fr.code;
+      var txt = document.createElement('div');
+      txt.style.cssText = 'flex:1;font-size:12px;line-height:1.35;';
+      var t1 = document.createElement('div'); t1.style.fontWeight = '600'; t1.textContent = (def ? def.titreCourt : fr.code) + (fr.module ? ' - module ' + fr.module : '');
+      var t2 = document.createElement('div'); t2.style.color = '#5a6270'; t2.textContent = (fr.auteur || '?') + ', ' + (fr.date ? new Date(fr.date).toLocaleString('fr-CA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '');
+      var t3 = document.createElement('div'); t3.style.fontWeight = '600';
+      var complet = !!formulaireComplet(fr);
+      t3.textContent = complet ? (fr.resume && fr.resume.texte ? fr.resume.texte : 'Reçu') : 'Envoi incomplet (téléphone hors réseau?)';
+      t3.style.color = !complet ? '#9a3412' : (fr.resume && fr.resume.alerte ? '#8a1c1c' : '#14532d');
+      txt.appendChild(t1); txt.appendChild(t2); txt.appendChild(t3);
+      ligne.appendChild(code); ligne.appendChild(txt);
+      ligne.appendChild(bouton('PDF', function () { telechargerPdf([fr], 'Serie-' + serie + '-' + fr.code + (fr.module ? '-module' + fr.module : '') + '.pdf'); }));
+      zone.appendChild(ligne);
+    });
+    boutonSerie.style.display = 'block';
+    boutonSerie.onclick = function () { telechargerPdf(liste, 'Serie-' + serie + '-formulaires.pdf'); };
+  }
+
   function sauverVoyage() {
     if (!dernierResultat) { message('Calcule d’abord un trajet.', true); return; }
     var ref = trouver('it511-ref').value.trim();
-    if (!referenceValide(ref)) { message('Référence invalide : 5 chiffres, ou 5 chiffres, un tiret et le numéro du module (ex. 17513 ou 17513-2).', true); return; }
+    var nbModules = parseInt(trouver('it511-nb-modules').value, 10);
+    if (!nbModules || nbModules < 1 || nbModules > 30) { message('Indique le nombre de modules de la série (1 à 30).', true); return; }
+    if (!referenceValide(ref)) { message('Série invalide : 5 chiffres, ou 5 chiffres, un tiret et le numéro du module (ex. 17513 ou 17513-2).', true); return; }
     var sel = trouver('it511-actif');
     var etapesDirections = construireDirections(derniersSteps, dernierCalcul && dernierCalcul.geo ? dernierCalcul.geo.features[0].geometry.coordinates : null);
     var details = {
-      type: 'voyage', ref: ref, maison: ref.split('-')[0], module: ref.split('-')[1] || '',
+      type: 'voyage', ref: ref, maison: ref.split('-')[0], module: ref.split('-')[1] || '', nbModules: nbModules,
       date: new Date().toISOString(),
       depart: dernierResultat.depart, arrivee: dernierResultat.arrivee,
       hauteurPi: trouver('it511-hauteur').value, largeurPi: trouver('it511-largeur').value,
@@ -1988,6 +2072,7 @@ geotab.addin.lfs = function () {
   function modifierVoyage(v) {
     var d = v.d;
     trouver('it511-ref').value = d.ref;
+    trouver('it511-nb-modules').value = d.nbModules || '';
     trouver('it511-depart').value = d.depart ? d.depart.label : '';
     trouver('it511-arrivee').value = d.arrivee ? d.arrivee.label : '';
     points.depart = d.depart || null; points.arrivee = d.arrivee || null;
@@ -2069,7 +2154,7 @@ geotab.addin.lfs = function () {
     if (!liste.length) {
       var vide = document.createElement('div');
       vide.style.cssText = 'font-size:12px;color:#5a6270;';
-      vide.textContent = voyages.length ? 'Aucun voyage ne correspond à cette référence.' : 'Aucun voyage enregistré pour l’instant.';
+      vide.textContent = voyages.length ? 'Aucun voyage ne correspond à cette série.' : 'Aucun voyage enregistré pour l’instant.';
       boite.appendChild(vide);
       return;
     }
@@ -2263,7 +2348,7 @@ geotab.addin.lfs = function () {
 <div id="it511-wrap" style="padding:12px 16px;box-sizing:border-box;">
   <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px;margin-bottom:10px;">
     <span style="font-size:18px;font-weight:600;">LFS</span>
-    <span style="font-size:12px;color:#8a8f98;">version 1.3.5</span>
+    <span style="font-size:12px;color:#8a8f98;">version 1.4.1</span>
     <span id="it511-statut" style="font-size:13px;color:#5a6270;">Démarrage...</span>
     <span id="it511-sources" style="font-size:13px;color:#5a6270;"></span>
   </div>
@@ -2331,13 +2416,20 @@ geotab.addin.lfs = function () {
       </label>
       <div style="display:flex;gap:10px;margin-bottom:12px;">
         <div style="flex:1;">
-          <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Référence</label>
+          <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Série</label>
           <input id="it511-ref" type="text" placeholder="17513 ou 17513-2" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
         </div>
         <div style="flex:1;">
           <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Actif (facultatif)</label>
           <select id="it511-actif" style="width:100%;box-sizing:border-box;padding:7px 6px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;background:#fff;"><option value="">Aucun</option></select>
         </div>
+      </div>
+      <div style="display:flex;gap:10px;margin-bottom:12px;align-items:flex-end;">
+        <div style="flex:0 0 130px;">
+          <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Nombre de modules</label>
+          <input id="it511-nb-modules" type="number" min="1" max="30" step="1" placeholder="ex. 6" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
+        </div>
+        <div style="flex:1;font-size:11px;color:#8a8f98;line-height:1.35;">Nombre total de modules de la série : un formulaire L1 et un L2 seront demandés pour chacun (ex. 17513-1 à 17513-6).</div>
       </div>
 
       <button id="it511-calculer" type="button" style="width:100%;padding:9px;border:none;border-radius:4px;background:#1565c0;color:#fff;font-size:14px;font-weight:600;cursor:pointer;">Calculer le trajet</button>
@@ -2395,14 +2487,22 @@ geotab.addin.lfs = function () {
         </div>
       </div>
 
-      <div style="margin-top:16px;border-top:1px solid #eef0f3;padding-top:10px;">
-        <div style="font-size:13px;font-weight:600;margin-bottom:6px;">Voyages enregistrés</div>
-        <div style="position:relative;margin-bottom:8px;">
-          <input id="it511-recherche" type="text" autocomplete="off" placeholder="Rechercher une référence (ex. 175)" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
+      <details style="margin-top:16px;border-top:1px solid #eef0f3;padding-top:10px;">
+        <summary style="font-size:13px;cursor:pointer;font-weight:600;">Voyages enregistrés</summary>
+        <div style="position:relative;margin:8px 0;">
+          <input id="it511-recherche" type="text" autocomplete="off" placeholder="Rechercher une série (ex. 175)" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
           <div id="it511-sugg-voyages" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:2000;background:#fff;border:1px solid #c9ced6;border-radius:4px;max-height:220px;overflow:auto;"></div>
         </div>
         <div id="it511-liste-voyages"></div>
-      </div>
+      </details>
+
+      <details style="margin-top:16px;border-top:1px solid #eef0f3;padding-top:10px;">
+        <summary style="font-size:13px;cursor:pointer;font-weight:600;">Formulaires reçus (L1 à L6)</summary>
+        <input id="it511-forms-serie" type="text" autocomplete="off" placeholder="Série (ex. 17513)" style="width:100%;box-sizing:border-box;margin:8px 0;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
+        <div id="it511-forms-liste"></div>
+        <button id="it511-forms-pdf-serie" type="button" style="display:none;width:100%;margin-top:8px;padding:8px;border:none;border-radius:4px;background:#15803d;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">Télécharger la série complète (PDF)</button>
+        <div style="font-size:11px;color:#8a8f98;margin-top:6px;">« PDF » : un formulaire seul. « Série complète » : tous les formulaires reçus de la série, l’un sous l’autre, en format lettre.</div>
+      </details>
 
       <details style="margin-top:16px;border-top:1px solid #eef0f3;padding-top:10px;">
         <summary style="font-size:13px;cursor:pointer;font-weight:600;">Restrictions et itinéraires privilégiés</summary>

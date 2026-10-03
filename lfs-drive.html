@@ -3,9 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Bonneville - Escortes</title>
+<title>Bonneville Transport Drive</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://ericgloutnez.github.io/LFS/regles-classe2.js?v=1.3.1"></script>
+<script src="https://ericgloutnez.github.io/LFS/formulaires-bonneville.js?v=1.1"></script>
 </head>
 <body style="margin:0;">
 <div id="lfsd">
@@ -32,8 +33,11 @@
   #lfsd button:focus-visible, #lfsd input:focus-visible { outline: 3px solid var(--accent) !important; outline-offset: 2px; }
 
   #lfsd .entete { display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: var(--surface); border-bottom: 1px solid var(--ligne); }
-  #lfsd .entete img { height: 34px; width: auto; display: block; }
-  #lfsd .entete .nom { display: none; font-size: 22px; font-weight: 800; }
+  #lfsd .entete img { height: 20px; width: auto; display: block; }
+  #lfsd .entete { flex-wrap: wrap; row-gap: 4px; }
+  @media (prefers-color-scheme: dark) { #lfsd .entete img { filter: invert(1); } }
+  #lfsd .entete .nom { display: none; font-size: 19px; font-weight: 800; line-height: 1.1; }
+  #lfsd .entete .nom-app { font-size: 15px; font-weight: 700; color: var(--doux); line-height: 1.1; }
   #lfsd .entete .etat { margin-left: auto; font-size: 13px; color: var(--doux); text-align: right; max-width: 55%; }
   #lfsd .entete .etat.horsligne { color: var(--signal); font-weight: 700; }
 
@@ -114,17 +118,93 @@
   #lfsd .nav-bas .quitter { width: 56px !important; height: 56px !important; border-radius: 50% !important; padding: 0 !important; text-align: center !important; font-size: 24px !important; }
   #lfsd .nav-bas .camion-nav { font-size: 13px; color: var(--doux); margin-top: 2px; }
   #lfsd .moi { width: 34px; height: 34px; }
+
+  #lfsd { --ok: #1b5e3b; --accent-fonce: #9a6700; }
+  #lfsd .ecran-forms, #lfsd .ecran-form { display: none; }
+  #lfsd.en-forms .bloc.recherche-zone, #lfsd.en-forms .voyage, #lfsd.en-forms .pied,
+  #lfsd.en-form .bloc.recherche-zone, #lfsd.en-form .voyage, #lfsd.en-form .pied { display: none !important; }
+  #lfsd.en-forms .ecran-forms, #lfsd.en-form .ecran-form { display: block !important; }
+  #lfsd .formulaires { display: block; width: 100% !important; margin-top: 10px !important; padding: 14px !important; font-size: 18px !important; font-weight: 800 !important; text-align: center !important; border-color: var(--encre) !important; }
+  #lfsd .f-barre { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 12px; background: var(--surface); border-bottom: 1px solid var(--ligne); }
+  #lfsd .f-retour { padding: 8px 12px !important; font-weight: 700 !important; border: none !important; }
+  #lfsd .f-petit { padding: 6px 12px !important; font-size: 14px !important; font-weight: 600 !important; }
+  #lfsd .f-h1 { font-size: 26px; font-weight: 800; margin: 0 0 4px; }
+  #lfsd .f-groupe { margin-top: 16px; }
+  #lfsd .f-message { margin-top: 10px; padding: 10px 12px; border-radius: 8px; background: #e7f3ec; color: var(--ok); font-weight: 700; }
+  #lfsd .f-carte { display: flex !important; align-items: center; gap: 12px; width: 100% !important; padding: 12px !important; margin-bottom: 8px !important; }
+  #lfsd .f-code { flex: 0 0 52px; height: 52px; border-radius: 8px; background: #e3e6e9; color: #1d2329; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 17px; }
+  #lfsd .f-txt { display: flex; flex-direction: column; gap: 2px; }
+  #lfsd .f-titre { font-weight: 700; font-size: 16px; }
+  #lfsd .f-qui { font-size: 13px; color: var(--doux); }
+  #lfsd .f-etat { font-size: 13px; font-weight: 700; }
+  #lfsd .f-bande { background: #e3e6e9; padding: 14px 16px; border-bottom: 1px solid #9aa3ab; text-align: center; }
+  #lfsd .f-bande h2 { font-size: 19px; font-weight: 800; color: #1d2329; }
+  #lfsd .f-pile { display: flex; flex-direction: column; gap: 14px; }
+  #lfsd .f-entete { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; background: var(--surface); border: 1px solid #9aa3ab; border-radius: 6px; padding: 12px; }
+  #lfsd .f-section { background: var(--surface); border: 1px solid #9aa3ab; border-radius: 6px; overflow: hidden; }
+  #lfsd .f-section-tete { background: #e3e6e9; color: #1d2329; padding: 10px 12px; border-bottom: 1px solid #9aa3ab; }
+  #lfsd .f-section-tete h3 { margin: 0; font-style: italic; font-weight: 700; font-size: 17px; }
+  #lfsd .f-sous { font-size: 13px; color: var(--doux); font-style: italic; }
+  #lfsd .f-section-tete .f-sous { color: #59636c; }
+  #lfsd .f-ctrl { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-bottom: 1px solid var(--ligne); }
+  #lfsd .f-ctrl:last-child { border-bottom: none; }
+  #lfsd .f-ctrl.grand { border: none; padding: 0; gap: 14px; }
+  #lfsd .f-ligne { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  #lfsd .f-retrait { margin-left: 18px; }
+  #lfsd .f-q { flex: 1; font-size: 16px; line-height: 1.35; }
+  #lfsd .f-action { font-style: italic; font-weight: 600; }
+  #lfsd .gras { font-weight: 700; }
+  #lfsd .f-rond { flex: 0 0 auto; width: 40px !important; height: 40px !important; border-radius: 50% !important; padding: 0 !important; text-align: center !important; font-size: 20px !important; font-weight: 800 !important; border: 2px solid #7a848d !important; }
+  #lfsd .f-rond.on { background: var(--ok) !important; border-color: var(--ok) !important; color: #ffffff !important; }
+  #lfsd .f-boutons { display: flex; gap: 8px; justify-content: flex-end; }
+  #lfsd .f-pil { min-width: 64px; height: 46px; padding: 0 12px !important; text-align: center !important; font-weight: 700 !important; border-color: #7a848d !important; }
+  #lfsd .f-pil.grand { flex: 1; height: 92px; font-size: 26px !important; font-weight: 800 !important; }
+  #lfsd .f-pil.oui.on { background: var(--ok) !important; border-color: var(--ok) !important; color: #ffffff !important; }
+  #lfsd .f-pil.non.on { background: var(--signal) !important; border-color: var(--signal) !important; color: #ffffff !important; }
+  #lfsd .f-pil.photo.on { background: #1f4f8a !important; border-color: #1f4f8a !important; color: #ffffff !important; }
+  #lfsd .f-champ { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 700; color: var(--doux); }
+  #lfsd .f-champ.requis { color: var(--signal); }
+  #lfsd .f-champ input, #lfsd .f-champ textarea { width: 100% !important; font-size: 16px !important; padding: 10px !important; border-radius: 8px !important; font-weight: 400; }
+  #lfsd .f-champ.requis input, #lfsd .f-champ.requis textarea { border-color: var(--signal) !important; }
+  #lfsd .f-ini { width: 90px !important; text-align: center !important; font-weight: 700 !important; }
+  #lfsd .f-info { font-size: 14px; line-height: 1.45; }
+  #lfsd .f-info.gras { font-weight: 700; }
+  #lfsd .f-choix { display: block !important; width: 100% !important; padding: 12px !important; font-size: 15px !important; line-height: 1.35; }
+  #lfsd .f-choix .f-info { display: block; margin-top: 4px; font-weight: 400; }
+  #lfsd .f-choix.on { border: 3px solid var(--encre) !important; background: #fff7df !important; color: #1d2329 !important; }
+  #lfsd .f-suite { margin: 0; padding: 10px 10px 10px 30px; background: #e3e6e9; color: #1d2329; border-radius: 6px; font-size: 14px; line-height: 1.4; }
+  #lfsd .f-suite.arret { background: #fdecea; color: var(--signal); font-weight: 700; }
+  #lfsd .f-alerte { background: #fdecea; color: var(--signal); border-radius: 8px; padding: 10px 12px; font-weight: 700; font-size: 14px; }
+  #lfsd .f-sig { display: flex; flex-direction: column; gap: 6px; }
+  #lfsd .f-canvas { width: 100%; height: 140px; border: 2px dashed #7a848d; border-radius: 8px; background: #ffffff; display: block; }
+  #lfsd .f-contact { background: #e3e6e9; color: #1d2329; border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+  #lfsd .f-tel { flex: 1; display: flex; align-items: center; justify-content: center; height: 48px; border-radius: 8px; background: #1d2329; color: #ffffff; font-weight: 700; text-decoration: none; }
+  #lfsd .f-envoi { position: sticky; bottom: 0; background: var(--surface); border-top: 1px solid var(--ligne); padding: 10px 14px 14px; display: flex; flex-direction: column; gap: 8px; }
+  #lfsd .f-nav { flex-direction: row; }
+  #lfsd .f-reste { font-size: 13px; font-weight: 700; color: var(--signal); text-align: center; }
+  #lfsd .f-reste.ok { color: var(--ok); }
+  #lfsd .f-envoyer { flex: 1; height: 54px; text-align: center !important; font-size: 18px !important; font-weight: 800 !important; background: var(--accent) !important; border-color: var(--accent) !important; color: #1d2329 !important; }
+  #lfsd .f-prec { flex: 0 0 120px; height: 54px; text-align: center !important; font-weight: 700 !important; }
+  #lfsd .f-manquants { margin: 6px 0 0; padding-left: 20px; font-size: 13px; color: var(--signal); }
+  #lfsd .f-prog { background: var(--surface); padding: 10px 16px; border-bottom: 1px solid var(--ligne); display: flex; flex-direction: column; gap: 6px; }
+  #lfsd .f-barre-prog { height: 8px; border-radius: 4px; background: #e3e6e9; overflow: hidden; }
+  #lfsd .f-barre-prog div { height: 8px; background: var(--accent); }
+  #lfsd .f-grandeq { font-size: 24px; font-weight: 700; line-height: 1.25; }
+  #lfsd .f-recap { padding: 10px 12px; border-bottom: 1px solid var(--ligne); }
+  #lfsd .f-rep { font-weight: 800; }
+  #lfsd .f-prog .f-sous { white-space: nowrap; font-style: normal; font-weight: 700; }
   @media (min-width: 700px) { #lfsd { max-width: 720px; margin: 0 auto; } }
 </style>
   <div class="entete">
-    <img id="lfsd-logo" src="https://ericgloutnez.github.io/LFS/logo-bonneville.png" alt="Bonneville">
-    <div id="lfsd-nom" class="nom">Bonneville</div>
+    <img id="lfsd-logo" src="data:image/png;base64,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" alt="Bonneville">
+    <div id="lfsd-nom-app" class="nom-app">Transport Drive</div>
+    <div id="lfsd-nom" class="nom">Bonneville Transport Drive</div>
     <div id="lfsd-etat" class="etat">Chargement des voyages…</div>
   </div>
 
-  <div class="bloc">
-    <div class="titre-bloc">Numéro du voyage</div>
-    <input id="lfsd-recherche" type="text" inputmode="numeric" autocomplete="off" placeholder="ex. 17513-2" aria-label="Numéro du voyage">
+  <div class="bloc recherche-zone">
+    <div class="titre-bloc">Série</div>
+    <input id="lfsd-recherche" type="text" inputmode="numeric" autocomplete="off" placeholder="ex. 17513-2" aria-label="Série">
     <div id="lfsd-suggestions" class="suggestions"></div>
   </div>
 
@@ -134,6 +214,7 @@
       <div id="lfsd-trajet" class="trajet"></div>
       <div id="lfsd-chiffres" class="chiffres"></div>
       <button id="lfsd-demarrer" type="button" class="demarrer">Démarrer la navigation</button>
+      <button id="lfsd-formulaires" type="button" class="formulaires">Formulaires L1 à L6</button>
     </div>
     <div id="lfsd-carte" class="carte" style="height:42vh;min-height:240px;"></div>
     <div class="progression" aria-live="polite">
@@ -163,6 +244,9 @@
     </details>
     <button id="lfsd-autre" type="button" class="autre">Chercher un autre voyage</button>
   </div>
+
+  <div id="lfsd-forms" class="ecran-forms"></div>
+  <div id="lfsd-form" class="ecran-form"></div>
 
   <div id="lfsd-nav" class="nav">
     <div id="lfsd-nav-carte" class="nav-carte" style="height:70vh;"></div>
@@ -194,7 +278,7 @@
 <script>
 (function () {
   var ADDIN_ID = 'aXdeNEZ7tQ7eMPNywYFFKrA';
-  var VERSION = '1.4';
+  var VERSION = '1.6';
   var CLE_CACHE = 'lfsd-voyages', CLE_DERNIER = 'lfsd-dernier', CLE_PARAM = 'lfsd-parametres';
 
   var api = null, carte = null, coucheTrace = null, marqueurMoi = null, marqueurCamion = null;
@@ -254,6 +338,9 @@
         var d = l.details || {};
         if (d.type === 'voyage') { liste.push({ id: l.id, d: d }); }
         else if (d.type === 'directions' && d.ref) { (parties[d.ref] = parties[d.ref] || []).push(d); }
+        else if (d.type === 'formulaire' && d.partie === 1 && d.cle) {
+          if (!formsServeur[d.cle] || formsServeur[d.cle].date < d.date) { formsServeur[d.cle] = { date: d.date, resume: d.resume || {} }; }
+        }
         else if (d.type === 'parametres') { parametres = d; }
       });
       liste.sort(function (a, b) { return (b.d.date || '').localeCompare(a.d.date || ''); });
@@ -265,7 +352,7 @@
         p.forEach(function (x) { etapes = etapes.concat(x.etapes || []); });
         directions[ref] = etapes;
       });
-      ecrireCache(CLE_CACHE, { date: new Date().toISOString(), voyages: liste, directions: directions });
+      ecrireCache(CLE_CACHE, { date: new Date().toISOString(), voyages: liste, directions: directions, formulaires: formsServeur });
       ecrireCache(CLE_PARAM, { cleCarto: parametres.cleCarto || '' });
       etat(liste.length + ' voyage' + (liste.length > 1 ? 's' : '') + ' - à jour à ' + new Date().toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' }));
     }).catch(function () {
@@ -275,6 +362,7 @@
       if (cache && cache.voyages) {
         voyages = cache.voyages;
         directions = cache.directions || {};
+        formsServeur = cache.formulaires || {};
         etat('Hors connexion - voyages du ' + new Date(cache.date).toLocaleString('fr-CA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }), true);
       } else {
         voyages = [];
@@ -299,7 +387,7 @@
     if (texte.length < 3) {
       var aide = document.createElement('div');
       aide.className = 'vide';
-      aide.textContent = 'Tape au moins les 3 premiers chiffres du numéro de voyage.';
+      aide.textContent = 'Tape au moins les 3 premiers chiffres de la série.';
       zone.appendChild(aide);
       return;
     }
@@ -513,6 +601,581 @@
     });
   }
 
+
+
+  // ===================== Formulaires L1 à L6 =====================
+  function FB() { return window.BonnevilleFormulaires; }
+  var auteurNom = lireCache('lfsd-auteur') || '';
+  var formsServeur = {};
+  var brouillons = lireCache('lfsd-brouillons') || {};
+  var envoisLocaux = lireCache('lfsd-envoyes') || {};
+  var fileEnvois = lireCache('lfsd-file') || [];
+  var formCourant = null;
+  var envoiEnCours = false;
+  var dernierMessage = '';
+  var ecranModules = null;
+
+  function el(tag, attrs, enfants) {
+    var e = document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function (k) {
+      if (k === 'texte') { e.textContent = attrs[k]; }
+      else if (k === 'classe') { e.className = attrs[k]; }
+      else if (k.indexOf('on') === 0) { e.addEventListener(k.slice(2), attrs[k]); }
+      else { e.setAttribute(k, attrs[k]); }
+    });
+    (enfants || []).forEach(function (c) { if (c) { e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); } });
+    return e;
+  }
+  function dateFr(d) { return d.toLocaleString('fr-CA', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); }
+  function serieModule() {
+    var ref = String(voyageActif ? voyageActif.d.ref : '');
+    var p = ref.split('-');
+    return { serie: p[0], module: voyageActif && voyageActif.d.module ? voyageActif.d.module : (p[1] || '') };
+  }
+  function nbModulesSerie(serie) {
+    var n = 0;
+    voyages.forEach(function (v) { if (String(v.d.ref || '').split('-')[0] === serie) { n = Math.max(n, parseInt(v.d.nbModules, 10) || 0); } });
+    return n;
+  }
+  function modulesSerie(sm) {
+    var n = nbModulesSerie(sm.serie), liste = [];
+    for (var i = 1; i <= n; i++) { liste.push(String(i)); }
+    if (!liste.length && sm.module) { liste.push(sm.module); }
+    return liste;
+  }
+
+  function cleForm(code, serie, module) {
+    var def = FB().defs[code];
+    if (def.parModule) { return code + '|' + serie + '|' + module; }
+    if (def.parPersonne) { return code + '|' + serie + '|' + (auteurNom || 'moi'); }
+    return code + '|' + serie;
+  }
+  function sauverEtat() {
+    ecrireCache('lfsd-brouillons', brouillons);
+    ecrireCache('lfsd-envoyes', envoisLocaux);
+    ecrireCache('lfsd-file', fileEnvois);
+  }
+
+  function chargerAuteur() {
+    if (!api || !api.getSession) { return; }
+    try {
+      api.getSession(function (s) {
+        if (!s || !s.userName) { return; }
+        appel('Get', { typeName: 'User', search: { name: s.userName } }).then(function (u) {
+          var x = u && u[0];
+          var nom = x ? ((x.firstName || '') + ' ' + (x.lastName || '')).trim() : '';
+          auteurNom = nom || s.userName;
+          ecrireCache('lfsd-auteur', auteurNom);
+        }).catch(function () { if (!auteurNom) { auteurNom = s.userName; ecrireCache('lfsd-auteur', auteurNom); } });
+      });
+    } catch (e) {}
+  }
+
+  // ----- Envoi vers Geotab, avec file d'attente hors connexion
+  function viderFile() {
+    if (envoiEnCours || !fileEnvois.length || !api) { majEtatEnvois(); return Promise.resolve(); }
+    envoiEnCours = true;
+    var job = fileEnvois[0];
+    var envoyerSuivant = function () {
+      if (job.fait >= job.records.length) {
+        fileEnvois.shift();
+        if (envoisLocaux[job.cle]) { envoisLocaux[job.cle].enAttente = false; }
+        sauverEtat();
+        envoiEnCours = false;
+        return viderFile();
+      }
+      return appel('Add', { typeName: 'AddInData', entity: { addInId: ADDIN_ID, groups: [{ id: 'GroupCompanyId' }], details: job.records[job.fait] } })
+        .then(function () { job.fait++; sauverEtat(); return envoyerSuivant(); });
+    };
+    return envoyerSuivant().catch(function () { envoiEnCours = false; majEtatEnvois(); });
+  }
+  function majEtatEnvois() {
+    if (fileEnvois.length) { etat(fileEnvois.length + ' formulaire' + (fileEnvois.length > 1 ? 's' : '') + ' en attente d’envoi (réseau)', true); }
+    if (formCourant === null && $('lfsd').className === 'en-forms') { if (ecranModules) { ouvrirChoixModule(ecranModules, true); } else { rendreListeForms(); } }
+  }
+
+  function envoyerForm() {
+    var f = formCourant, def = FB().defs[f.code];
+    var m = FB().manquants(def, f.r);
+    if (m.length) { afficherManquants(m); return; }
+    var res = FB().resume(def, f.r);
+    var charge = JSON.stringify({ code: f.code, cle: f.cle, serie: f.serie, module: f.module, auteur: auteurNom, date: new Date().toISOString(), reponses: f.r, resume: res });
+    var morceaux = [];
+    for (var i = 0; i < charge.length; i += 7000) { morceaux.push(charge.slice(i, i + 7000)); }
+    var fid = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    var date = new Date().toISOString();
+    var records = morceaux.map(function (mo, i) {
+      var d = { type: 'formulaire', fid: fid, cle: f.cle, code: f.code, serie: f.serie, module: f.module, auteur: auteurNom, date: date, partie: i + 1, total: morceaux.length, morceau: mo };
+      if (i === 0) { d.resume = res; }
+      return d;
+    });
+    fileEnvois.push({ fid: fid, cle: f.cle, records: records, fait: 0 });
+    envoisLocaux[f.cle] = { date: date, resume: res, enAttente: true, reponses: f.code === 'L3' ? f.r : undefined };
+    delete brouillons[f.cle];
+    sauverEtat();
+    var code = f.code;
+    formCourant = null;
+    if (def.parModule) { dernierMessage = code + ' du module ' + f.serie + '-' + f.module + ' enregistré.'; ouvrirChoixModule(code, true); }
+    else { ouvrirListeForms(code + ' enregistré. ' + (res.l3b ? 'Remplir maintenant L3b avec le client.' : 'Envoi à Geotab en cours.')); }
+    viderFile();
+  }
+
+  // ----- Liste des formulaires de la série
+  function etatForm(code, sm) {
+    if (FB().defs[code].parModule) {
+      var mods = modulesSerie(sm);
+      if (!mods.length) { return { t: 'Nombre de modules non indiqué : mettre à jour le voyage dans LFS', c: 'var(--signal)' }; }
+      var envoyes = 0, alertes = 0, attente = 0, cours = 0;
+      mods.forEach(function (m) {
+        var c = cleForm(code, sm.serie, m), loc = envoisLocaux[c], srv = formsServeur[c], env = loc || srv;
+        if (loc && loc.enAttente) { attente++; }
+        if (env) { envoyes++; if (env.resume && env.resume.alerte) { alertes++; } }
+        else if (brouillons[c]) { cours++; }
+      });
+      var t = envoyes + ' / ' + mods.length + ' module' + (mods.length > 1 ? 's' : '') + ' envoyé' + (envoyes > 1 ? 's' : '');
+      if (alertes) { t += ', ' + alertes + ' avec non-conformité'; }
+      if (attente) { t += ', ' + attente + ' en attente du réseau'; }
+      if (cours) { t += ', ' + cours + ' en cours'; }
+      return { t: t, c: alertes ? 'var(--signal)' : (envoyes === mods.length ? 'var(--ok)' : 'var(--accent-fonce)') };
+    }
+    return etatUnModule(code, sm, sm.module);
+  }
+
+  function etatUnModule(code, sm, module) {
+    var cle = cleForm(code, sm.serie, module);
+    var loc = envoisLocaux[cle], srv = formsServeur[cle];
+    if (loc && loc.enAttente) { return { t: 'Enregistré, envoi en attente du réseau', c: 'var(--accent-fonce)' }; }
+    var env = loc || srv;
+    if (env) { return { t: 'Envoyé le ' + dateFr(new Date(env.date)) + ((env.resume && env.resume.texte) ? ' - ' + env.resume.texte : ''), c: env.resume && env.resume.alerte ? 'var(--signal)' : 'var(--ok)' }; }
+    if (brouillons[cle]) { return { t: 'En cours', c: 'var(--accent-fonce)' }; }
+    if (code === 'L3b') {
+      var l3 = envoisLocaux[cleForm('L3', sm.serie, sm.module)] || formsServeur[cleForm('L3', sm.serie, sm.module)];
+      var b3 = brouillons[cleForm('L3', sm.serie, sm.module)];
+      var requis = (l3 && l3.resume && l3.resume.l3b) || (b3 && (b3.r.cas === 'C' || b3.r.cas === 'D'));
+      return requis ? { t: 'Requis : L3 indique le cas C ou D', c: 'var(--signal)' } : { t: 'Non requis pour l’instant', c: 'var(--doux)' };
+    }
+    return { t: 'À faire', c: 'var(--doux)' };
+  }
+
+  function ouvrirListeForms(msg) {
+    if (!FB()) { alert('Les formulaires n’ont pas pu être chargés (pas de connexion à l’ouverture de la page).'); return; }
+    formCourant = null;
+    $('lfsd').className = 'en-forms';
+    rendreListeForms(msg);
+    window.scrollTo(0, 0);
+  }
+
+  function rendreListeForms(msg) {
+    ecranModules = null;
+    if (msg) { dernierMessage = msg; } else { msg = dernierMessage; }
+    var z = $('lfsd-forms');
+    z.innerHTML = '';
+    var sm = serieModule();
+    z.appendChild(el('div', { classe: 'f-barre' }, [el('button', { type: 'button', classe: 'f-retour', onclick: function () { $('lfsd').className = ''; window.scrollTo(0, 0); } }, ['‹ Voyage ' + (voyageActif ? voyageActif.d.ref : '')])]));
+    var b = el('div', { classe: 'bloc' });
+    b.appendChild(el('h2', { classe: 'f-h1', texte: 'Formulaires' }));
+    var nbm = modulesSerie(sm).length;
+    b.appendChild(el('div', { classe: 'vide', texte: 'Série ' + sm.serie + (nbm ? ', ' + nbm + ' module' + (nbm > 1 ? 's' : '') : '') + '. Chaque formulaire se remplit séparément, même sans réseau.' }));
+    if (msg) { b.appendChild(el('div', { classe: 'f-message', texte: msg })); }
+    [['transport', 'Transport (chauffeur)'], ['installation', 'Installation (chef d’équipe)']].forEach(function (g) {
+      b.appendChild(el('div', { classe: 'titre-bloc f-groupe', texte: g[1] }));
+      FB().ordre.forEach(function (code) {
+        var def = FB().defs[code];
+        if (def.groupe !== g[0]) { return; }
+        var e = etatForm(code, sm);
+        var st = el('span', { classe: 'f-etat', texte: e.t }); st.style.color = e.c;
+        b.appendChild(el('button', { type: 'button', classe: 'f-carte', onclick: function () { if (def.parModule) { ouvrirChoixModule(code); } else { ouvrirForm(code); } } }, [
+          el('span', { classe: 'f-code', texte: code }),
+          el('span', { classe: 'f-txt' }, [el('span', { classe: 'f-titre', texte: def.titreCourt }), el('span', { classe: 'f-qui', texte: def.qui }), st])]));
+      });
+    });
+    z.appendChild(b);
+  }
+
+  // ----- Choix du module (L1 et L2 : un formulaire par module)
+  function ouvrirChoixModule(code, garderMessage) {
+    var z = $('lfsd-forms'), sm = serieModule(), def = FB().defs[code], mods = modulesSerie(sm);
+    ecranModules = code;
+    if (!garderMessage) { dernierMessage = ''; }
+    z.innerHTML = '';
+    z.appendChild(el('div', { classe: 'f-barre' }, [el('button', { type: 'button', classe: 'f-retour', onclick: function () { rendreListeForms(); } }, ['‹ Formulaires'])]));
+    var b = el('div', { classe: 'bloc' });
+    b.appendChild(el('h2', { classe: 'f-h1', texte: code + ' – ' + def.titreCourt }));
+    if (!mods.length) {
+      b.appendChild(el('div', { classe: 'f-alerte', texte: 'Le nombre de modules n’est pas indiqué pour la série ' + sm.serie + '. Au bureau : ouvrir le voyage dans LFS, Modifier, inscrire le nombre de modules et Mettre à jour.' }));
+    } else {
+      b.appendChild(el('div', { classe: 'vide', texte: 'Un formulaire ' + code + ' par module. Choisis le module.' }));
+      if (dernierMessage) { b.appendChild(el('div', { classe: 'f-message', texte: dernierMessage })); }
+      mods.forEach(function (m) {
+        var e = etatUnModule(code, sm, m);
+        var st = el('span', { classe: 'f-etat', texte: e.t }); st.style.color = e.c;
+        b.appendChild(el('button', { type: 'button', classe: 'f-carte', onclick: function () { ouvrirForm(code, m); } }, [
+          el('span', { classe: 'f-code', texte: m }),
+          el('span', { classe: 'f-txt' }, [el('span', { classe: 'f-titre', texte: sm.serie + '-' + m }), st])]));
+      });
+    }
+    z.appendChild(b);
+    $('lfsd').className = 'en-forms';
+    window.scrollTo(0, 0);
+  }
+
+  // ----- Ouverture d'un formulaire
+  function ouvrirForm(code, moduleChoisi) {
+    dernierMessage = '';
+    var sm = serieModule(), def = FB().defs[code];
+    if (moduleChoisi) { sm.module = moduleChoisi; }
+    var cle = cleForm(code, sm.serie, sm.module);
+    var br = brouillons[cle];
+    var r = br ? br.r : {};
+    if (!br) {
+      var maintenant = new Date();
+      (def.entete || []).forEach(function (c) {
+        if (c.auto === 'serie') { r[c.id] = sm.serie; }
+        if (c.auto === 'module') { r[c.id] = sm.module; }
+        if (c.auto === 'date') { r[c.id] = dateFr(maintenant); }
+        if (c.auto === 'auteur') { r[c.id] = auteurNom; }
+      });
+      def.sections.forEach(function (s) { s.items.forEach(function (it) {
+        if (it.t === 'champ' && it.auto === 'date') { r[it.id] = dateFr(maintenant); }
+        if (it.t === 'champ' && it.auto === 'jour') { r[it.id] = maintenant.toLocaleDateString('fr-CA', { day: 'numeric', month: 'long', year: 'numeric' }); }
+      }); });
+      if (code === 'L3b') {
+        var b3 = brouillons[cleForm('L3', sm.serie, sm.module)];
+        var envoye = envoisLocaux[cleForm('L3', sm.serie, sm.module)];
+        if (envoye && envoye.reponses) { b3 = { r: envoye.reponses }; }
+        if (b3 && b3.r) {
+          var liste = [];
+          FB().defs.L3.sections.forEach(function (s) { s.items.forEach(function (it) { if (it.t === 'ouinon' && b3.r[it.id] === 'non') { liste.push(it.texte + ' : ' + (b3.r[it.id + '_expl'] || '')); } }); });
+          if (liste.length) { r.nc = liste.join('\n'); }
+          r.equipe = b3.r.equipe || '';
+        }
+      }
+    }
+    var modePref = lireCache('lfsd-mode-form');
+    formCourant = { code: code, cle: cle, serie: sm.serie, module: sm.module, r: r, mode: modePref || null, etape: 0 };
+    $('lfsd').className = 'en-form';
+    rendreForm();
+    window.scrollTo(0, 0);
+  }
+
+  function maj(id, valeur, rerendre) {
+    formCourant.r[id] = valeur;
+    brouillons[formCourant.cle] = { r: formCourant.r, maj: new Date().toISOString() };
+    sauverEtat();
+    if (rerendre) { var y = window.scrollY; rendreForm(); window.scrollTo(0, y); }
+  }
+
+  // ----- Contrôles
+  function rond(coche, libelle, onclick) {
+    return el('button', { type: 'button', classe: 'f-rond' + (coche ? ' on' : ''), 'aria-label': libelle + (coche ? ' (coché)' : ''), 'aria-pressed': coche ? 'true' : 'false', onclick: onclick }, [coche ? '✓' : '']);
+  }
+  function pilule(txt, on, sorte, onclick, grand) {
+    return el('button', { type: 'button', classe: 'f-pil ' + sorte + (on ? ' on' : '') + (grand ? ' grand' : ''), 'aria-pressed': on ? 'true' : 'false', onclick: onclick, texte: txt });
+  }
+  function champTexte(id, label, multi, valeur, requis) {
+    var lab = el('label', { classe: 'f-champ' + (requis ? ' requis' : '') }, [label]);
+    var inp = multi ? el('textarea', { rows: '4' }) : el('input', { type: 'text' });
+    inp.value = valeur || '';
+    inp.addEventListener('input', function () { maj(id, inp.value, false); });
+    lab.appendChild(inp);
+    return lab;
+  }
+
+  function controle(it, grand) {
+    var r = formCourant.r, v = r[it.id];
+    var bloc = el('div', { classe: 'f-ctrl' + (grand ? ' grand' : '') });
+    switch (it.t) {
+      case 'check':
+        if (grand) { bloc.appendChild(pilule(v ? '✓ Vérifié' : 'Oui, c’est vérifié', !!v, 'oui', function () { maj(it.id, !v, true); }, true)); }
+        else { bloc.appendChild(el('div', { classe: 'f-ligne' }, [el('div', { classe: 'f-q', texte: it.texte }), rond(!!v, it.texte, function () { maj(it.id, !v, true); })])); }
+        break;
+      case 'action':
+        if (!FB().actionVisible(it, r)) { return null; }
+        if (grand) { bloc.appendChild(pilule(v ? '✓ C’est fait' : 'C’est fait', !!v, 'oui', function () { maj(it.id, !v, true); }, true)); }
+        else { bloc.appendChild(el('div', { classe: 'f-ligne' }, [el('div', { classe: 'f-q f-action', texte: it.texte }), rond(!!v, it.texte, function () { maj(it.id, !v, true); })])); }
+        break;
+      case 'oui':
+        if (!grand) { bloc.appendChild(el('div', { classe: 'f-q', texte: it.texte })); }
+        bloc.appendChild(el('div', { classe: 'f-boutons' }, [pilule('OUI', v === 'oui', 'oui', function () { maj(it.id, v === 'oui' ? '' : 'oui', true); }, grand)]));
+        break;
+      case 'ouinon':
+        if (!grand) { bloc.appendChild(el('div', { classe: 'f-q', texte: it.texte })); }
+        var bt = [];
+        if (it.photo && !grand) { bt.push(pilule((r[it.id + '_photo'] ? '✓ ' : '') + 'PHOTO', !!r[it.id + '_photo'], 'photo', function () { maj(it.id + '_photo', !r[it.id + '_photo'], true); })); }
+        bt.push(pilule('OUI', v === 'oui', 'oui', function () { maj(it.id, 'oui', true); }, grand));
+        bt.push(pilule('NON', v === 'non', 'non', function () { maj(it.id, 'non', true); }, grand));
+        bloc.appendChild(el('div', { classe: 'f-boutons' }, bt));
+        if (v === 'non' && !it.sansExplication) { bloc.appendChild(champTexte(it.id + '_expl', 'Explication (obligatoire)', grand, r[it.id + '_expl'], true)); }
+        if (it.photo && grand) {
+          bloc.appendChild(el('div', { classe: 'f-ligne' }, [el('div', { classe: 'f-q', texte: v === 'non' ? 'Photo de la non-conformité prise' : 'Photo prise (facultatif si OUI)' }), rond(!!r[it.id + '_photo'], 'Photo', function () { maj(it.id + '_photo', !r[it.id + '_photo'], true); })]));
+        }
+        break;
+      case 'texte':
+        var req = it.requis || (it.requisSiNon && FB().aUnNon(FB().defs[formCourant.code], r));
+        bloc.appendChild(champTexte(it.id, it.label + (req ? ' (obligatoire)' : ''), true, v, req));
+        break;
+      case 'champ':
+        bloc.appendChild(champTexte(it.id, it.label, false, v, it.requis));
+        break;
+      case 'info':
+        bloc.appendChild(el('div', { classe: 'f-info' + (it.gras ? ' gras' : ''), texte: it.texte }));
+        break;
+      case 'paiement':
+        var p = v || {};
+        var setP = function (k, val) { var n = {}; Object.keys(p).forEach(function (x) { n[x] = p[x]; }); n[k] = val; maj(it.id, n, true); };
+        bloc.appendChild(el('button', { type: 'button', classe: 'f-choix' + (p.mode === 'A' ? ' on' : ''), onclick: function () { setP('mode', 'A'); } }, [el('b', { texte: 'A – ' }), 'Chèque ou traite bancaire reçu']));
+        if (p.mode === 'A') {
+          [['date', 'Date validée'], ['montant', 'Montant validé'], ['endossement', 'Endossement validé']].forEach(function (x) {
+            bloc.appendChild(el('div', { classe: 'f-ligne f-retrait' }, [el('div', { classe: 'f-q', texte: x[1] }), rond(!!p[x[0]], x[1], function () { setP(x[0], !p[x[0]]); })]));
+          });
+        }
+        bloc.appendChild(el('button', { type: 'button', classe: 'f-choix' + (p.mode === 'B' ? ' on' : ''), onclick: function () { setP('mode', 'B'); } }, [el('b', { texte: 'B – ' }), 'Paiement déjà fait (virement)']));
+        if (p.mode === 'A' && !(p.date && p.montant && p.endossement)) {
+          bloc.appendChild(el('div', { classe: 'f-alerte', texte: 'Paiement non entièrement validé : ne pas débuter les travaux. Appeler le ' + FB().telephone + '.' }));
+        }
+        break;
+      case 'decision':
+        ['A', 'B', 'C', 'D'].forEach(function (k) {
+          var d = FB().defs.L3.decisions[k];
+          bloc.appendChild(el('button', { type: 'button', classe: 'f-choix' + (v === k ? ' on' : ''), onclick: function () { maj(it.id, k, true); } }, [d.titre]));
+          if (v === k) {
+            var ol = el('ol', { classe: 'f-suite' + (d.arret ? ' arret' : '') });
+            d.suite.forEach(function (s) { ol.appendChild(el('li', { texte: s })); });
+            bloc.appendChild(ol);
+          }
+        });
+        break;
+      case 'option':
+        it.options.forEach(function (o) {
+          bloc.appendChild(el('button', { type: 'button', classe: 'f-choix' + (v === o.v ? ' on' : ''), onclick: function () { maj(it.id, o.v, true); } }, [el('b', { texte: o.titre })]));
+          o.textes.forEach(function (tx) { bloc.appendChild(el('div', { classe: 'f-info', texte: tx })); });
+        });
+        break;
+      case 'signature':
+        bloc.appendChild(padSignature(it));
+        break;
+    }
+    return bloc;
+  }
+
+  function padSignature(it) {
+    var r = formCourant.r;
+    var conteneur = el('div', { classe: 'f-sig' });
+    var effacer = el('button', { type: 'button', classe: 'f-petit', texte: 'Effacer', onclick: function () { maj(it.id, [], true); } });
+    conteneur.appendChild(el('div', { classe: 'f-ligne' }, [el('div', { classe: 'f-q gras', texte: it.label }), effacer]));
+    var canvas = el('canvas', { classe: 'f-canvas', 'aria-label': it.label });
+    conteneur.appendChild(canvas);
+    var traits = (r[it.id] || []).map(function (t) { return t.slice(); });
+    var actif = null;
+    function taille() {
+      var w = canvas.clientWidth || 320, h = 140, ratio = window.devicePixelRatio || 1;
+      canvas.width = w * ratio; canvas.height = h * ratio; canvas.style.height = h + 'px';
+      var ctx = canvas.getContext('2d'); ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      dessiner();
+    }
+    function dessiner() {
+      var ctx = canvas.getContext('2d'), w = canvas.clientWidth || 320, h = 140;
+      ctx.clearRect(0, 0, w, h);
+      ctx.strokeStyle = '#1d2329'; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      traits.forEach(function (tr) {
+        ctx.beginPath();
+        tr.forEach(function (pt, i) { var x = pt[0] / 300 * w, y = pt[1] / 120 * h; if (i) { ctx.lineTo(x, y); } else { ctx.moveTo(x, y); } });
+        ctx.stroke();
+      });
+      if (!traits.length) { ctx.fillStyle = '#7a848d'; ctx.font = 'italic 15px sans-serif'; ctx.fillText('Signer ici avec le doigt', 12, 76); }
+    }
+    function point(e) {
+      var b = canvas.getBoundingClientRect();
+      return [Math.round((e.clientX - b.left) / b.width * 300), Math.round((e.clientY - b.top) / b.height * 120)];
+    }
+    canvas.addEventListener('pointerdown', function (e) { e.preventDefault(); canvas.setPointerCapture(e.pointerId); actif = [point(e)]; traits.push(actif); dessiner(); });
+    canvas.addEventListener('pointermove', function (e) {
+      if (!actif) { return; }
+      var p = point(e), d = actif[actif.length - 1];
+      if (Math.abs(p[0] - d[0]) + Math.abs(p[1] - d[1]) >= 2) { actif.push(p); dessiner(); }
+    });
+    var fin = function () { if (!actif) { return; } actif = null; maj(it.id, traits.map(function (t) { return t.slice(); }), false); };
+    canvas.addEventListener('pointerup', fin);
+    canvas.addEventListener('pointercancel', fin);
+    canvas.style.touchAction = 'none';
+    setTimeout(taille, 0);
+    return conteneur;
+  }
+
+  // ----- Rendu du formulaire
+  function barreForm(def) {
+    var autre = formCourant.mode === 'question' ? 'Voir le formulaire complet' : 'Une question à la fois';
+    return el('div', { classe: 'f-barre' }, [
+      el('button', { type: 'button', classe: 'f-retour', onclick: function () { var c = formCourant.code; if (FB().defs[c].parModule) { formCourant = null; ouvrirChoixModule(c); } else { ouvrirListeForms(); } } }, [FB().defs[formCourant.code].parModule ? '‹ Modules' : '‹ Formulaires']),
+      formCourant.mode ? el('button', { type: 'button', classe: 'f-petit', texte: autre, onclick: function () {
+        formCourant.mode = formCourant.mode === 'question' ? 'complet' : 'question'; formCourant.etape = 0; rendreForm(); window.scrollTo(0, 0);
+      } }) : null]);
+  }
+
+  function rendreForm() {
+    var z = $('lfsd-form'), def = FB().defs[formCourant.code];
+    z.innerHTML = '';
+    z.appendChild(barreForm(def));
+    z.appendChild(el('div', { classe: 'f-bande' }, [el('h2', { texte: def.code + ' – ' + def.titre }), def.parModule ? el('div', { classe: 'f-sous', texte: 'Module ' + formCourant.serie + '-' + formCourant.module }) : null]));
+    if (!formCourant.mode) { rendreChoixMode(z, def); return; }
+    if (formCourant.mode === 'question') { rendreQuestion(z, def); } else { rendreComplet(z, def); }
+  }
+
+  function rendreChoixMode(z, def) {
+    var b = el('div', { classe: 'bloc' });
+    b.appendChild(el('div', { classe: 'f-grandeq', texte: 'Comment veux-tu remplir ce formulaire?' }));
+    var retenir = { v: true };
+    [['question', 'Une question à la fois', 'Grand texte, gros boutons. Une question par écran, avec Précédent et Suivant, puis un résumé avant l’envoi.'],
+     ['complet', 'Formulaire complet', 'Tout le formulaire sur une page, comme la version papier.']].forEach(function (o) {
+      b.appendChild(el('button', { type: 'button', classe: 'f-choix', onclick: function () {
+        formCourant.mode = o[0]; if (retenir.v) { ecrireCache('lfsd-mode-form', o[0]); } rendreForm(); window.scrollTo(0, 0);
+      } }, [el('b', { texte: o[1] }), el('span', { classe: 'f-info', texte: o[2] })]));
+    });
+    var cb = rond(true, 'Retenir mon choix', function () { retenir.v = !retenir.v; cb.className = 'f-rond' + (retenir.v ? ' on' : ''); cb.textContent = retenir.v ? '✓' : ''; });
+    b.appendChild(el('div', { classe: 'f-ligne' }, [el('div', { classe: 'f-q', texte: 'Retenir mon choix pour les prochains formulaires' }), cb]));
+    b.appendChild(el('div', { classe: 'vide', texte: 'On peut changer d’affichage en tout temps; les réponses sont conservées.' }));
+    z.appendChild(b);
+  }
+
+  function enteteControles(def) {
+    var g = el('div', { classe: 'f-entete' });
+    (def.entete || []).forEach(function (c) { g.appendChild(champTexte(c.id, c.label, false, formCourant.r[c.id], c.requis)); });
+    return g;
+  }
+
+  function piedContact(def) {
+    var p = el('div', { classe: 'f-contact' });
+    if (def.contact) { p.appendChild(el('div', { classe: 'gras', texte: def.contact })); }
+    var ligne = el('div', { classe: 'f-ligne' }, [el('a', { classe: 'f-tel', href: 'tel:' + FB().telephone.replace(/\D/g, '') }, ['Appeler le ' + FB().telephone])]);
+    if (def.initiales) {
+      var ini = el('input', { type: 'text', 'aria-label': 'Initiales', classe: 'f-ini' }); ini.value = formCourant.r.initiales || '';
+      ini.addEventListener('input', function () { maj('initiales', ini.value, false); });
+      ligne.appendChild(el('label', { classe: 'f-champ' }, ['Initiales', ini]));
+    }
+    p.appendChild(ligne);
+    return p;
+  }
+
+  function boutonEnvoyer(def) {
+    var m = FB().manquants(def, formCourant.r);
+    var pied = el('div', { classe: 'f-envoi' });
+    pied.appendChild(el('div', { classe: 'f-reste' + (m.length ? '' : ' ok'), texte: m.length ? m.length + ' élément' + (m.length > 1 ? 's' : '') + ' à compléter avant l’envoi' : 'Tout est rempli. Le formulaire part dès qu’il y a du réseau.' }));
+    pied.appendChild(el('button', { type: 'button', classe: 'f-envoyer', texte: 'Envoyer ' + def.code, onclick: envoyerForm }));
+    pied.appendChild(el('div', { id: 'lfsd-manquants' }));
+    return pied;
+  }
+
+  function afficherManquants(m) {
+    var z = $('lfsd-manquants');
+    if (!z) { return; }
+    z.innerHTML = '';
+    var ul = el('ul', { classe: 'f-manquants' });
+    m.slice(0, 12).forEach(function (t) { ul.appendChild(el('li', { texte: t })); });
+    if (m.length > 12) { ul.appendChild(el('li', { texte: 'et ' + (m.length - 12) + ' autre(s)' })); }
+    z.appendChild(el('div', { classe: 'f-alerte', texte: 'À compléter avant l’envoi :' }));
+    z.appendChild(ul);
+  }
+
+  function rendreComplet(z, def) {
+    var b = el('div', { classe: 'bloc f-pile' });
+    b.appendChild(enteteControles(def));
+    def.sections.forEach(function (s) {
+      var sec = el('section', { classe: 'f-section' });
+      var tete = el('div', { classe: 'f-section-tete' }, [el('h3', { texte: s.titre })]);
+      if (s.sous) { tete.appendChild(el('div', { classe: 'f-sous', texte: s.sous })); }
+      sec.appendChild(tete);
+      var nb = 0;
+      s.items.forEach(function (it) { var c = controle(it, false); if (c) { sec.appendChild(c); nb++; } });
+      if (!nb) { sec.appendChild(el('div', { classe: 'f-ctrl' }, [el('div', { classe: 'f-info', texte: 'Choisir l’option du client pour afficher la suite.' })])); }
+      b.appendChild(sec);
+    });
+    b.appendChild(piedContact(def));
+    z.appendChild(b);
+    z.appendChild(boutonEnvoyer(def));
+  }
+
+  function etapes(def) {
+    var liste = [{ k: 'entete', titre: 'Renseignements' }];
+    def.sections.forEach(function (s) {
+      var infos = [];
+      s.items.forEach(function (it) {
+        if (it.t === 'info') { infos.push(it); return; }
+        if (it.t === 'action' && !FB().actionVisible(it, formCourant.r)) { return; }
+        liste.push({ k: 'item', s: s, it: it, infos: infos }); infos = [];
+      });
+      if (infos.length) { liste.push({ k: 'info', s: s, infos: infos }); }
+    });
+    if (def.initiales) { liste.push({ k: 'initiales', titre: 'Initiales' }); }
+    liste.push({ k: 'recap', titre: 'Récapitulatif' });
+    return liste;
+  }
+
+  function texteReponse(it, r) {
+    var v = r[it.id];
+    switch (it.t) {
+      case 'check': return v ? 'Vérifié' : '';
+      case 'action': return v ? 'Fait' : '';
+      case 'oui': case 'ouinon': return v === 'oui' ? 'OUI' : (v === 'non' ? 'NON' + (r[it.id + '_expl'] ? ' : ' + r[it.id + '_expl'] : '') : '');
+      case 'paiement': return v && v.mode ? (v.mode === 'A' ? 'A (chèque/traite)' : 'B (virement)') : '';
+      case 'decision': return v ? 'Cas ' + v : '';
+      case 'option': return v ? 'Option ' + v : '';
+      case 'signature': return v && v.length ? 'Signé' : '';
+      default: return v ? String(v) : '';
+    }
+  }
+
+  function rendreQuestion(z, def) {
+    var L = etapes(def);
+    if (formCourant.etape >= L.length) { formCourant.etape = L.length - 1; }
+    var e = L[formCourant.etape];
+    var n = formCourant.etape + 1;
+    var prog = el('div', { classe: 'f-prog' }, [
+      el('div', { classe: 'f-ligne' }, [el('span', { classe: 'gras', texte: (e.s ? e.s.titre : e.titre) }), el('span', { classe: 'f-sous', texte: n + ' / ' + L.length })]),
+      el('div', { classe: 'f-barre-prog' }, [el('div', { style: 'width:' + Math.round(n / L.length * 100) + '%' })])]);
+    z.appendChild(prog);
+    var b = el('div', { classe: 'bloc f-pile' });
+    if (e.k === 'entete') {
+      b.appendChild(el('div', { classe: 'f-grandeq', texte: 'Vérifie les renseignements' }));
+      b.appendChild(enteteControles(def));
+    } else if (e.k === 'item' || e.k === 'info') {
+      (e.infos || []).forEach(function (i) { b.appendChild(el('div', { classe: 'f-info' + (i.gras ? ' gras' : ''), texte: i.texte })); });
+      if (e.k === 'item') {
+        var q = e.it.texte || e.it.label || '';
+        if (e.it.t === 'paiement') { q = 'Méthode de paiement'; }
+        if (e.it.t === 'decision') { q = 'Résultat de l’inspection : quel cas s’applique?'; }
+        if (e.it.t === 'option') { q = 'Quelle option le client choisit-il?'; }
+        if (q && e.it.t !== 'signature') { b.appendChild(el('div', { classe: 'f-grandeq', texte: q })); }
+        b.appendChild(controle(e.it, true));
+      }
+    } else if (e.k === 'initiales') {
+      b.appendChild(el('div', { classe: 'f-grandeq', texte: 'Tes initiales' }));
+      b.appendChild(piedContact(def));
+    } else {
+      b.appendChild(el('div', { classe: 'f-grandeq', texte: 'Vérifie tes réponses avant l’envoi' }));
+      var liste = el('div', { classe: 'f-section' });
+      L.forEach(function (x, i) {
+        if (x.k !== 'item') { return; }
+        var rep = texteReponse(x.it, formCourant.r);
+        var lab = x.it.texte || x.it.label || (x.it.t === 'paiement' ? 'Paiement' : (x.it.t === 'decision' ? 'Cas' : 'Option'));
+        var vs = el('span', { classe: 'f-rep', texte: rep || 'à compléter' });
+        if (!rep) { vs.style.color = 'var(--signal)'; } else if (/^NON/.test(rep)) { vs.style.color = 'var(--signal)'; }
+        liste.appendChild(el('div', { classe: 'f-ligne f-recap' }, [el('div', { classe: 'f-q' }, [lab, el('br'), vs]),
+          el('button', { type: 'button', classe: 'f-petit', texte: 'Modifier', onclick: function () { formCourant.etape = i; rendreForm(); window.scrollTo(0, 0); } })]));
+      });
+      b.appendChild(liste);
+    }
+    z.appendChild(b);
+    var bas = el('div', { classe: 'f-envoi f-nav' });
+    if (formCourant.etape > 0) { bas.appendChild(el('button', { type: 'button', classe: 'f-prec', texte: 'Précédent', onclick: function () { formCourant.etape--; rendreForm(); window.scrollTo(0, 0); } })); }
+    if (e.k === 'recap') {
+      var env = boutonEnvoyer(def);
+      z.appendChild(env);
+      if (formCourant.etape > 0) { env.insertBefore(el('button', { type: 'button', classe: 'f-prec', texte: 'Précédent', onclick: function () { formCourant.etape--; rendreForm(); window.scrollTo(0, 0); } }), env.firstChild); }
+      return;
+    }
+    bas.appendChild(el('button', { type: 'button', classe: 'f-envoyer', texte: 'Suivant', onclick: function () { formCourant.etape++; rendreForm(); window.scrollTo(0, 0); } }));
+    z.appendChild(bas);
+  }
 
   // ===================== Navigation (suit le trajet LFS, ne recalcule jamais) =====================
   var nav = { actif: false, carte: null, couche: null, marqueur: null, suivre: true, voix: true, manoeuvres: [], annonces: {},
@@ -813,7 +1476,7 @@
 
   function brancher() {
     var logo = $('lfsd-logo');
-    var sansLogo = function () { logo.style.display = 'none'; $('lfsd-nom').style.display = 'block'; };
+    var sansLogo = function () { logo.style.display = 'none'; $('lfsd-nom-app').style.display = 'none'; $('lfsd-nom').style.display = 'block'; };
     logo.addEventListener('error', sansLogo);
     if (logo.complete && !logo.naturalWidth) { sansLogo(); }
     $('lfsd-recherche').addEventListener('input', function () {
@@ -826,6 +1489,8 @@
     $('lfsd-telecharger').addEventListener('click', telechargerDirections);
     nav.voix = lireCache('lfsd-voix') !== false;
     $('lfsd-demarrer').addEventListener('click', demarrerNavigation);
+    $('lfsd-formulaires').addEventListener('click', function () { ouvrirListeForms(); });
+    window.addEventListener('online', function () { viderFile(); });
     $('lfsd-quitter').addEventListener('click', quitterNavigation);
     $('lfsd-recentrer').addEventListener('click', function () { nav.suivre = true; if (positionMoi && nav.carte) { nav.carte.setView(positionMoi, 16); } });
     $('lfsd-son').addEventListener('click', function () {
@@ -856,7 +1521,8 @@
       focus: function (geotabApi) {
         api = geotabApi;
         creerCarte();
-        chargerVoyages();
+        chargerAuteur();
+        chargerVoyages().then(function () { viderFile(); });
         if (voyageActif) { demarrerGps(); demarrerCamion(); }
       },
       blur: function () {
@@ -869,7 +1535,7 @@
 
   window.geotab = window.geotab || {};
   window.geotab.addin = window.geotab.addin || {};
-  ['bonneville', 'Bonneville', 'lfsEscortes', 'lfsescortes', 'LFSEscortes', 'lfs_escortes', 'lfs-escortes', 'lfsDrive', 'lfs-drive', 'lfs'].forEach(function (nom) {
+  ['bonnevilleTransportDrive', 'BonnevilleTransportDrive', 'bonnevilletransportdrive', 'bonneville-transport-drive', 'bonneville', 'Bonneville', 'BONNEVILLE', 'lfsEscortes', 'lfsescortes', 'LFSEscortes', 'lfs_escortes', 'lfs-escortes', 'lfsDrive', 'lfs-drive', 'lfs'].forEach(function (nom) {
     window.geotab.addin[nom] = fabrique;
   });
   window.LFSDriveVersion = VERSION;
