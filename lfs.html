@@ -44,6 +44,24 @@ geotab.addin.lfs = function () {
     el.style.color = erreur ? '#8a1c1c' : '#0c447c';
   }
 
+  function fetchDelai(url, opts, ms) {
+    opts = opts || {};
+    var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    if (ctrl) { opts.signal = ctrl.signal; }
+    var minuteur = null;
+    var delai = new Promise(function (ok, ko) {
+      minuteur = setTimeout(function () {
+        if (ctrl) { try { ctrl.abort(); } catch (x) {} }
+        var e = new Error('Délai dépassé'); e.delai = true; ko(e);
+      }, ms || 30000);
+    });
+    return Promise.race([fetch(url, opts), delai]).then(
+      function (r) { clearTimeout(minuteur); return r; },
+      function (e) { clearTimeout(minuteur); throw e; });
+  }
+
+  function attendre(ms) { return new Promise(function (ok) { setTimeout(ok, ms); }); }
+
   function nombreFr(n, dec) {
     return n.toLocaleString('fr-CA', { minimumFractionDigits: dec, maximumFractionDigits: dec });
   }
@@ -140,7 +158,7 @@ geotab.addin.lfs = function () {
     if (!cle) { message('Entre d’abord ta clé OpenRouteService dans les paramètres.', true); return; }
     var url = ORS + '/pelias/v1/autocomplete?text=' + encodeURIComponent(texte) +
       '&boundary.country=CA&focus.point.lat=45.6&focus.point.lon=-73.2&size=6';
-    fetch(url, { headers: { 'Authorization': cle } }).then(function (r) { return r.json(); }).then(function (data) {
+    fetchDelai(url, { headers: { 'Authorization': cle } }).then(function (r) { return r.json(); }).then(function (data) {
       while (liste.firstChild) { liste.removeChild(liste.firstChild); }
       var res = (data && data.features) || [];
       if (!res.length) { liste.style.display = 'none'; return; }
@@ -163,7 +181,7 @@ geotab.addin.lfs = function () {
 
   function geocoder(texte) {
     var url = ORS + '/pelias/v1/search?text=' + encodeURIComponent(texte) + '&boundary.country=CA&size=1';
-    return fetch(url, { headers: { 'Authorization': lire('cle', '') } }).then(function (r) { return r.json(); }).then(function (data) {
+    return fetchDelai(url, { headers: { 'Authorization': lire('cle', '') } }).then(function (r) { return r.json(); }).then(function (data) {
       if (!data.features || !data.features.length) { throw new Error('Adresse introuvable : ' + texte); }
       var f = data.features[0];
       return { lon: f.geometry.coordinates[0], lat: f.geometry.coordinates[1], label: f.properties.label };
@@ -213,7 +231,7 @@ geotab.addin.lfs = function () {
 
   function adresseInverse(p) {
     var url = ORS + '/pelias/v1/reverse?point.lat=' + p.lat + '&point.lon=' + p.lon + '&size=1';
-    return fetch(url, { headers: { 'Authorization': lire('cle', '') } }).then(function (r) { return r.json(); }).then(function (d) {
+    return fetchDelai(url, { headers: { 'Authorization': lire('cle', '') } }).then(function (r) { return r.json(); }).then(function (d) {
       var f = d.features && d.features[0];
       return f ? f.properties.label : 'Point sur la carte (' + p.lat.toFixed(5) + ', ' + p.lon.toFixed(5) + ')';
     }).catch(function () { return 'Point sur la carte (' + p.lat.toFixed(5) + ', ' + p.lon.toFixed(5) + ')'; });
@@ -356,35 +374,60 @@ geotab.addin.lfs = function () {
   var BBOX_QC_SUD = '45.0,-74.6,47.4,-70.5';
   var restrictionsEnEchec = {};
 
+  var chargementGeomEnCours = null;
+  var dernierEchecGeom = {};
+
   function chargerGeometriesRestrictions() {
+    if (chargementGeomEnCours) { return chargementGeomEnCours; }
+    chargementGeomEnCours = chargerGeometriesInterne().then(
+      function () { chargementGeomEnCours = null; },
+      function () { chargementGeomEnCours = null; });
+    return chargementGeomEnCours;
+  }
+
+  function chargerGeometriesInterne() {
     restrictions.forEach(function (r) {
       if (!geomRestrictions[r.id] && r.d.geom && r.d.geom.length) {
         geomRestrictions[r.id] = r.d.geom.map(function (e) { return decoderPolyligne(e); });
+        delete restrictionsEnEchec[r.id];
       }
     });
-    var manquantes = restrictions.filter(function (r) { return !geomRestrictions[r.id]; });
+    var maintenant = Date.now();
+    var manquantes = restrictions.filter(function (r) {
+      if (geomRestrictions[r.id]) { return false; }
+      if (dernierEchecGeom[r.id] && maintenant - dernierEchecGeom[r.id] < 10 * 60000) { restrictionsEnEchec[r.id] = r.d.nom; return false; }
+      return true;
+    });
     if (!manquantes.length) { dessinerRestrictions(); return Promise.resolve(); }
+    var limite = maintenant + 60000;
     var chaine = Promise.resolve();
     manquantes.forEach(function (r) {
       chaine = chaine.then(function () {
-        var q1 = '[out:json][timeout:60];' + requeteRestriction(r).split(BBOX_QC).join(BBOX_QC_SUD);
-        var q2 = '[out:json][timeout:90];' + requeteRestriction(r);
+        if (Date.now() > limite || !overpassDisponible()) {
+          restrictionsEnEchec[r.id] = r.d.nom; dernierEchecGeom[r.id] = Date.now();
+          return;
+        }
+        var q1 = '[out:json][timeout:30];' + requeteRestriction(r).split(BBOX_QC).join(BBOX_QC_SUD);
+        var q2 = '[out:json][timeout:30];' + requeteRestriction(r);
         return requeteOverpass(q1).then(function (data) {
           var ways = (data.elements || []).filter(function (el) { return el.geometry; });
-          return ways.length ? ways : requeteOverpass(q2).then(function (d2) { return (d2.elements || []).filter(function (el) { return el.geometry; }); });
+          if (ways.length || Date.now() > limite) { return ways; }
+          return requeteOverpass(q2).then(function (d2) { return (d2.elements || []).filter(function (el) { return el.geometry; }); });
         }).then(function (ways) {
           var lignes = ways.map(function (w) { return w.geometry.map(function (g) { return [g.lat, g.lon]; }); });
           geomRestrictions[r.id] = lignes;
           delete restrictionsEnEchec[r.id];
+          delete dernierEchecGeom[r.id];
           if (lignes.length) { memoriserGeometrie(r, lignes); }
-        }).catch(function () { restrictionsEnEchec[r.id] = r.d.nom; });
+          else { console.warn('LFS - aucun tracé trouvé dans OpenStreetMap pour la restriction', r.d.nom); }
+        }).catch(function () { restrictionsEnEchec[r.id] = r.d.nom; dernierEchecGeom[r.id] = Date.now(); });
       });
     });
     return chaine.then(function () {
       dessinerRestrictions();
       afficherListeRestrictions();
       var echecs = Object.keys(restrictionsEnEchec).map(function (k) { return restrictionsEnEchec[k]; });
-      if (echecs.length) { message('Restrictions non vérifiées (OpenStreetMap ne répond pas) : ' + echecs.join(', ') + '. Réessaie dans un moment.', true); }
+      if (echecs.length) { message('Restrictions non vérifiées (OpenStreetMap ne répond pas ou limite les demandes) : ' + echecs.join(', ') + '. Réessaie dans quelques minutes.', true); }
     });
   }
 
@@ -396,7 +439,8 @@ geotab.addin.lfs = function () {
     } while (JSON.stringify(enc).length > 8000 && tol < 0.01);
     var details = Object.assign({}, r.d, { geom: enc });
     r.d = details;
-    appelGeotab('Set', { typeName: 'AddInData', entity: { id: r.id, addInId: ADDIN_ID, groups: [{ id: 'GroupCompanyId' }], details: details } }).catch(function () {});
+    appelGeotab('Set', { typeName: 'AddInData', entity: { id: r.id, addInId: ADDIN_ID, groups: [{ id: 'GroupCompanyId' }], details: details } })
+      .catch(function (e) { console.warn('LFS - mémorisation du tracé impossible dans Geotab', r.d.nom, e); });
   }
 
   function dessinerRestrictions() {
@@ -753,7 +797,7 @@ geotab.addin.lfs = function () {
     var coin1 = { lat: Math.min.apply(null, lats), lon: Math.min.apply(null, lons) };
     var coin2 = { lat: Math.max.apply(null, lats), lon: Math.max.apply(null, lons) };
     var opt = optionsTrajet(h, w, coin1, coin2, avecEvitement);
-    return fetch(ORS + '/openrouteservice/v2/directions/driving-hgv/geojson', {
+    return fetchDelai(ORS + '/openrouteservice/v2/directions/driving-hgv/geojson', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': cle },
       body: JSON.stringify({
@@ -762,6 +806,9 @@ geotab.addin.lfs = function () {
         units: 'km', language: 'fr', instructions: true,
         options: opt.options
       })
+    }, 60000).catch(function (e) {
+      if (e && e.delai) { throw new Error('OpenRouteService ne répond pas (délai dépassé). Réessaie dans un moment.'); }
+      throw new Error('OpenRouteService est injoignable. Vérifie la connexion Internet et réessaie.');
     }).then(function (r) {
       return r.json().then(function (data) { return { ok: r.ok, statut: r.status, data: data }; });
     }).then(function (rep) {
@@ -847,6 +894,8 @@ geotab.addin.lfs = function () {
       properties: { segments: [{ steps: steps }], summary: { distance: distance, duration: duree } } }] };
   }
 
+  var numeroCalcul = 0;
+
   function calculer() {
     message('');
     var cle = lire('cle', '');
@@ -860,8 +909,10 @@ geotab.addin.lfs = function () {
 
     var bouton = trouver('it511-calculer');
     bouton.disabled = true; bouton.textContent = 'Calcul en cours...';
+    var jeton = ++numeroCalcul;
+    var minuteurGarde = null;
 
-    chargerEntraves(false).then(function () { return Promise.all([
+    var travail = chargerEntraves(false).then(function () { return Promise.all([
       points.depart ? Promise.resolve(points.depart) : geocoder(trouver('it511-depart').value.trim()),
       points.arrivee ? Promise.resolve(points.arrivee) : geocoder(trouver('it511-arrivee').value.trim())
     ]); }).then(function (p) {
@@ -874,18 +925,37 @@ geotab.addin.lfs = function () {
       if (!appliquerPref) { preferenceActive = preferenceActive && preferenceRefusee === preferenceActive.id ? null : preferenceActive; }
       var viaPref = appliquerPref ? [{ lat: preferenceActive.d.viaLat, lon: preferenceActive.d.viaLon }] : [];
       var arrets = [p[0]].concat(viaPref, vias, [p[1]]);
-      return chargerGeometriesRestrictions().then(function () { return calculerAvecEvitements(arrets, h, w, bouton); });
+      bouton.textContent = 'Vérification des restrictions...';
+      return chargerGeometriesRestrictions().then(function () {
+        if (jeton !== numeroCalcul) { throw new Error('annule'); }
+        bouton.textContent = 'Calcul en cours...';
+        return calculerAvecEvitements(arrets, h, w, bouton);
+      });
     }).then(function (geo) {
+      if (jeton !== numeroCalcul) { throw new Error('annule'); }
       var f0 = geo.features[0];
       bouton.textContent = 'Identification des routes...';
       return enrichirReferences(f0.properties.segments[0].steps || [], f0.geometry.coordinates).then(function () {
+        if (jeton !== numeroCalcul) { throw new Error('annule'); }
         afficherResultat(geo, h, w);
       });
-    }).catch(function (e) {
-      message(e.message || String(e), true);
+    });
+
+    var garde = new Promise(function (ok, ko) {
+      minuteurGarde = setTimeout(function () {
+        ko(new Error('Le calcul a pris plus de 3 minutes : un service externe ne répond pas. Réessaie dans quelques minutes.'));
+      }, 180000);
+    });
+
+    Promise.race([travail, garde]).catch(function (e) {
+      if (e && e.message === 'annule') { return; }
+      if (jeton === numeroCalcul) { numeroCalcul++; }
+      message(e && e.message ? e.message : String(e), true);
     }).then(function () {
+      clearTimeout(minuteurGarde);
       bouton.disabled = false; bouton.textContent = 'Calculer le trajet';
     });
+    travail.catch(function () {});
   }
 
   function capCardinal(a, b) {
@@ -906,13 +976,38 @@ geotab.addin.lfs = function () {
   var OVERPASS = 'https://overpass-api.de/api/interpreter';
   var SERVEURS_OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://overpass.private.coffee/api/interpreter'];
 
+  var pauseOverpass = {};
+  var fileOverpass = Promise.resolve();
+
+  function overpassDisponible() {
+    return SERVEURS_OVERPASS.some(function (u) { return !(pauseOverpass[u] > Date.now()); });
+  }
+
   function requeteOverpass(q) {
+    var tache = fileOverpass.then(function () { return essaiServeursOverpass(q); });
+    fileOverpass = tache.catch(function () {}).then(function () { return attendre(1500); });
+    return tache;
+  }
+
+  function essaiServeursOverpass(q) {
+    var liste = SERVEURS_OVERPASS.filter(function (u) { return !(pauseOverpass[u] > Date.now()); });
+    if (!liste.length) { return Promise.reject(new Error('OpenStreetMap en pause (trop de demandes)')); }
     var i = 0;
     function essai() {
-      var url = SERVEURS_OVERPASS[i];
-      return fetch(url, { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' } })
-        .then(function (r) { if (!r.ok) { throw new Error('Overpass ' + r.status); } return r.json(); })
-        .catch(function (e) { i++; if (i < SERVEURS_OVERPASS.length) { return essai(); } throw e; });
+      var url = liste[i];
+      return fetchDelai(url, { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }, 35000)
+        .then(function (r) {
+          if (r.status === 429 || r.status === 504) { pauseOverpass[url] = Date.now() + 3 * 60000; throw new Error('Overpass ' + r.status); }
+          if (!r.ok) { throw new Error('Overpass ' + r.status); }
+          return r.json();
+        })
+        .catch(function (e) {
+          if (e && e.delai) { pauseOverpass[url] = Date.now() + 60000; }
+          console.warn('LFS - OpenStreetMap', url, e && e.message ? e.message : e);
+          i++;
+          if (i < liste.length) { return essai(); }
+          throw e;
+        });
     }
     return essai();
   }
@@ -958,7 +1053,11 @@ geotab.addin.lfs = function () {
         if (coords[k]) { cibles.push({ etape: i, lat: coords[k][1], lon: coords[k][0] }); }
       });
     });
-    if (!cibles.length) { return Promise.resolve(); }
+    if (!cibles.length || !overpassDisponible()) { return Promise.resolve(); }
+    if (cibles.length > 80) {
+      var pas = Math.ceil(cibles.length / 80);
+      cibles = cibles.filter(function (c, k) { return k % pas === 0; });
+    }
     var q = '[out:json][timeout:25];';
     cibles.forEach(function (c, k) {
       q += 'way(around:20,' + c.lat.toFixed(6) + ',' + c.lon.toFixed(6) + ')["highway"~"^(motorway|trunk|primary|secondary|tertiary|motorway_link|trunk_link|primary_link)$"];out tags;make m k=' + k + ';out;';
@@ -1301,12 +1400,12 @@ geotab.addin.lfs = function () {
     etatSources.on = cleOn ? 'chargement' : 'sanscle';
     afficherEtatSources();
 
-    var pQc = fetch(URL_QC).then(function (r) { return r.json(); }).then(function (data) {
+    var pQc = fetchDelai(URL_QC).then(function (r) { return r.json(); }).then(function (data) {
       etatSources.qc = 'ok';
       return (data.features || []).map(normaliserQc).filter(Boolean);
     }).catch(function () { etatSources.qc = 'erreur'; return []; });
 
-    var pOn = cleOn ? fetch(URL_ON + encodeURIComponent(cleOn)).then(function (r) { return r.json(); }).then(function (data) {
+    var pOn = cleOn ? fetchDelai(URL_ON + encodeURIComponent(cleOn)).then(function (r) { return r.json(); }).then(function (data) {
       etatSources.on = 'ok';
       return (Array.isArray(data) ? data : []).map(normaliserOn).filter(Boolean);
     }).catch(function () { etatSources.on = 'erreur'; return []; }) : Promise.resolve([]);
@@ -1514,7 +1613,7 @@ geotab.addin.lfs = function () {
     if (Date.now() - camerasChargees < 60 * 60 * 1000) { return; }
     camerasChargees = Date.now();
     coucheCameras.clearLayers();
-    fetch(URL_CAM_QC).then(function (r) { return r.json(); }).then(function (data) {
+    fetchDelai(URL_CAM_QC).then(function (r) { return r.json(); }).then(function (data) {
       (data.features || []).forEach(function (f) {
         if (!f.geometry || f.geometry.type !== 'Point') { return; }
         var p = f.properties || {};
@@ -1523,7 +1622,7 @@ geotab.addin.lfs = function () {
     }).catch(function () { camerasChargees = 0; });
     var cleOn = lire('cle511on', '');
     if (!cleOn) { return; }
-    fetch(URL_CAM_ON + encodeURIComponent(cleOn)).then(function (r) { return r.json(); }).then(function (data) {
+    fetchDelai(URL_CAM_ON + encodeURIComponent(cleOn)).then(function (r) { return r.json(); }).then(function (data) {
       (Array.isArray(data) ? data : []).forEach(function (c) {
         if (!c.Latitude || !c.Longitude) { return; }
         var vues = c.Views || [];
@@ -1569,7 +1668,7 @@ geotab.addin.lfs = function () {
         initRestrictionsFaite = true;
         return initialiserRestrictions();
       }
-      chargerGeometriesRestrictions().then(afficherListeRestrictions);
+      chargerGeometriesRestrictions().then(afficherListeRestrictions).catch(function () {});
     }).catch(function (e) {
       message('Lecture du stockage Geotab impossible : ' + (e && e.message ? e.message : e), true);
     });
@@ -1893,7 +1992,7 @@ geotab.addin.lfs = function () {
 <div id="it511-wrap" style="padding:12px 16px;box-sizing:border-box;">
   <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px;margin-bottom:10px;">
     <span style="font-size:18px;font-weight:600;">LFS</span>
-    <span style="font-size:12px;color:#8a8f98;">version 1.2.1</span>
+    <span style="font-size:12px;color:#8a8f98;">version 1.2.2</span>
     <span id="it511-statut" style="font-size:13px;color:#5a6270;">Démarrage...</span>
     <span id="it511-sources" style="font-size:13px;color:#5a6270;"></span>
   </div>
