@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <title>LFS</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://ericgloutnez.github.io/LFS/regles-classe2.js?v=1.2.9"></script>
 <script>
 geotab.addin.lfs = function () {
   var ORS = 'https://api.heigit.org';
@@ -757,15 +758,16 @@ geotab.addin.lfs = function () {
     trouver('it511-eviter-peages').addEventListener('change', function (e) { ecrire('eviterPeages', e.target.checked ? '1' : '0'); });
     trouver('it511-eviter-traversiers').addEventListener('change', function (e) { ecrire('eviterTraversiers', e.target.checked ? '1' : '0'); });
     trouver('it511-pref-appliquer').addEventListener('change', function (e) { preferenceRefusee = e.target.checked ? null : (preferenceActive ? preferenceActive.id : null); });
+    var selHeure = trouver('it511-dp-heure');
+    for (var hh = 0; hh < 24; hh++) {
+      var o = document.createElement('option');
+      o.value = (hh < 10 ? '0' : '') + hh; o.textContent = o.value + ' h';
+      selHeure.appendChild(o);
+    }
     trouver('it511-depart-prevu').value = versChampDate(new Date(Math.ceil(Date.now() / 900000) * 900000));
-    trouver('it511-depart-prevu').addEventListener('change', function (e) {
-      var v = e.target.value;
-      if (!v) { return; }
-      var d = new Date(v);
-      if (isNaN(d.getTime())) { return; }
-      var arrondi = new Date(Math.round(d.getTime() / 900000) * 900000);
-      var texte = versChampDate(arrondi);
-      if (texte !== v) { e.target.value = texte; }
+    afficherChampsDepart();
+    ['it511-dp-date', 'it511-dp-heure', 'it511-dp-min'].forEach(function (id) {
+      trouver(id).addEventListener('change', composerDepart);
     });
     trouver('it511-reessayer-routes').addEventListener('click', reessayerIdentification);
   }
@@ -1309,6 +1311,49 @@ geotab.addin.lfs = function () {
     trouver('it511-resultat').style.display = 'block';
   }
 
+  function lireDimsClasse2(h, w) {
+    var base = lireDimension('it511-largeur-base');
+    return {
+      toit: w, base: base || w, baseSaisie: !!base, hauteur: h,
+      longueur: lireDimension('it511-longueur'),
+      batiment: trouver('it511-batiment').value,
+      av: lireDimension('it511-exc-av') || 0,
+      ar: lireDimension('it511-exc-ar') || 0,
+      lat: lireDimension('it511-exc-lat') || 0
+    };
+  }
+
+  var VERSION_REGLES = '1.2.9';
+
+  function analyseClasse2(latlngs, routes, totalKm, dureeS, dims) {
+    var regles = window.LFSClasse2;
+    if (!regles) {
+      return [{ t: 'Le fichier des règles (regles-classe2.js) n’a pas été chargé : l’analyse classe 2 est indisponible. Vérifie qu’il est bien dans le dépôt GitHub, puis fais Ctrl + F5.', c: '#8a1c1c', g: 1 }];
+    }
+    var lignes = [];
+    if (regles.version !== VERSION_REGLES) {
+      lignes.push({ t: 'ATTENTION : la version des règles (' + regles.version + ') ne correspond pas à celle de LFS (' + VERSION_REGLES + '). Téléverse les deux fichiers de la même version, puis fais Ctrl + F5.', c: '#8a1c1c', g: 1 });
+    }
+    try {
+      var champ = trouver('it511-depart-prevu').value;
+      return lignes.concat(regles.analyser(latlngs, routes, totalKm, dureeS, dims, champ ? new Date(champ) : new Date()));
+    } catch (e) {
+      console.warn('LFS - analyse classe 2', e);
+      return lignes.concat([{ t: 'Analyse classe 2 impossible pour ce trajet.', c: '#8a1c1c' }]);
+    }
+  }
+
+  function afficherClasse2(lignes) {
+    var boite = trouver('it511-classe2');
+    while (boite.firstChild) { boite.removeChild(boite.firstChild); }
+    (lignes || []).forEach(function (l) {
+      var d = document.createElement('div');
+      d.style.cssText = 'font-size:12px;margin-bottom:5px;color:' + l.c + ';' + (l.g ? 'font-weight:600;' : '');
+      d.textContent = l.t;
+      boite.appendChild(d);
+    });
+  }
+
   function afficherResultat(geo, h, w) {
     var f = geo.features[0];
     var seg = f.properties.segments[0];
@@ -1325,6 +1370,7 @@ geotab.addin.lfs = function () {
     trouver('it511-titre-resultat').textContent = voyageEnEdition ? 'Nouveau calcul (modification en cours)' : 'Nouveau trajet';
     afficherEntravesTrajet(entravesSurTrajet(coords), nbEviteesCourant);
     afficherBilanRestrictions(verifierHoraires(coords, f.properties.summary.duration, totalKm));
+    afficherClasse2(analyseClasse2(latlngs, routes, totalKm, f.properties.summary.duration, lireDimsClasse2(h, w)));
     d.traceEnc = traceCompacte(latlngs);
     d.hauteur = h; d.largeur = w;
     dernierResultat = d;
@@ -1788,6 +1834,9 @@ geotab.addin.lfs = function () {
       date: new Date().toISOString(),
       depart: dernierResultat.depart, arrivee: dernierResultat.arrivee,
       hauteurPi: trouver('it511-hauteur').value, largeurPi: trouver('it511-largeur').value,
+      largeurBasePi: trouver('it511-largeur-base').value, batiment: trouver('it511-batiment').value,
+      longueurPi: trouver('it511-longueur').value,
+      excAvPi: trouver('it511-exc-av').value, excArPi: trouver('it511-exc-ar').value, excLatPi: trouver('it511-exc-lat').value,
       totalKm: Math.round(dernierResultat.totalKm * 10) / 10, dureeS: Math.round(dernierResultat.dureeS),
       routes: dernierResultat.routes.map(function (r) { return { n: r.nom, k: Math.round(r.km * 10) / 10 }; }),
       enLigne: dernierResultat.enLigne,
@@ -1834,6 +1883,12 @@ geotab.addin.lfs = function () {
     points.depart = d.depart || null; points.arrivee = d.arrivee || null;
     trouver('it511-hauteur').value = d.hauteurPi || ''; afficherConversion('it511-hauteur');
     trouver('it511-largeur').value = d.largeurPi || ''; afficherConversion('it511-largeur');
+    trouver('it511-largeur-base').value = d.largeurBasePi || '';
+    trouver('it511-batiment').value = d.batiment || 'entier';
+    trouver('it511-longueur').value = d.longueurPi || '';
+    trouver('it511-exc-av').value = d.excAvPi || '';
+    trouver('it511-exc-ar').value = d.excArPi || '';
+    trouver('it511-exc-lat').value = d.excLatPi || '';
     trouver('it511-actif').value = d.actifId || '';
     voyageEnEdition = v.id;
     vias = (d.vias || []).slice();
@@ -1847,6 +1902,7 @@ geotab.addin.lfs = function () {
     voyageAffiche = v;
     desactiverEdition();
     afficherBilanRestrictions([]);
+    afficherClasse2([{ t: 'Clique sur « Modifier » puis recalcule le trajet pour obtenir l’analyse classe 2 à jour.', c: '#5a6270' }]);
     var latlngs = d.trace ? decoderPolyligne(d.trace) : [];
     afficherDonnees({
       routes: (d.routes || []).map(function (r) { return { nom: r.n, km: r.k }; }),
@@ -1862,6 +1918,24 @@ geotab.addin.lfs = function () {
     trouver('it511-suivi').textContent = '';
     trouver('it511-comparaison').textContent = '';
     mettreAJourSuivi();
+  }
+
+  function afficherChampsDepart() {
+    var v = trouver('it511-depart-prevu').value || versChampDate(new Date(Math.ceil(Date.now() / 900000) * 900000));
+    var d = new Date(v);
+    if (isNaN(d.getTime())) { return; }
+    d = new Date(Math.round(d.getTime() / 900000) * 900000);
+    var texte = versChampDate(d);
+    trouver('it511-depart-prevu').value = texte;
+    trouver('it511-dp-date').value = texte.slice(0, 10);
+    trouver('it511-dp-heure').value = texte.slice(11, 13);
+    trouver('it511-dp-min').value = texte.slice(14, 16);
+  }
+
+  function composerDepart() {
+    var date = trouver('it511-dp-date').value;
+    if (!date) { return; }
+    trouver('it511-depart-prevu').value = date + 'T' + trouver('it511-dp-heure').value + ':' + trouver('it511-dp-min').value;
   }
 
   function versChampDate(dt) {
@@ -2081,7 +2155,7 @@ geotab.addin.lfs = function () {
 <div id="it511-wrap" style="padding:12px 16px;box-sizing:border-box;">
   <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px;margin-bottom:10px;">
     <span style="font-size:18px;font-weight:600;">LFS</span>
-    <span style="font-size:12px;color:#8a8f98;">version 1.2.5</span>
+    <span style="font-size:12px;color:#8a8f98;">version 1.2.9</span>
     <span id="it511-statut" style="font-size:13px;color:#5a6270;">Démarrage...</span>
     <span id="it511-sources" style="font-size:13px;color:#5a6270;"></span>
   </div>
@@ -2107,14 +2181,52 @@ geotab.addin.lfs = function () {
           <input id="it511-hauteur" type="text" placeholder="15'6&quot; ou 15,5" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
         </div>
         <div style="flex:1;">
-          <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Largeur (pi)</label>
+          <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Largeur toiture (pi)</label>
           <input id="it511-largeur" type="text" placeholder="16' ou 16,0" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;margin-bottom:12px;">
+        <div style="flex:1;">
+          <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Largeur au corps (pi)</label>
+          <input id="it511-largeur-base" type="text" placeholder="14' ou 14,0" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
+        </div>
+        <div style="flex:1;">
+          <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Bâtiment</label>
+          <select id="it511-batiment" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;background:#fff;"><option value="entier">Entier</option><option value="section">En section</option></select>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;margin-bottom:12px;">
+        <div style="flex:1;">
+          <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Longueur hors tout (pi)</label>
+          <input id="it511-longueur" type="text" placeholder="75' ou 75,0" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
+        </div>
+        
+      </div>
+      <div style="display:flex;gap:10px;margin-bottom:12px;">
+        <div style="flex:1;">
+          <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Excédent avant (pi)</label>
+          <input id="it511-exc-av" type="text" placeholder="0" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
+        </div>
+        <div style="flex:1;">
+          <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Excédent arrière (pi)</label>
+          <input id="it511-exc-ar" type="text" placeholder="0" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
+        </div>
+        <div style="flex:1;">
+          <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Saillies lat. (pi)</label>
+          <input id="it511-exc-lat" type="text" placeholder="0" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
         </div>
       </div>
 
       <div style="margin-bottom:10px;">
         <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Départ prévu</label>
-        <input id="it511-depart-prevu" type="datetime-local" step="900" style="width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
+        <input id="it511-depart-prevu" type="hidden">
+        <div style="display:flex;gap:6px;">
+          <input id="it511-dp-date" type="date" style="flex:1 1 auto;min-width:0;box-sizing:border-box;padding:6px 8px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;background:#fff;">
+          <select id="it511-dp-heure" style="flex:0 0 auto;box-sizing:border-box;padding:6px 8px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;background:#fff;"></select>
+          <select id="it511-dp-min" style="flex:0 0 auto;box-sizing:border-box;padding:6px 8px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;background:#fff;">
+            <option value="00">00</option><option value="15">15</option><option value="30">30</option><option value="45">45</option>
+          </select>
+        </div>
       </div>
       <label id="it511-zone-pref" style="display:none;align-items:center;gap:6px;font-size:12px;margin-bottom:10px;cursor:pointer;">
         <input id="it511-pref-appliquer" type="checkbox" checked> <span id="it511-pref-texte"></span>
@@ -2159,6 +2271,8 @@ geotab.addin.lfs = function () {
           <button id="it511-copier-ligne" type="button" style="flex:1;padding:7px;border:1px solid #c9ced6;border-radius:4px;background:#fff;font-size:13px;cursor:pointer;">Copier la ligne</button>
           <button id="it511-copier-liste" type="button" style="flex:1;padding:7px;border:1px solid #c9ced6;border-radius:4px;background:#fff;font-size:13px;cursor:pointer;">Copier la liste</button>
         </div>
+        <div style="font-size:13px;font-weight:600;margin:12px 0 4px;">Conformité permis classe 2</div>
+        <div id="it511-classe2"></div>
         <div style="font-size:13px;font-weight:600;margin:12px 0 4px;">Restrictions LFS</div>
         <div id="it511-restrictions-trajet"></div>
         <div style="font-size:13px;font-weight:600;margin:12px 0 4px;">Entraves 511</div>
