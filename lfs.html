@@ -356,6 +356,7 @@ geotab.addin.lfs = function () {
   var BBOX_QC = '44.9,-79.8,49.6,-61.0';
   var restrictions = [];
   var preferences = [];
+  var directionsEnregistrees = [];
   var geomRestrictions = {};
   var boitesRestrictions = [];
   var coucheRestrictions = null;
@@ -1798,13 +1799,14 @@ geotab.addin.lfs = function () {
 
   function chargerStockage() {
     return appelGeotab('Get', { typeName: 'AddInData', search: { addInId: ADDIN_ID } }).then(function (lignes) {
-      voyages = []; restrictions = []; preferences = [];
+      voyages = []; restrictions = []; preferences = []; directionsEnregistrees = [];
       (lignes || []).forEach(function (l) {
         var d = l.details || {};
         if (d.type === 'parametres') { parametresId = l.id; parametres = d; }
         else if (d.type === 'voyage') { voyages.push({ id: l.id, d: d }); }
         else if (d.type === 'restriction') { restrictions.push({ id: l.id, d: d }); }
         else if (d.type === 'preference') { preferences.push({ id: l.id, d: d }); }
+        else if (d.type === 'directions') { directionsEnregistrees.push({ id: l.id, d: d }); }
       });
       voyages.sort(function (a, b) { return (b.d.date || '').localeCompare(a.d.date || ''); });
       appliquerParametres();
@@ -1845,11 +1847,66 @@ geotab.addin.lfs = function () {
 
   function referenceValide(ref) { return /^\d{5}(-\d{1,2})?$/.test(ref); }
 
+  // ----- Directions détaillées (pour les escortes, consultables hors connexion dans Drive)
+  var VERBES = { 0: 'Tournez à gauche', 1: 'Tournez à droite', 2: 'Tournez franchement à gauche', 3: 'Tournez franchement à droite',
+    4: 'Tournez légèrement à gauche', 5: 'Tournez légèrement à droite', 6: 'Continuez tout droit', 9: 'Faites demi-tour',
+    12: 'Restez à gauche', 13: 'Restez à droite' };
+
+  function libelleRef(ref) { return ref ? (ref.type === 'Hwy' ? 'Hwy ' : ref.type + '-') + ref.num : ''; }
+
+  function construireDirections(steps) {
+    var etapes = [];
+    (steps || []).forEach(function (s) {
+      var km = Math.round((s.distance || 0) * 100) / 100;
+      if (s.type === 10) { etapes.push(['Arrivée à destination', 0]); return; }
+      if (s.type === 11 || s.type === 7 || s.type === 8 || VERBES[s.type] === undefined) {
+        etapes.push([String(s.instruction || '').trim() || 'Continuez', km]);
+        return;
+      }
+      var nom = (s.name && s.name !== '-') ? s.name.split(',')[0].trim() : '';
+      var ref = (nom ? referenceRoute(nom) : null) || s.refOsm || null;
+      if (!ref && /^\d{1,3}$/.test(nom)) { var n = parseInt(nom, 10); ref = { type: (n < 100 || n >= 400) ? 'A' : 'R', num: nom }; }
+      var cible = libelleRef(ref) || nom || s.nomOsm || '';
+      if (cible && nom && cible !== nom && !/^\d{1,3}$/.test(nom) && !referenceRoute(nom)) { cible += ' (' + nom + ')'; }
+      etapes.push([VERBES[s.type] + (cible ? ' sur ' + cible : ''), km]);
+    });
+    return etapes;
+  }
+
+  function supprimerDirections(ref) {
+    var chaine = Promise.resolve();
+    directionsEnregistrees.filter(function (x) { return x.d.ref === ref; }).forEach(function (x) {
+      chaine = chaine.then(function () { return appelGeotab('Remove', { typeName: 'AddInData', entity: { id: x.id } }).catch(function () {}); });
+    });
+    return chaine;
+  }
+
+  function sauverDirections(ref, etapes) {
+    var parties = [], courante = [], taille = 0;
+    etapes.forEach(function (e) {
+      var t = JSON.stringify(e).length + 1;
+      if (taille + t > 7500 && courante.length) { parties.push(courante); courante = []; taille = 0; }
+      courante.push(e); taille += t;
+    });
+    if (courante.length) { parties.push(courante); }
+    return supprimerDirections(ref).then(function () {
+      var chaine = Promise.resolve();
+      parties.forEach(function (p, i) {
+        chaine = chaine.then(function () {
+          return appelGeotab('Add', { typeName: 'AddInData', entity: { addInId: ADDIN_ID, groups: [{ id: 'GroupCompanyId' }],
+            details: { type: 'directions', ref: ref, partie: i + 1, total: parties.length, date: new Date().toISOString(), etapes: p } } });
+        });
+      });
+      return chaine;
+    });
+  }
+
   function sauverVoyage() {
     if (!dernierResultat) { message('Calcule d’abord un trajet.', true); return; }
     var ref = trouver('it511-ref').value.trim();
     if (!referenceValide(ref)) { message('Référence invalide : 5 chiffres, ou 5 chiffres, un tiret et le numéro du module (ex. 17513 ou 17513-2).', true); return; }
     var sel = trouver('it511-actif');
+    var etapesDirections = construireDirections(derniersSteps);
     var details = {
       type: 'voyage', ref: ref, maison: ref.split('-')[0], module: ref.split('-')[1] || '',
       date: new Date().toISOString(),
@@ -1863,7 +1920,8 @@ geotab.addin.lfs = function () {
       enLigne: dernierResultat.enLigne,
       trace: dernierResultat.traceEnc,
       vias: vias.map(function (v) { return { lat: Math.round(v.lat * 1e5) / 1e5, lon: Math.round(v.lon * 1e5) / 1e5 }; }),
-      actifId: sel.value || '', actifNom: sel.value ? sel.options[sel.selectedIndex].text : ''
+      actifId: sel.value || '', actifNom: sel.value ? sel.options[sel.selectedIndex].text : '',
+      directions: etapesDirections.length
     };
     var taille = JSON.stringify(details).length;
     if (taille > 9800) { details.routes = details.routes.slice(0, 40); details.trace = traceCompacte(decoderPolyligne(details.trace).filter(function (p, i) { return i % 2 === 0; })); }
@@ -1878,7 +1936,13 @@ geotab.addin.lfs = function () {
       promesse = appelGeotab('Add', { typeName: 'AddInData', entity: entite });
     }
     promesse.then(function () {
-      message(voyageEnEdition ? 'Voyage ' + ref + ' mis à jour.' : 'Voyage ' + ref + ' enregistré.');
+      return sauverDirections(ref, etapesDirections).catch(function (e) {
+        console.warn('LFS - directions non enregistrées', e);
+        message('Voyage ' + ref + ' enregistré, mais les directions détaillées n’ont pas pu l’être. Clique de nouveau sur « Mettre à jour ».', true);
+        throw e;
+      });
+    }).then(function () {
+      message(voyageEnEdition ? 'Voyage ' + ref + ' mis à jour (directions comprises).' : 'Voyage ' + ref + ' enregistré (directions comprises).');
       voyageEnEdition = null;
       trouver('it511-sauver-voyage').textContent = 'Enregistrer le voyage';
       return chargerStockage();
@@ -1890,6 +1954,9 @@ geotab.addin.lfs = function () {
   function supprimerVoyage(v) {
     if (!window.confirm('Supprimer le voyage ' + v.d.ref + ' ? Cette action est définitive.')) { return; }
     appelGeotab('Remove', { typeName: 'AddInData', entity: { id: v.id } }).then(function () {
+      var memeRef = voyages.filter(function (x) { return x.id !== v.id && x.d.ref === v.d.ref; }).length;
+      return memeRef ? null : supprimerDirections(v.d.ref);
+    }).then(function () {
       message('Voyage ' + v.d.ref + ' supprimé.');
       if (voyageAffiche && voyageAffiche.id === v.id) { voyageAffiche = null; }
       return chargerStockage();
@@ -2174,7 +2241,7 @@ geotab.addin.lfs = function () {
 <div id="it511-wrap" style="padding:12px 16px;box-sizing:border-box;">
   <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px;margin-bottom:10px;">
     <span style="font-size:18px;font-weight:600;">LFS</span>
-    <span style="font-size:12px;color:#8a8f98;">version 1.3.2</span>
+    <span style="font-size:12px;color:#8a8f98;">version 1.3.3</span>
     <span id="it511-statut" style="font-size:13px;color:#5a6270;">Démarrage...</span>
     <span id="it511-sources" style="font-size:13px;color:#5a6270;"></span>
   </div>
