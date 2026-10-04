@@ -78,7 +78,7 @@
 <script>
 geotab.addin.tempo = function () {
   'use strict';
-  var VERSION = '1.0.6';
+  var VERSION = '1.0.7';
   var B = window.Bonneville;
   var G = null, moi = '', estAdmin = false, onglet = 'journees';
   var users = [], employes = {}, profils = [], voyages = {}, journees = [], paies = {};
@@ -119,7 +119,7 @@ geotab.addin.tempo = function () {
   function employesAvecHeures() {
     var s = {};
     journees.forEach(function (j) { s[j.d.user] = true; });
-    Object.keys(employes).forEach(function (u) { if (B.droitsEffectifs(employes[u], profils).heures) { s[u] = true; } });
+    Object.keys(employes).forEach(function (u) { if (B.droitsEffectifs(employes[u], profils).heures && !employes[u].masque) { s[u] = true; } });
     return Object.keys(s).sort(function (a, b) { return nomUser(a).localeCompare(nomUser(b), 'fr'); });
   }
   function filtrees() {

@@ -2372,7 +2372,7 @@ geotab.addin.logistique = function () {
     return x ? x.affichage : u;
   }
   function personnesAssignables() {
-    return (utilisateursGeotab || []).filter(function (u) { return u.actif !== false && (employesB[u.nom] || assignesCourants.indexOf(u.nom) >= 0); });
+    return (utilisateursGeotab || []).filter(function (u) { return u.actif !== false && ((employesB[u.nom] && !employesB[u.nom].masque) || assignesCourants.indexOf(u.nom) >= 0); });
   }
   function afficherAssignation() {
     var bouton = trouver('lg-assign-btn'), liste = trouver('lg-assign-liste');
@@ -3055,7 +3055,7 @@ geotab.addin.logistique = function () {
       <button type="button" data-o="restrictions">Restrictions</button>
       <button type="button" data-o="parametres">Paramètres</button>
     </nav>
-    <span id="lg-etat" title="Cliquer pour voir l’état des sources"><span>version 2.2.1</span><span id="it511-statut">Démarrage...</span><span id="it511-sources"></span></span>
+    <span id="lg-etat" title="Cliquer pour voir l’état des sources"><span>version 2.2.2</span><span id="it511-statut">Démarrage...</span><span id="it511-sources"></span></span>
   </div>
 
   <div id="lg-planifier" data-onglet="planifier">

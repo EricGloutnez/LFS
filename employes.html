@@ -63,6 +63,12 @@
   #be .mini th { position: static; }
   #be .jours7 { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
   #be .jours7 input { width: 100%; }
+  #be .btn.be-note { background: #ffffff; }
+  #be .btn.be-note.pleine { background: #c9ced4; border-color: #a7aeb6; color: var(--encre); }
+  #be .fond-modale { position: fixed; inset: 0; z-index: 60; background: rgba(10,14,18,.45); display: flex; align-items: center; justify-content: center; padding: 20px; }
+  #be .modale { width: min(560px, 100%); background: var(--surface); border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.3); }
+  #be .modale h2 { margin: 0; font-size: 20px; }
+  #be .modale textarea { width: 100%; min-height: 180px; border: 1px solid var(--ligne); border-radius: 10px; padding: 10px; font-size: 14px; font-family: inherit; resize: vertical; }
   #be .profils { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
 </style>
 
@@ -85,10 +91,10 @@
 geotab.addin.employes = function () {
   'use strict';
   var B = window.Bonneville;
-  var VERSION = '1.0.5';
+  var VERSION = '1.0.6';
   var G = null, moi = '', onglet = 'employes';
   var users = [], employes = {}, profils = [], paies = {}, param = null, groupesGeotab = [];
-  var modifies = {}, filtre = { texte: '', profil: '', inactifs: false }, message = null;
+  var modifies = {}, filtre = { texte: '', profil: '', inactifs: false, masques: false }, message = null, notes = {};
 
   function $(id) { return document.getElementById(id); }
   function h(t) { return String(t === undefined || t === null ? '' : t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -105,9 +111,11 @@ geotab.addin.employes = function () {
       G.utilisateurs(),
       G.lireTypes(['employe', 'profil', 'parametresEmployes', 'acces']),
       G.lireType('paie').catch(function () { return []; }),
-      G.appel('Get', { typeName: 'Group' }).catch(function () { return []; })
+      G.appel('Get', { typeName: 'Group' }).catch(function () { return []; }),
+      G.lireType('noteEmploye').catch(function () { return []; })
     ]).then(function (r) {
-      users = r[0]; employes = {}; profils = []; param = null; paies = {};
+      users = r[0]; employes = {}; profils = []; param = null; paies = {}; notes = {};
+      (r[4] || []).forEach(function (l) { if (l.details.user) { notes[l.details.user] = { id: l.id, d: l.details }; } });
       r[1].forEach(function (l) {
         var d = l.details;
         if (d.type === 'employe' && d.user) { employes[d.user] = { id: l.id, d: d }; }
@@ -157,6 +165,8 @@ geotab.addin.employes = function () {
     var t = filtre.texte.toLowerCase();
     return users.filter(function (u) {
       if (!filtre.inactifs && !u.actif) { return false; }
+      var em = empD(u.user);
+      if (!filtre.masques && em && em.masque) { return false; }
       if (t && u.nom.toLowerCase().indexOf(t) < 0 && u.user.toLowerCase().indexOf(t) < 0) { return false; }
       if (filtre.profil) { var e = empD(u.user); if (filtre.profil === '-') { return !e || !e.profil; } if (!e || e.profil !== filtre.profil) { return false; } }
       return true;
@@ -171,19 +181,23 @@ geotab.addin.employes = function () {
       + '<label class="champ">Rechercher<input type="text" id="be-f-texte" value="' + h(filtre.texte) + '" placeholder="Nom ou courriel"></label>'
       + '<label class="champ">Profil<select id="be-f-profil"><option value="">Tous</option><option value="-"' + (filtre.profil === '-' ? ' selected' : '') + '>Sans profil</option>' + optionsProfils(filtre.profil) + '</select></label>'
       + '<label class="ligne-case" style="height:38px"><input type="checkbox" id="be-f-inactifs"' + (filtre.inactifs ? ' checked' : '') + '> Comptes inactifs</label>'
+      + '<label class="ligne-case" style="height:38px"><input type="checkbox" id="be-f-masques"' + (filtre.masques ? ' checked' : '') + '> Personnes masquées (' + Object.keys(employes).filter(function (k) { return employes[k].d.masque; }).length + ')</label>'
+      + '<button type="button" class="btn" id="be-masquer-lot" style="align-self:flex-end">Masquer la sélection</button>'
       + '<span style="margin-left:auto"></span>'
       + '<label class="champ">Appliquer un profil à la sélection<span style="display:flex;gap:6px"><select id="be-profil-lot">' + optionsProfils('', 'Choisir…') + '</select><button type="button" class="btn" id="be-appliquer">Appliquer</button></span></label>'
       + '<button type="button" class="btn jaune" id="be-sauver"' + (nbMod ? '' : ' disabled') + '>Enregistrer les changements' + (nbMod ? ' (' + nbMod + ')' : '') + '</button></div>';
     html += '<div class="tableau"><table><thead><tr><th class="c"><input type="checkbox" id="be-tout" aria-label="Tout sélectionner"></th><th>Employé</th><th>Profil</th>'
-      + B.DROITS.map(function (d) { return '<th class="c" style="min-width:86px">' + h(d.nom.replace(/ \(.*\)$/, '')) + '</th>'; }).join('') + '<th></th></tr></thead><tbody>';
+      + B.DROITS.map(function (d) { return '<th class="c" style="min-width:70px">' + h(d.nom.replace(/ \(.*\)$/, '')) + '</th>'; }).join('') + '<th></th></tr></thead><tbody>';
     usersFiltres().forEach(function (u) {
       var e = empD(u.user), dr = droits(u.user), perso = e && e.droits;
       html += '<tr data-u="' + h(u.user) + '"' + (modifies[u.user] ? ' class="modifie"' : '') + '>'
         + '<td class="c"><input type="checkbox" class="be-sel" aria-label="Sélectionner ' + h(u.nom) + '"></td>'
-        + '<td><b>' + h(u.nom) + '</b><div class="aide">' + h(u.user) + '</div></td>'
+        + '<td><b>' + h(u.nom) + '</b>' + (e && e.masque ? ' <span class="puce gris">Masqué</span>' : '') + '<div class="aide">' + h(u.user) + '</div></td>'
         + '<td><select class="be-profil">' + optionsProfils(e ? e.profil : '', 'Aucun') + '</select>' + (perso ? ' <span class="puce orange" title="Droits modifiés par rapport au profil">Personnalisé</span>' : '') + '</td>'
         + B.DROITS.map(function (d) { return '<td class="c"><input type="checkbox" class="be-droit" data-d="' + d.cle + '" aria-label="' + h(d.nom) + ' : ' + h(u.nom) + '"' + (dr[d.cle] ? ' checked' : '') + '></td>'; }).join('')
-        + '<td><button type="button" class="btn be-fiche">Fiche</button></td></tr>';
+        + '<td style="white-space:nowrap"><button type="button" class="btn be-fiche">Fiche</button> '
+        + '<button type="button" class="btn be-note' + (notes[u.user] && notes[u.user].d.texte ? ' pleine' : '') + '" title="' + (notes[u.user] && notes[u.user].d.texte ? 'Une note est inscrite' : 'Aucune note') + '">Notes</button> '
+        + '<br><button type="button" class="btn be-masquer" style="height:auto;border:none;background:none;color:var(--bleu);text-decoration:underline;padding:4px 0 0;font-size:12px">' + (e && e.masque ? 'Afficher' : 'Masquer') + '</button></td></tr>';
     });
     html += '</tbody></table></div><div class="aide">Ces accès sont lus par Bonneville - Logistique, Bonneville Transport Drive et Bonneville - Tempo. Un droit modifié à la main rend l’employé « Personnalisé » : il ne suit plus les changements de son profil.</div>';
     return html;
@@ -382,6 +396,50 @@ geotab.addin.employes = function () {
       .catch(function (er) { alert('Enregistrement impossible : ' + (er && er.message ? er.message : er)); });
   }
 
+  // ---------- Masquer des personnes de la liste
+  function masquer(liste, valeur) {
+    var c = Promise.resolve();
+    liste.forEach(function (u) {
+      var e = JSON.parse(JSON.stringify(empD(u) || { type: 'employe', user: u, profil: '', tauxKm: [] }));
+      if (valeur) { e.masque = true; } else { delete e.masque; }
+      e.type = 'employe'; e.user = u; e.maj = new Date().toISOString(); e.majPar = moi;
+      c = c.then(function () { return G.enregistrer(employes[u], e).then(function (id) { employes[u] = { id: id, d: e }; if (modifies[u]) { modifies[u].masque = e.masque; if (!valeur) { delete modifies[u].masque; } } }); });
+    });
+    c.then(function () { dire(liste.length + ' personne(s) ' + (valeur ? 'masquée(s). Coche « Personnes masquées » pour les revoir.' : 'de nouveau affichée(s).')); })
+      .catch(function (er) { dire('Enregistrement impossible : ' + (er && er.message ? er.message : er), true); });
+  }
+
+  // ---------- Notes (confidentielles, groupe Paie)
+  function ouvrirNote(u) {
+    var pg = param && param.d.paieGroupe, n = notes[u];
+    var fond = document.createElement('div'); fond.className = 'fond-modale'; fond.id = 'be-modale-note';
+    fond.innerHTML = '<section class="modale" role="dialog" aria-label="Notes"><h2>Notes – ' + h(nomUser(u)) + '</h2>'
+      + (pg ? '<div class="aide">🔒 Confidentiel : visible seulement par le groupe Paie, dans Bonneville - Employés.</div><textarea id="be-note-texte" placeholder="Écrire une note…">' + h(n ? n.d.texte : '') + '</textarea>'
+        + (n && n.d.maj ? '<div class="aide">Dernière modification : ' + h(new Date(n.d.maj).toLocaleString('fr-CA')) + ' par ' + h(nomUser(n.d.majPar)) + '</div>' : '')
+        : '<div class="message erreur">Choisis d’abord le groupe « Paie » dans l’onglet Paramètres : les notes y sont enregistrées pour rester confidentielles.</div>')
+      + '<div class="barre">' + (n && pg ? '<button type="button" class="btn rouge" id="be-note-suppr">Effacer la note</button>' : '') + '<span style="margin-left:auto"></span><button type="button" class="btn" id="be-note-fermer">Fermer</button>'
+      + (pg ? '<button type="button" class="btn jaune" id="be-note-sauver">Enregistrer</button>' : '') + '</div></section>';
+    $('be').appendChild(fond);
+    var fermer = function () { if (fond.parentNode) { fond.parentNode.removeChild(fond); } };
+    fond.addEventListener('click', function (e) { if (e.target === fond) { fermer(); } });
+    $('be-note-fermer').onclick = fermer;
+    if ($('be-note-texte')) { $('be-note-texte').focus(); }
+    if ($('be-note-sauver')) {
+      $('be-note-sauver').onclick = function () {
+        var t = $('be-note-texte').value.trim();
+        var d = { type: 'noteEmploye', user: u, texte: t, maj: new Date().toISOString(), majPar: moi };
+        var p = !t && n ? G.retirer(n.id).then(function () { delete notes[u]; }) : (!t ? Promise.resolve() : G.enregistrer(n, d, [{ id: pg }]).then(function (id) { notes[u] = { id: id, d: d }; }));
+        p.then(function () { fermer(); dire('Note de ' + nomUser(u) + ' enregistrée.'); }).catch(function (er) { alert('Enregistrement impossible : ' + (er && er.message ? er.message : er)); });
+      };
+    }
+    if ($('be-note-suppr')) {
+      $('be-note-suppr').onclick = function () {
+        if (!confirm('Effacer la note de ' + nomUser(u) + ' ?')) { return; }
+        G.retirer(n.id).then(function () { delete notes[u]; fermer(); dire('Note effacée.'); });
+      };
+    }
+  }
+
   // ---------- Profils
   function vueProfils() {
     var html = '<div class="barre"><span class="aide">Un profil est un ensemble de droits déjà prévus. En choisissant un profil pour un employé, il reçoit ces droits. Modifier un profil met à jour tous les employés qui le suivent (sauf ceux « Personnalisé »).</span><span style="margin-left:auto"></span><button type="button" class="btn noir" id="bp-nouveau">+ Nouveau profil</button></div><div class="profils">';
@@ -460,6 +518,12 @@ geotab.addin.employes = function () {
     garderFocus('be-f-texte', function (el) { filtre.texte = el.value; });
     $('be-f-profil').onchange = function () { filtre.profil = this.value; rendre(); };
     $('be-f-inactifs').onchange = function () { filtre.inactifs = this.checked; rendre(); };
+    $('be-f-masques').onchange = function () { filtre.masques = this.checked; rendre(); };
+    $('be-masquer-lot').onclick = function () {
+      var sel = Array.prototype.filter.call(document.querySelectorAll('.be-sel'), function (c) { return c.checked; }).map(function (c) { return c.closest('tr').getAttribute('data-u'); });
+      if (!sel.length) { alert('Coche d’abord des personnes.'); return; }
+      masquer(sel, true);
+    };
     $('be-tout').onchange = function () { var v = this.checked; Array.prototype.forEach.call(document.querySelectorAll('.be-sel'), function (c) { c.checked = v; }); };
     $('be-appliquer').onclick = function () {
       var pid = $('be-profil-lot').value; if (!pid) { return; }
@@ -483,6 +547,8 @@ geotab.addin.employes = function () {
         };
       });
       tr.querySelector('.be-fiche').onclick = function () { ouvrirFiche(u); };
+      tr.querySelector('.be-note').onclick = function () { ouvrirNote(u); };
+      tr.querySelector('.be-masquer').onclick = function () { var em = empD(u); masquer([u], !(em && em.masque)); };
     });
     $('be-sauver').onclick = function () {
       var liste = Object.keys(modifies), c = Promise.resolve(), n = 0;
