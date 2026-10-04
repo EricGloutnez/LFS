@@ -344,7 +344,7 @@
 <script>
 (function () {
   var ADDIN_ID = 'aXdeNEZ7tQ7eMPNywYFFKrA';
-  var VERSION = '1.9';
+  var VERSION = '1.9.1';
   var CLE_CACHE = 'lfsd-voyages', CLE_DERNIER = 'lfsd-dernier', CLE_PARAM = 'lfsd-parametres';
 
   var api = null, carte = null, coucheTrace = null, marqueurMoi = null, marqueurCamion = null;
@@ -364,7 +364,7 @@
     { cle: 'lfsd-lib-leaflet-css', url: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css', css: true }
   ];
   function lireBiblio(cle) { try { var v = localStorage.getItem(cle); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
-  BIBLIOS.forEach(function (b) {
+  BIBLIOS.forEach(function (b) { try {
     var garde = lireBiblio(b.cle);
     if (b.css) {
       if (garde && garde.src && !document.getElementById('lfsd-css-garde')) {
@@ -380,7 +380,7 @@
         }).catch(function () {});
       } catch (e) {}
     }
-  });
+  } catch (e) {} });
   function formulairesGardes() { var g = lireBiblio('lfsd-lib-formulaires'); return !!(g && g.src); }
   function nombreFr(n, dec) { return Number(n || 0).toLocaleString('fr-CA', { minimumFractionDigits: dec, maximumFractionDigits: dec }); }
   function lireCache(cle) { try { var v = localStorage.getItem(cle); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
@@ -897,7 +897,7 @@
   }
 
   // Envoi automatique des formulaires remplis dès qu'il y a du réseau (Wi-Fi ou cellulaire)
-  setInterval(function () { if (fileEnvois.length && navigator.onLine !== false) { viderFile(); } }, 30000);
+  setInterval(function () { try { if (fileEnvois.length && navigator.onLine !== false) { viderFile(); } } catch (e) {} }, 30000);
 
   function afficherAvancement() {
     var z = $('lfsd-avancement'); if (!z) { return; }
@@ -1763,23 +1763,26 @@
     majOnglets();
     window.scrollTo(0, 0);
   }
-  if (window.MutationObserver) {
-    new MutationObserver(function () { majOnglets(); }).observe(document.getElementById('lfsd'), { attributes: true, attributeFilter: ['class'] });
+  var observateurPret = false;
+  function brancherObservateur() {
+    if (observateurPret || !window.MutationObserver || !document.getElementById('lfsd')) { return; }
+    try { new MutationObserver(function () { majOnglets(); }).observe(document.getElementById('lfsd'), { attributes: true, attributeFilter: ['class'] }); observateurPret = true; } catch (e) {}
   }
 
   // ----- Mode jour / nuit (choisi dans l'application, mémorisé sur le téléphone)
   function appliquerTheme(theme) {
+    if (!$('lfsd')) { return; }
     $('lfsd').setAttribute('data-theme', theme);
     var b = $('lfsd-theme');
     if (b) { b.setAttribute('aria-label', theme === 'nuit' ? 'Passer en mode jour' : 'Passer en mode nuit'); }
   }
-  (function () {
+  function themeInitial() {
     var choix = lireCache('lfsd-theme');
     if (choix !== 'jour' && choix !== 'nuit') {
       choix = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'nuit' : 'jour';
     }
     appliquerTheme(choix);
-  })();
+  }
 
   function brancher() {
     $('lfsd-theme').addEventListener('click', function () {
@@ -1835,8 +1838,12 @@
     return {
       initialize: function (geotabApi, state, callback) {
         api = geotabApi;
-        if (!branche) { brancher(); branche = true; }
-        majOnglets(); majPastille();
+        try {
+          themeInitial();
+          brancherObservateur();
+          if (!branche) { brancher(); branche = true; }
+          majOnglets(); majPastille();
+        } catch (e) { console.warn('Bonneville - initialisation', e); }
         creerCarte();
         callback();
       },
