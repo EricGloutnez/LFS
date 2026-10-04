@@ -380,7 +380,7 @@
 <script>
 (function () {
   var ADDIN_ID = 'aXdeNEZ7tQ7eMPNywYFFKrA';
-  var VERSION = '2.1.0';
+  var VERSION = '2.1.1';
   var CLE_CACHE = 'lfsd-voyages', CLE_DERNIER = 'lfsd-dernier', CLE_PARAM = 'lfsd-parametres';
 
   var api = null, carte = null, coucheTrace = null, marqueurMoi = null, marqueurCamion = null;
@@ -1713,15 +1713,26 @@
       });
     }).catch(function () { return []; });
   }
+  // Photos gardées en qualité d'origine. Seulement si une photo dépasse la limite de Geotab (10 Mo)
+  // ou si son format n'est pas accepté (ex. HEIC), elle est réenregistrée en JPEG de haute qualité.
+  var LIMITE_PHOTO = 9.5 * 1024 * 1024;
+  var FORMATS_OK = ['image/jpeg', 'image/png', 'image/webp'];
   function reduirePhoto(fichier) {
+    if (fichier.size <= LIMITE_PHOTO && FORMATS_OK.indexOf(fichier.type) >= 0) { return Promise.resolve(fichier); }
     return new Promise(function (ok, ko) {
       var url = URL.createObjectURL(fichier), img = new Image();
       img.onload = function () {
-        var max = 1600, w = img.naturalWidth, hh = img.naturalHeight, k = Math.min(1, max / Math.max(w, hh));
-        var cv = document.createElement('canvas'); cv.width = Math.round(w * k); cv.height = Math.round(hh * k);
-        cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
-        URL.revokeObjectURL(url);
-        cv.toBlob(function (b) { if (b) { ok(b); } else { ko(new Error('Photo illisible')); } }, 'image/jpeg', 0.75);
+        var w = img.naturalWidth, hh = img.naturalHeight, echelle = 1, qualite = 0.92;
+        var essai = function () {
+          var cv = document.createElement('canvas'); cv.width = Math.round(w * echelle); cv.height = Math.round(hh * echelle);
+          cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+          cv.toBlob(function (b) {
+            if (!b) { URL.revokeObjectURL(url); ko(new Error('Photo illisible')); return; }
+            if (b.size > LIMITE_PHOTO && echelle > 0.4) { if (qualite > 0.85) { qualite = 0.85; } else { echelle *= 0.85; } essai(); return; }
+            URL.revokeObjectURL(url); ok(b);
+          }, 'image/jpeg', qualite);
+        };
+        essai();
       };
       img.onerror = function () { URL.revokeObjectURL(url); ko(new Error('Photo illisible')); };
       img.src = url;
@@ -1753,7 +1764,7 @@
       try { api.getSession(function (cred, serveur) { ok({ cred: { database: cred.database, userName: cred.userName, sessionId: cred.sessionId }, serveur: serveur || cred.server || 'my.geotab.com' }); }); } catch (e) { ko(e); }
     });
   }
-  function nomPhoto(p) { return p.serie + ' - ' + p.code + (p.module ? ' - module ' + p.module : '') + ' - photo ' + p.n + '.jpg'; }
+  function nomPhoto(p) { var t = (p.blob && p.blob.type) || 'image/jpeg', ext = t === 'image/png' ? '.png' : (t === 'image/webp' ? '.webp' : '.jpg'); return p.serie + ' - ' + p.code + (p.module ? ' - module ' + p.module : '') + ' - photo ' + p.n + ext; }
   function envoyerPhotos() {
     if (photosEnvoiEnCours || !api || navigator.onLine === false) { return Promise.resolve(); }
     photosEnvoiEnCours = true;
