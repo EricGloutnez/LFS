@@ -106,20 +106,11 @@ geotab.addin.logistique = function () {
     coucheRestrictions = L.layerGroup().addTo(carte);
     var alertes = L.tileLayer.wms('https://geo.weather.gc.ca/geomet', L.extend({ layers: 'ALERTS' }, optionsRadar));
 
-    L.control.layers({
-      'Carte routière (Voyager)': fondVoyager,
-      'OpenStreetMap': fondOsm
-    }, {
-      'Trajet': coucheTrajet,
-      'Entraves 511': coucheEntraves,
-      'Caméras 511': coucheCameras,
-      'Avertissements météo': alertes,
-      'Trajet réel': coucheReel,
-      'Restrictions Bonneville': coucheRestrictions,
-      'Radar - pluie': radarPluie,
-      'Radar - neige': radarNeige,
-      'Actifs Geotab': coucheActifs
-    }, { collapsed: false }).addTo(carte);
+    L.control.layers({ 'Carte routière (Voyager)': fondVoyager, 'OpenStreetMap': fondOsm }, {}, { collapsed: true }).addTo(carte);
+    construireCouches([
+      ['Trajet', coucheTrajet], ['Entraves 511', coucheEntraves], ['Caméras', coucheCameras], ['Météo', alertes],
+      ['Radar pluie', radarPluie], ['Radar neige', radarNeige], ['Restrictions', coucheRestrictions], ['Trajet réel', coucheReel], ['Actifs', coucheActifs]
+    ]);
   }
 
   var fondOsm = null, fondVoyager = null;
@@ -2036,6 +2027,8 @@ geotab.addin.logistique = function () {
   }
 
   function exporterPdfUnique() {
+    var choix = choisisForms();
+    if (choix.length) { telechargerPdf(choix, 'Formulaires-' + new Date().toISOString().slice(0, 10) + '.pdf'); return; }
     message('Préparation du PDF…');
     selectionExport().then(function (liste) {
       if (!liste.length) { message('Aucun formulaire ne correspond aux filtres.', true); return; }
@@ -2044,10 +2037,11 @@ geotab.addin.logistique = function () {
   }
 
   function exporterZip() {
+    var choixZip = choisisForms();
     var FB = window.BonnevilleFormulaires;
     if (!FB || !window.JSZip) { message('Les outils d’export n’ont pas été chargés. Fais Ctrl + F5 et réessaie.', true); return; }
     message('Préparation du fichier ZIP…');
-    selectionExport().then(function (liste) {
+    (choixZip.length ? Promise.resolve(choixZip) : selectionExport()).then(function (liste) {
       if (!liste.length) { message('Aucun formulaire ne correspond aux filtres.', true); return; }
       var zip = new window.JSZip();
       var lignesCsv = ['Série;Formulaire;Titre;Module;Rempli par;Date;Résultat;Non-conformités;Fichier'];
@@ -2067,7 +2061,7 @@ geotab.addin.logistique = function () {
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
         setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
         dernierExport = liste;
-        trouver('it511-exp-retirer').style.display = 'block';
+        trouver('it511-exp-retirer').style.display = 'inline-flex'; majActionsForms();
         trouver('it511-exp-retirer').textContent = 'Retirer de Geotab les ' + liste.length + ' formulaire' + (liste.length > 1 ? 's' : '') + ' exporté' + (liste.length > 1 ? 's' : '');
         message('Fichier ZIP produit : ' + liste.length + ' formulaire(s), un PDF par formulaire, rangés par série, avec le tableau « Résumé des formulaires » (s’ouvre dans Excel).');
       });
@@ -2444,14 +2438,190 @@ geotab.addin.logistique = function () {
     }).catch(function () {});
   }
 
+
+  // ----- Couches de la carte en pastilles
+  function construireCouches(liste) {
+    var z = trouver('lg-couches'); if (!z) { return; }
+    while (z.firstChild) { z.removeChild(z.firstChild); }
+    liste.forEach(function (c) {
+      var l = document.createElement('label'), i = document.createElement('input');
+      i.type = 'checkbox'; i.checked = carte.hasLayer(c[1]);
+      l.className = i.checked ? 'on' : '';
+      i.addEventListener('change', function () {
+        if (i.checked) { carte.addLayer(c[1]); } else { carte.removeLayer(c[1]); }
+        l.className = i.checked ? 'on' : '';
+      });
+      l.appendChild(i); l.appendChild(document.createTextNode(c[0])); z.appendChild(l);
+    });
+  }
+
+  // ----- Chiffres du chargement dans le résultat
+  function majChiffresDims(lg, ht) {
+    var a = trouver('lg-k-largeur'), b = trouver('lg-k-hauteur');
+    if (a) { a.textContent = (lg || trouver('it511-largeur').value || '—') + (lg || trouver('it511-largeur').value ? ' pi' : ''); }
+    if (b) { b.textContent = (ht || trouver('it511-hauteur').value || '—') + (ht || trouver('it511-hauteur').value ? ' pi' : ''); }
+    var r = trouver('it511-resultat'), p = trouver('lg-planifier');
+    if (r && p) { p.className = r.style.display === 'none' ? '' : 'avec-resultat'; if (carte) { setTimeout(function () { carte.invalidateSize(); }, 50); } }
+  }
+
+  // ----- Onglet Voyages : tableau, filtres et totaux
+  function nombreForms(serie) {
+    var c = { L1: 0, L2: 0, total: 0, alerte: 0 };
+    Object.keys(resumesForms).forEach(function (k) { var r = resumesForms[k].d; if (String(r.serie) === serie) { c.total++; if (c[r.code] !== undefined) { c[r.code]++; } if (r.resume && r.resume.alerte) { c.alerte++; } } });
+    return c;
+  }
+  function puce(t, cl) { var s = document.createElement('span'); s.className = 'lg-puce ' + cl; s.textContent = t; return s; }
+  function cellule(tr, contenu, gras) {
+    var td = document.createElement('td');
+    if (typeof contenu === 'string') { td.textContent = contenu; } else if (contenu) { td.appendChild(contenu); }
+    if (gras) { td.style.fontWeight = '800'; }
+    tr.appendChild(td); return td;
+  }
+  function afficherListeVoyages() {
+    var boite = trouver('it511-liste-voyages'); if (!boite) { return; }
+    var serie = (trouver('it511-recherche').value || '').trim(), du = trouver('lg-v-du').value, au = trouver('lg-v-au').value, st = trouver('lg-v-statut').value;
+    var jour = function (v) { return v.d.departDate || String(v.d.date || '').slice(0, 10); };
+    var liste = voyages.filter(function (v) {
+      var d = v.d, j = jour(v);
+      if (serie && String(d.ref || '').indexOf(serie) !== 0) { return false; }
+      if (du && j < du) { return false; }
+      if (au && j > au) { return false; }
+      if (st === 'actifs' && d.archive) { return false; }
+      if (st === 'retires' && !d.archive) { return false; }
+      if (st === 'assigner' && (d.archive || (d.assignes || []).length)) { return false; }
+      return true;
+    }).sort(function (a, b) { return jour(b).localeCompare(jour(a)); });
+    // Totaux
+    var aujour = new Date().toISOString().slice(0, 10), semaine = new Date(Date.now() - 7 * 86400000).toISOString();
+    var prevus = voyages.filter(function (v) { return !v.d.archive && jour(v) >= aujour; }).length;
+    var aAssigner = voyages.filter(function (v) { return !v.d.archive && !(v.d.assignes || []).length; }).length;
+    var recus = 0, nc = 0;
+    Object.keys(resumesForms).forEach(function (k) { var r = resumesForms[k].d; if (String(r.date) >= semaine) { recus++; } if (!r.archive && r.resume && r.resume.alerte) { nc++; } });
+    var kp = trouver('lg-v-kpis');
+    kp.innerHTML = '';
+    [[prevus, 'voyages prévus', '#14191e'], [aAssigner, 'à assigner', '#b42318'], [recus, 'formulaires reçus cette semaine', '#14191e'], [nc, 'non-conformités à traiter', '#9a5b00']].forEach(function (x) {
+      var d = document.createElement('div'), b = document.createElement('b'), s = document.createElement('span');
+      b.textContent = x[0]; b.style.color = x[2]; s.textContent = x[1]; d.appendChild(b); d.appendChild(s); kp.appendChild(d);
+    });
+    while (boite.firstChild) { boite.removeChild(boite.firstChild); }
+    if (!liste.length) {
+      var vide = document.createElement('div'); vide.className = 'lg-aide'; vide.style.padding = '14px';
+      vide.textContent = voyages.length ? 'Aucun voyage ne correspond aux filtres.' : 'Aucun voyage enregistré pour l’instant.';
+      boite.appendChild(vide); return;
+    }
+    var t = document.createElement('table'), th = document.createElement('tr');
+    ['Série', 'Départ prévu', 'Trajet', 'Km', 'Dimensions', 'Assignés', 'Formulaires', 'Cellulaires', ''].forEach(function (x) { var c = document.createElement('th'); c.textContent = x; th.appendChild(c); });
+    var thead = document.createElement('thead'); thead.appendChild(th); t.appendChild(thead);
+    var tb = document.createElement('tbody');
+    liste.forEach(function (v) {
+      var d = v.d, tr = document.createElement('tr'), s = String(d.ref || '').split('-')[0], f = nombreForms(s);
+      cellule(tr, d.ref, true);
+      cellule(tr, d.departDate ? d.departDate + (d.departHeure ? ', ' + d.departHeure.replace(':', ' h ') : '') : '—');
+      cellule(tr, ((d.depart && d.depart.label) ? String(d.depart.label).split(',')[0] : '?') + ' → ' + ((d.arrivee && d.arrivee.label) ? String(d.arrivee.label).split(',')[0] : '?'));
+      cellule(tr, nombreFr(d.totalKm || 0, 0));
+      cellule(tr, (d.largeurPi || '?') + ' × ' + (d.hauteurPi || '?') + ' pi');
+      var asg = cellule(tr, (d.assignes || []).length ? d.assignes.map(nomAffiche).join(', ') : 'À assigner');
+      if (!(d.assignes || []).length) { asg.style.color = '#b42318'; asg.style.fontWeight = '700'; }
+      cellule(tr, f.total ? 'L1 ' + f.L1 + '/' + (d.nbModules || '?') + ' · L2 ' + f.L2 + '/' + (d.nbModules || '?') + (f.alerte ? ' · ' + f.alerte + ' NC' : '') : '—');
+      cellule(tr, d.archive ? puce('Retiré', 'gris') : puce('Sur les cellulaires', 'vert'));
+      var a = document.createElement('span'); a.style.cssText = 'display:flex;gap:12px;flex-wrap:wrap;';
+      [['Ouvrir', function () { ouvrirVoyage(v); }], ['Modifier', function () { modifierVoyage(v); }], [d.archive ? 'Remettre' : 'Retirer des cellulaires', function () { archiverVoyage(v, !d.archive); }], ['Supprimer', function () { supprimerVoyage(v); }, true]].forEach(function (x) {
+        var b = document.createElement('button'); b.type = 'button'; b.className = 'lg-lien' + (x[2] ? ' rouge' : ''); b.textContent = x[0]; b.addEventListener('click', x[1]); a.appendChild(b);
+      });
+      cellule(tr, a);
+      tb.appendChild(tr);
+    });
+    t.appendChild(tb); boite.appendChild(t);
+  }
+  function nouveauVoyage() {
+    voyageEnEdition = null; voyageAffiche = null; desactiverEdition();
+    ['it511-ref', 'it511-nb-modules', 'it511-arrivee', 'it511-hauteur', 'it511-largeur', 'it511-longueur', 'it511-exc-av', 'it511-exc-ar', 'it511-exc-lat'].forEach(function (id) { trouver(id).value = ''; });
+    points.arrivee = null; assignesCourants = []; afficherAssignation();
+    trouver('it511-sauver-voyage').textContent = '✓ Enregistrer le voyage';
+    trouver('it511-resultat').style.display = 'none'; majChiffresDims();
+    allerOnglet('planifier');
+    message('Nouveau voyage : remplis le trajet, les dimensions et les personnes assignées, puis « Calculer le trajet ».');
+  }
+
+  // ----- Onglet Formulaires : tableau avec sélection
+  var formsTable = [], formsChoisis = {};
+  function afficherTableForms() {
+    var z = trouver('lg-f-liste'); z.innerHTML = '';
+    var archives = [];
+    var serie = (trouver('it511-exp-serie').value || '').trim().split('-')[0], du = trouver('it511-exp-du').value, au = trouver('it511-exp-au').value;
+    Object.keys(resumesForms).forEach(function (k) {
+      var r = resumesForms[k].d;
+      if (!r.archive) { return; }
+      var j = String(r.date || '').slice(0, 10);
+      if (serie && String(r.serie).indexOf(serie) !== 0) { return; }
+      if (du && j < du) { return; } if (au && j > au) { return; }
+      archives.push(r);
+    });
+    if (!formsTable.length && !archives.length) { z.innerHTML = '<div class="lg-aide" style="padding:14px">Aucun formulaire ne correspond aux filtres.</div>'; majActionsForms(); return; }
+    var t = document.createElement('table'), th = document.createElement('tr');
+    var tout = document.createElement('input'); tout.type = 'checkbox'; tout.setAttribute('aria-label', 'Tout sélectionner');
+    tout.addEventListener('change', function () { formsTable.forEach(function (f) { formsChoisis[f.fid] = tout.checked; }); afficherTableForms(); });
+    var c0 = document.createElement('th'); c0.appendChild(tout); th.appendChild(c0);
+    ['Série', 'Code', 'Module', 'Rempli par', 'Reçu le', 'Résultat', 'État', ''].forEach(function (x) { var c = document.createElement('th'); c.textContent = x; th.appendChild(c); });
+    var thead = document.createElement('thead'); thead.appendChild(th); t.appendChild(thead);
+    var tb = document.createElement('tbody');
+    formsTable.forEach(function (fr) {
+      var tr = document.createElement('tr'); if (formsChoisis[fr.fid]) { tr.className = 'sel'; }
+      var cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = !!formsChoisis[fr.fid];
+      cb.addEventListener('change', function () { formsChoisis[fr.fid] = cb.checked; tr.className = cb.checked ? 'sel' : ''; majActionsForms(); });
+      cellule(tr, cb); cellule(tr, String(fr.serie), true); cellule(tr, fr.code, true); cellule(tr, fr.module || '—'); cellule(tr, fr.auteur || '');
+      cellule(tr, fr.date ? new Date(fr.date).toLocaleString('fr-CA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '');
+      var res = (fr.resume && fr.resume.texte) || 'Reçu', cr = cellule(tr, res);
+      if (fr.resume && fr.resume.alerte) { cr.style.color = '#b42318'; cr.style.fontWeight = '700'; }
+      cellule(tr, puce('Dans Geotab', 'gris'));
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'lg-lien'; b.textContent = 'PDF';
+      b.addEventListener('click', function () { telechargerPdf([fr], fr.serie + '-' + fr.code + (fr.module ? '-' + fr.module : '') + '.pdf'); });
+      cellule(tr, b);
+      tb.appendChild(tr);
+    });
+    archives.forEach(function (r) {
+      var tr = document.createElement('tr');
+      cellule(tr, ''); cellule(tr, String(r.serie), true); cellule(tr, r.code, true); cellule(tr, r.module || '—'); cellule(tr, r.auteur || '');
+      cellule(tr, r.date ? new Date(r.date).toLocaleString('fr-CA', { day: 'numeric', month: 'short' }) : '');
+      cellule(tr, (r.resume && r.resume.texte) || 'Reçu'); cellule(tr, puce('Archivé', 'vert')); cellule(tr, '');
+      tb.appendChild(tr);
+    });
+    t.appendChild(tb); z.appendChild(t);
+    majActionsForms();
+  }
+  function choisisForms() { return formsTable.filter(function (f) { return formsChoisis[f.fid]; }); }
+  function majActionsForms() {
+    var n = choisisForms().length, barre = trouver('lg-f-actions');
+    barre.style.display = n || (dernierExport && dernierExport.length) ? 'flex' : 'none';
+    trouver('lg-f-nb').textContent = n + ' formulaire' + (n > 1 ? 's' : '') + ' sélectionné' + (n > 1 ? 's' : '');
+    trouver('it511-exp-pdf').disabled = !n; trouver('it511-exp-zip').disabled = !n;
+  }
+  function chargerTableForms() {
+    trouver('lg-f-liste').innerHTML = '<div class="lg-aide" style="padding:14px">Lecture des formulaires…</div>';
+    selectionExport().then(function (l) { formsTable = l; formsChoisis = {}; afficherTableForms(); })
+      .catch(function (e) { trouver('lg-f-liste').innerHTML = ''; message('Lecture impossible : ' + (e && e.message ? e.message : e), true); });
+  }
+  function brancherVues() {
+    trouver('lg-v-afficher').addEventListener('click', afficherListeVoyages);
+    trouver('lg-v-statut').addEventListener('change', afficherListeVoyages);
+    trouver('lg-v-du').addEventListener('change', afficherListeVoyages);
+    trouver('lg-v-au').addEventListener('change', afficherListeVoyages);
+    trouver('lg-v-nouveau').addEventListener('click', nouveauVoyage);
+    trouver('lg-f-afficher').addEventListener('click', chargerTableForms);
+    ['it511-hauteur', 'it511-largeur'].forEach(function (id) { trouver(id).addEventListener('input', function () { majChiffresDims(); }); });
+    var d = new Date(), z = function (n) { return (n < 10 ? '0' : '') + n; };
+    var iso = function (x) { return x.getFullYear() + '-' + z(x.getMonth() + 1) + '-' + z(x.getDate()); };
+    var avant = new Date(d.getTime() - 14 * 86400000);
+    trouver('it511-exp-du').value = iso(avant); trouver('it511-exp-au').value = iso(d);
+    new MutationObserver(function () { majChiffresDims(); }).observe(trouver('it511-resultat'), { attributes: true, attributeFilter: ['style'] });
+  }
+
   // ----- Onglets
   function allerOnglet(nom) {
     Array.prototype.forEach.call(document.querySelectorAll('#lg-onglets button'), function (b) { b.className = b.getAttribute('data-o') === nom ? 'on' : ''; });
-    Array.prototype.forEach.call(document.querySelectorAll('[data-onglet]'), function (p) { p.style.display = p.getAttribute('data-onglet').split(' ').indexOf(nom) >= 0 ? '' : 'none'; });
-    var avecCarte = ['planifier', 'voyages', 'restrictions'].indexOf(nom) >= 0;
-    trouver('lg-droite').style.display = avecCarte ? '' : 'none';
-    trouver('lg-gauche').className = avecCarte ? '' : 'large';
-    if (avecCarte && carte) { setTimeout(function () { carte.invalidateSize(); }, 100); }
+    Array.prototype.forEach.call(document.querySelectorAll('[data-onglet]'), function (p) { p.style.display = p.getAttribute('data-onglet') === nom ? (nom === 'planifier' ? 'flex' : 'flex') : 'none'; });
+    if (nom === 'planifier' && carte) { setTimeout(function () { carte.invalidateSize(); }, 100); }
+    if (nom === 'voyages') { afficherListeVoyages(); }
   }
   function brancherOnglets() {
     Array.prototype.forEach.call(document.querySelectorAll('#lg-onglets button'), function (b) {
@@ -2490,7 +2660,7 @@ geotab.addin.logistique = function () {
     if (d.departDate) { trouver('it511-depart-prevu').value = d.departDate + 'T' + (d.departHeure || '06:00'); afficherChampsDepart(); }
     voyageEnEdition = v.id;
     vias = (d.vias || []).slice();
-    trouver('it511-sauver-voyage').textContent = 'Mettre à jour le voyage ' + d.ref;
+    trouver('it511-sauver-voyage').textContent = '✓ Mettre à jour le voyage ' + d.ref;
     message('Modification du voyage ' + d.ref + ' : ajuste les champs, recalcule le trajet, puis clique sur « Mettre à jour ».');
     trouver('it511-wrap').scrollIntoView({ behavior: 'smooth' });
   }
@@ -2508,7 +2678,8 @@ geotab.addin.logistique = function () {
       totalKm: d.totalKm, dureeS: d.dureeS, enLigne: d.enLigne,
       latlngs: latlngs, depart: d.depart, arrivee: d.arrivee
     });
-    trouver('it511-titre-resultat').textContent = 'Voyage ' + d.ref + ' du ' + new Date(d.date).toLocaleDateString('fr-CA') + (d.actifNom ? ' - ' + d.actifNom : '');
+    trouver('it511-titre-resultat').textContent = 'Voyage ' + d.ref + (d.departDate ? ' · départ prévu ' + d.departDate + (d.departHeure ? ' ' + d.departHeure : '') : '') + ((d.assignes || []).length ? ' · ' + d.assignes.map(nomAffiche).join(', ') : '');
+    majChiffresDims(d.largeurPi, d.hauteurPi);
     afficherEntravesTrajet(entravesSurTrajet(latlngs.map(function (p) { return [p[1], p[0]]; })), 0);
     if (coucheReel) { coucheReel.clearLayers(); }
     trouver('it511-zone-suivi').style.display = d.actifId ? 'block' : 'none';
@@ -2552,7 +2723,7 @@ geotab.addin.logistique = function () {
     return b;
   }
 
-  function afficherListeVoyages() {
+  function ancienneListeVoyages() {
     var filtre = (trouver('it511-recherche').value || '').trim();
     var boite = trouver('it511-liste-voyages');
     while (boite.firstChild) { boite.removeChild(boite.firstChild); }
@@ -2736,7 +2907,7 @@ geotab.addin.logistique = function () {
       chargerStyleLeaflet();
       creerCarte();
       brancherParametres();
-      try { brancherOnglets(); brancherAssignation(); } catch (e) { console.warn(e); }
+      try { brancherOnglets(); brancherAssignation(); brancherVues(); } catch (e) { console.warn(e); }
       callback();
     },
     focus: function (api, state) {
@@ -2761,39 +2932,88 @@ geotab.addin.logistique = function () {
 <body>
 <div id="it511-wrap">
 <style>
-  #it511-wrap { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; color: #14191e; background: #eef0f2; min-height: 100vh; box-sizing: border-box; }
-  #it511-wrap * { font-family: inherit; }
-  #lg-entete { position: sticky; top: 0; z-index: 3000; height: 60px; display: flex; align-items: center; gap: 16px; padding: 0 24px; background: #fff; border-bottom: 1px solid #d3d8dd; }
-  #lg-entete img { height: 18px; } #lg-entete .sep { width: 1px; height: 26px; background: #d3d8dd; }
-  #lg-entete .titre { font-size: 19px; font-weight: 800; }
-  #lg-onglets { display: flex; gap: 4px; margin-left: 12px; }
-  #lg-onglets button { height: 38px; padding: 0 14px; border: none; border-radius: 8px; background: transparent; color: #4f5963; font-size: 14px; font-weight: 700; cursor: pointer; }
-  #lg-onglets button.on { background: #e3e6e9; color: #14191e; }
-  #lg-etat { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; font-size: 12px; color: #4f5963; line-height: 1.3; }
-  #lg-corps { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; padding: 16px 20px; }
-  #lg-gauche { flex: 0 0 400px; max-width: 100%; display: flex; flex-direction: column; gap: 12px; }
-  #lg-gauche.large { flex: 1 1 100%; max-width: 1100px; }
-  #lg-droite { flex: 1 1 480px; min-width: 300px; position: sticky; top: 76px; }
-  #it511-carte { border: 1px solid #d3d8dd !important; border-radius: 12px !important; height: calc(100vh - 110px) !important; }
-  .lg-carte { background: #fff; border: 1px solid #d3d8dd; border-radius: 12px; padding: 14px 16px; }
-  .lg-carte > .lg-titre { font-size: 15px; font-weight: 800; margin-bottom: 10px; }
-  .lg-panneau > summary { display: none; }
-  .lg-panneau { margin: 0 !important; border: 1px solid #d3d8dd !important; padding: 14px 16px !important; }
-  #it511-wrap input[type=text], #it511-wrap input[type=number], #it511-wrap input[type=date], #it511-wrap input[type=time], #it511-wrap input[type=datetime-local], #it511-wrap select { border-color: #d3d8dd !important; border-radius: 8px !important; min-height: 36px; }
-  #it511-wrap button { border-radius: 8px !important; }
-  #it511-calculer { background: #14191e !important; min-height: 46px; font-size: 15px !important; font-weight: 800 !important; }
-  #it511-sauver-voyage { background: #1b7f3b !important; min-height: 46px; font-weight: 800 !important; }
-  .lg-aide { font-size: 12px; color: #4f5963; }
-  #lg-assign { position: relative; }
-  #lg-assign-btn { width: 100%; min-height: 38px; border: 1px solid #d3d8dd; background: #fff; padding: 6px 10px; font-size: 13px; font-weight: 600; text-align: left; cursor: pointer; display: flex; justify-content: space-between; gap: 8px; }
-  #lg-assign-liste { position: absolute; left: 0; right: 0; top: 100%; z-index: 2500; margin-top: 4px; background: #fff; border: 1px solid #d3d8dd; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.15); padding: 8px; flex-direction: column; gap: 4px; max-height: 320px; overflow: auto; }
-  .lg-case { display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 13px; }
-  .lg-case input { width: 16px; height: 16px; }
-  .lg-role { margin-left: auto; font-size: 12px; color: #4f5963; }
+  #it511-wrap { --encre:#14191e; --doux:#4f5963; --ligne:#d3d8dd; --fond:#eef0f2; --bande:#e3e6e9; --accent:#f2a900; --ok:#1b7f3b; --non:#b42318; --orange:#9a5b00; --bleu:#1f4f8a;
+    font-family:'Segoe UI', system-ui, -apple-system, sans-serif; color:var(--encre); background:var(--fond); min-height:100vh; box-sizing:border-box; }
+  #it511-wrap * { box-sizing:border-box; font-family:inherit; }
+  #lg-entete { position:sticky; top:0; z-index:3000; height:64px; display:flex; align-items:center; gap:16px; padding:0 28px; background:#fff; border-bottom:1px solid var(--ligne); }
+  #lg-entete img { height:18px; } #lg-entete .sep { width:1px; height:26px; background:var(--ligne); }
+  #lg-entete .titre { font-size:20px; font-weight:800; white-space:nowrap; }
+  #lg-onglets { display:flex; gap:4px; margin-left:20px; }
+  #lg-onglets button { height:40px; padding:0 14px; border:none; border-radius:8px; background:transparent; color:var(--doux); font-size:14px; font-weight:700; cursor:pointer; }
+  #lg-onglets button.on { background:var(--bande); color:var(--encre); }
+  #lg-etat { margin-left:auto; display:flex; flex-direction:column; align-items:flex-end; font-size:12px; color:var(--doux); line-height:1.35; max-width:320px; text-align:right; }
+  #lg-etat span { max-width:320px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #it511-sources { display:none; }
+  .lg-vue { padding:22px 28px; display:flex; flex-direction:column; gap:16px; }
+  #lg-planifier { display:flex; min-height:calc(100vh - 64px); }
+  #lg-gauche { width:400px; flex:0 0 auto; padding:16px; display:flex; flex-direction:column; gap:12px; border-right:1px solid var(--ligne); }
+  #lg-droite { flex:1; min-width:0; display:flex; flex-direction:column; background:#fff; }
+  #lg-couches { display:flex; flex-wrap:wrap; gap:6px; padding:10px 14px; border-bottom:1px solid var(--ligne); }
+  #lg-couches label { display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 10px; border-radius:16px; border:1px solid var(--ligne); background:#fff; font-size:12px; font-weight:700; cursor:pointer; }
+  #lg-couches label.on { background:var(--encre); border-color:var(--encre); color:#fff; }
+  #lg-couches input { width:14px; height:14px; margin:0; }
+  #it511-carte { height:calc(100vh - 64px - 53px) !important; min-height:420px; border:none !important; border-radius:0 !important; }
+  #lg-planifier.avec-resultat #it511-carte { height:520px !important; }
+  .lg-carte { background:#fff; border:1px solid var(--ligne); border-radius:12px; padding:14px 16px; display:flex; flex-direction:column; gap:10px; }
+  .lg-carte > h3 { margin:0; font-size:15px; font-weight:800; }
+  .lg-rang { display:flex; gap:10px; }
+  .lg-ch { flex:1; min-width:0; display:flex; flex-direction:column; gap:4px; font-size:12px; font-weight:700; color:var(--doux); position:relative; }
+  #it511-wrap input[type=text], #it511-wrap input[type=number], #it511-wrap input[type=date], #it511-wrap input[type=time], #it511-wrap input[type=datetime-local], #it511-wrap select { height:38px; border:1px solid var(--ligne); border-radius:8px; padding:0 10px; font-size:14px; font-weight:600; color:var(--encre); background:#fff; width:100%; }
+  .lg-ch .lg-conv { font-size:11px; font-weight:500; color:var(--doux); }
+  .lg-btn { height:40px; padding:0 16px; border-radius:8px; border:1px solid var(--ligne); background:#fff; color:var(--encre); font-size:14px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:8px; }
+  .lg-btn.noir { background:var(--encre); border-color:var(--encre); color:#fff; }
+  .lg-btn.vert { background:var(--ok); border-color:var(--ok); color:#fff; }
+  .lg-btn.jaune { background:var(--accent); border-color:var(--accent); color:var(--encre); }
+  .lg-btn.rouge { color:var(--non); border-color:var(--non); }
+  .lg-btn:disabled { opacity:.5; cursor:default; }
+  #it511-calculer { width:100%; height:48px; border:none; border-radius:10px; background:var(--encre); color:#fff; font-size:16px; font-weight:800; cursor:pointer; }
+  #it511-message, #it511-avis-routes { border-radius:10px !important; }
+  #it511-resultat { border-top:1px solid var(--ligne); padding:16px 20px; flex-direction:column; gap:12px; background:#fff; }
+  .lg-res-haut { display:flex; align-items:center; gap:18px; flex-wrap:wrap; }
+  .lg-kpi { display:flex; flex-direction:column; padding-left:10px; box-shadow:inset 4px 0 0 var(--accent); }
+  .lg-kpi b, #it511-total, #it511-duree { font-size:22px; font-weight:800; }
+  .lg-kpi span { font-size:12px; color:var(--doux); }
+  #it511-titre-resultat { font-size:14px; font-weight:800; }
+  .lg-etats { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:10px; align-items:start; }
+  .lg-etats details { border-radius:10px; background:#f4f6f7; border:1px solid var(--ligne); }
+  .lg-etats summary { list-style:none; cursor:pointer; padding:10px 12px; display:flex; flex-direction:column; gap:4px; font-size:12px; font-weight:700; color:var(--doux); }
+  .lg-etats summary::-webkit-details-marker { display:none; }
+  .lg-etats summary span:last-child { font-size:15px; font-weight:800; }
+  .lg-etats details > div { padding:0 12px 10px; font-size:13px; }
+  #it511-routes { font-size:14px; }
+  #it511-enligne { background:#f4f6f7 !important; border-radius:10px !important; }
+  .lg-assign-btn { width:100%; height:38px; border:1px solid var(--ligne); border-radius:8px; background:#fff; padding:0 10px; font-size:14px; font-weight:600; text-align:left; cursor:pointer; display:flex; justify-content:space-between; align-items:center; gap:8px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+  #lg-assign { position:relative; }
+  #lg-assign-liste { position:absolute; left:0; right:0; top:100%; z-index:2500; margin-top:4px; background:#fff; border:1px solid var(--ligne); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.15); padding:8px; flex-direction:column; gap:4px; max-height:320px; overflow:auto; }
+  .lg-case { display:flex; align-items:center; gap:8px; padding:4px; font-size:13px; }
+  .lg-case input { width:16px; height:16px; }
+  .lg-role { margin-left:auto; font-size:12px; color:var(--doux); }
+  .lg-aide { font-size:12px; color:var(--doux); line-height:1.35; }
+  .lg-filtres { display:flex; align-items:flex-end; gap:14px; flex-wrap:wrap; }
+  .lg-filtres .lg-ch { flex:0 0 auto; }
+  .lg-kpis { display:flex; gap:12px; flex-wrap:wrap; }
+  .lg-kpis > div { flex:1; min-width:170px; background:#fff; border:1px solid var(--ligne); border-radius:12px; padding:14px 16px; display:flex; flex-direction:column; gap:2px; }
+  .lg-kpis b { font-size:26px; font-weight:800; } .lg-kpis span { font-size:13px; font-weight:600; color:var(--doux); }
+  .lg-table { background:#fff; border:1px solid var(--ligne); border-radius:12px; overflow:auto; }
+  .lg-table table { border-collapse:collapse; width:100%; font-size:14px; }
+  .lg-table th { background:var(--bande); color:var(--doux); font-size:12px; font-weight:700; text-align:left; padding:10px 14px; white-space:nowrap; }
+  .lg-table td { border-top:1px solid var(--ligne); padding:10px 14px; vertical-align:middle; }
+  .lg-table tr.sel td { background:#fffaf0; }
+  .lg-table a, .lg-lien { color:var(--bleu); font-weight:700; font-size:13px; cursor:pointer; background:none; border:none; padding:0; text-decoration:underline; }
+  .lg-lien.rouge { color:var(--non); }
+  .lg-puce { display:inline-flex; align-items:center; height:24px; padding:0 9px; border-radius:12px; font-size:12px; font-weight:700; white-space:nowrap; }
+  .lg-puce.vert { background:#e6f2ea; color:var(--ok); } .lg-puce.gris { background:var(--bande); color:var(--doux); }
+  .lg-puce.orange { background:#fff3dc; color:var(--orange); } .lg-puce.rouge { background:#fdecea; color:var(--non); }
+  .lg-barre-actions { display:flex; align-items:center; gap:12px; background:var(--encre); color:#fff; border-radius:12px; padding:12px 16px; position:sticky; bottom:12px; }
+  .lg-barre-actions .lg-btn { border-color:#2c343c; background:#2c343c; color:#fff; }
+  .lg-barre-actions .lg-btn.jaune { background:var(--accent); border-color:var(--accent); color:var(--encre); }
+  .lg-barre-actions .lg-btn.rose { color:#ffb4a8; }
+  .lg-deux { display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); gap:16px; align-items:start; }
+  @media (max-width: 1000px) { #lg-planifier { flex-direction:column; } #lg-gauche { width:100%; border-right:none; } .lg-etats, .lg-deux { grid-template-columns:1fr; } }
 </style>
   <div id="lg-entete">
     <img alt="Bonneville" src="https://ericgloutnez.github.io/LFS/logo-bonneville.png"><span class="sep"></span>
-    <span class="titre">Logistique</span>
+    <span class="titre">Logistique – Itinéraires hors normes</span>
     <nav id="lg-onglets">
       <button type="button" data-o="planifier" class="on">Planifier</button>
       <button type="button" data-o="voyages">Voyages</button>
@@ -2801,142 +3021,68 @@ geotab.addin.logistique = function () {
       <button type="button" data-o="restrictions">Restrictions</button>
       <button type="button" data-o="parametres">Paramètres</button>
     </nav>
-    <span id="lg-etat"><span>version 2.0.0</span><span id="it511-statut">Démarrage...</span><span id="it511-sources"></span></span>
+    <span id="lg-etat" title="Cliquer pour voir l’état des sources"><span>version 2.1.0</span><span id="it511-statut">Démarrage...</span><span id="it511-sources"></span></span>
   </div>
 
-  <div id="lg-corps">
+  <div id="lg-planifier" data-onglet="planifier">
     <div id="lg-gauche">
-    <div class="lg-carte" data-onglet="planifier">
-
-      <div class="lg-titre">Trajet</div>
-      <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Départ</label>
-      <div style="position:relative;margin-bottom:10px;">
-        <input id="it511-depart" type="text" autocomplete="off" placeholder="125 rue de l’Usine, Beloeil" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
-        <div id="it511-liste-depart" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:2000;background:#fff;border:1px solid #c9ced6;border-radius:4px;max-height:240px;overflow:auto;"></div>
-      </div>
-
-      <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Arrivée</label>
-      <div style="position:relative;margin-bottom:10px;">
-        <input id="it511-arrivee" type="text" autocomplete="off" placeholder="450 rue King O, Sherbrooke" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
-        <div id="it511-liste-arrivee" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:2000;background:#fff;border:1px solid #c9ced6;border-radius:4px;max-height:240px;overflow:auto;"></div>
-      </div>
-
-      <div class="lg-titre" style="margin-top:14px;">Dimensions du chargement (pi)</div>
-      <div style="display:flex;gap:10px;margin-bottom:12px;">
-        <div style="flex:1;">
-          <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Hauteur max. (pi)</label>
-          <input id="it511-hauteur" type="text" placeholder="15'6&quot; ou 15,5" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
-        </div>
-        <div style="flex:1;">
-          <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Largeur max. (pi)</label>
-          <input id="it511-largeur" type="text" placeholder="16' ou 16,0" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
-        </div>
-      </div>
-            <div style="display:flex;gap:10px;margin-bottom:12px;">
-        <div style="flex:1;">
-          <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Longueur hors tout (pi)</label>
-          <input id="it511-longueur" type="text" placeholder="75' ou 75,0" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
-        </div>
-        
-      </div>
-      <div style="display:flex;gap:10px;margin-bottom:12px;">
-        <div style="flex:1;">
-          <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Excédent avant (pi)</label>
-          <input id="it511-exc-av" type="text" placeholder="0" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
-        </div>
-        <div style="flex:1;">
-          <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Excédent arrière (pi)</label>
-          <input id="it511-exc-ar" type="text" placeholder="0" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
-        </div>
-        <div style="flex:1;">
-          <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Saillies lat. (pi)</label>
-          <input id="it511-exc-lat" type="text" placeholder="0" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
-        </div>
-      </div>
-
-      <div class="lg-titre" style="margin-top:14px;">Voyage</div>
-      <div style="margin-bottom:10px;">
-        <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Départ prévu (date et heure)</label>
+      <section class="lg-carte"><h3>Trajet</h3>
+        <label class="lg-ch">Départ<input id="it511-depart" type="text" autocomplete="off" placeholder="601 Rue de l’Industrie, Belœil"><div id="it511-liste-depart" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:2000;background:#fff;border:1px solid #d3d8dd;border-radius:8px;max-height:240px;overflow:auto;"></div></label>
+        <label class="lg-ch">Arrivée<input id="it511-arrivee" type="text" autocomplete="off" placeholder="Adresse de livraison"><div id="it511-liste-arrivee" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:2000;background:#fff;border:1px solid #d3d8dd;border-radius:8px;max-height:240px;overflow:auto;"></div></label>
+      </section>
+      <section class="lg-carte"><h3>Dimensions du chargement (pi)</h3>
+        <div class="lg-rang"><label class="lg-ch">Hauteur max.<input id="it511-hauteur" type="text" autocomplete="off" placeholder="15,5"></label><label class="lg-ch">Largeur max.<input id="it511-largeur" type="text" autocomplete="off" placeholder="16,0"></label><label class="lg-ch">Longueur<input id="it511-longueur" type="text" autocomplete="off" placeholder="75,0"></label></div>
+        <div class="lg-rang"><label class="lg-ch">Excédent avant<input id="it511-exc-av" type="text" autocomplete="off" placeholder="0"></label><label class="lg-ch">Excédent arrière<input id="it511-exc-ar" type="text" autocomplete="off" placeholder="0"></label><label class="lg-ch">Saillies<input id="it511-exc-lat" type="text" autocomplete="off" placeholder="0"></label></div>
+      </section>
+      <section class="lg-carte"><h3>Voyage</h3>
+        <div class="lg-rang"><label class="lg-ch">Série<input id="it511-ref" type="text" autocomplete="off" placeholder="17513"></label><label class="lg-ch">Modules<input id="it511-nb-modules" type="number" min="1" max="30" step="1" placeholder="6"></label></div>
         <input id="it511-depart-prevu" type="hidden">
-        <div style="display:flex;gap:6px;">
-          <input id="it511-dp-date" type="date" style="flex:1 1 auto;min-width:0;box-sizing:border-box;padding:6px 8px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;background:#fff;">
-          <select id="it511-dp-heure" style="flex:0 0 auto;box-sizing:border-box;padding:6px 8px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;background:#fff;"></select>
-          <select id="it511-dp-min" style="flex:0 0 auto;box-sizing:border-box;padding:6px 8px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;background:#fff;">
+        <div class="lg-rang"><label class="lg-ch">Départ prévu<input id="it511-dp-date" type="date"></label><label class="lg-ch" style="flex:0 0 76px">Heure<select id="it511-dp-heure"></select></label><label class="lg-ch" style="flex:0 0 70px">Min.<select id="it511-dp-min" style="flex:0 0 auto;box-sizing:border-box;padding:6px 8px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;background:#fff;">
             <option value="00">00</option><option value="15">15</option><option value="30">30</option><option value="45">45</option>
-          </select>
+          </select></label></div>
+        <label id="it511-zone-pref" style="display:none;align-items:center;gap:6px;font-size:12px;cursor:pointer;"><input id="it511-pref-appliquer" type="checkbox" checked> <span id="it511-pref-texte"></span></label>
+        <div style="display:none"><select id="it511-actif"><option value="">Aucun</option></select></div>
+      </section>
+      <section class="lg-carte"><h3>Personnes assignées</h3>
+        <div id="lg-assign">
+          <button id="lg-assign-btn" class="lg-assign-btn" type="button" aria-haspopup="true"><span>Aucune personne assignée</span><span>▾</span></button>
+          <div id="lg-assign-liste" style="display:none;">
+            <input id="lg-assign-filtre" type="text" autocomplete="off" placeholder="Rechercher une personne">
+            <div id="lg-assign-cases" style="display:flex;flex-direction:column;gap:2px;"></div>
+          </div>
         </div>
-      </div>
-      <label id="it511-zone-pref" style="display:none;align-items:center;gap:6px;font-size:12px;margin-bottom:10px;cursor:pointer;">
-        <input id="it511-pref-appliquer" type="checkbox" checked> <span id="it511-pref-texte"></span>
-      </label>
-      <div style="display:flex;gap:10px;margin-bottom:12px;">
-        <div style="flex:1;">
-          <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Série</label>
-          <input id="it511-ref" type="text" placeholder="17513 ou 17513-2" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
-        </div>
-        <div style="display:none;">
-          <select id="it511-actif" style="width:100%;box-sizing:border-box;padding:7px 6px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;background:#fff;"><option value="">Aucun</option></select>
-        </div>
-      </div>
-      <div style="display:flex;gap:10px;margin-bottom:12px;align-items:flex-end;">
-        <div style="flex:0 0 130px;">
-          <label style="display:block;font-size:12px;color:#5a6270;margin-bottom:3px;">Nombre de modules</label>
-          <input id="it511-nb-modules" type="number" min="1" max="30" step="1" placeholder="ex. 6" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
-        </div>
-        <div style="flex:1;font-size:11px;color:#8a8f98;line-height:1.35;">Nombre total de modules de la série : un formulaire L1 et un L2 seront demandés pour chacun (ex. 17513-1 à 17513-6).</div>
-      </div>
-
-      <div class="lg-titre" style="margin-top:6px;">Personnes assignées</div>
-      <div id="lg-assign" style="margin-bottom:12px;">
-        <button id="lg-assign-btn" type="button" aria-haspopup="true"><span>Aucune personne assignée</span><span>▾</span></button>
-        <div id="lg-assign-liste" style="display:none;">
-          <input id="lg-assign-filtre" type="text" autocomplete="off" placeholder="Rechercher une personne" style="box-sizing:border-box;padding:6px 8px;border:1px solid #d3d8dd;font-size:13px;">
-          <div id="lg-assign-cases" style="display:flex;flex-direction:column;gap:2px;"></div>
-        </div>
-        <div class="lg-aide" style="margin-top:4px;">Les personnes cochées trouvent ce voyage dans Bonneville Transport Drive et Bonneville - Tempo. Le rôle vient de Bonneville - Employés.</div>
-      </div>
-      <button id="it511-calculer" type="button" style="width:100%;padding:9px;border:none;border-radius:4px;background:#1565c0;color:#fff;font-size:14px;font-weight:600;cursor:pointer;">Calculer le trajet</button>
-
-      <div id="it511-message" style="display:none;margin-top:10px;padding:8px 10px;border-radius:4px;font-size:13px;"></div>
+      </section>
+      <button id="it511-calculer" type="button">Calculer le trajet</button>
+      <div id="it511-message" style="display:none;padding:10px 12px;border-radius:10px;font-size:13px;"></div>
       <div id="it511-avis-routes" style="display:none;margin-top:10px;padding:8px 10px;border-radius:4px;font-size:13px;background:#fff4e5;color:#7a4b00;">
         Les numéros d’autoroutes et de routes n’ont pas pu être identifiés (OpenStreetMap ne répond pas). Les tronçons « (route sans nom) » sont probablement des autoroutes : ne pas utiliser cette liste pour un permis avant de réessayer.
         <button id="it511-reessayer-routes" type="button" style="display:block;margin-top:8px;padding:6px 10px;border:1px solid #c98a1a;background:#fff;color:#7a4b00;border-radius:4px;font-size:13px;cursor:pointer;">Réessayer l’identification des routes</button>
       </div>
+    </div>
 
-      <div id="it511-resultat" style="display:none;margin-top:14px;">
-        <div id="it511-titre-resultat" style="font-size:13px;font-weight:600;margin-bottom:8px;"></div>
-        <button id="it511-sauver-voyage" type="button" style="width:100%;margin-bottom:12px;padding:10px;border:none;border-radius:4px;background:#15803d;color:#fff;font-size:14px;font-weight:600;cursor:pointer;">Enregistrer le voyage</button>
-        <div style="display:flex;gap:10px;margin-bottom:12px;">
-          <div style="flex:1;background:#f3f5f8;border-radius:4px;padding:8px 10px;">
-            <div style="font-size:12px;color:#5a6270;">Distance totale</div>
-            <div id="it511-total" style="font-size:20px;font-weight:600;"></div>
-          </div>
-          <div style="flex:1;background:#f3f5f8;border-radius:4px;padding:8px 10px;">
-            <div style="font-size:12px;color:#5a6270;">Durée estimée</div>
-            <div id="it511-duree" style="font-size:20px;font-weight:600;"></div>
-          </div>
+    <div id="lg-droite">
+      <div id="lg-couches"></div>
+      <div id="it511-carte"></div>
+      <section id="it511-resultat" style="display:none;">
+        <div id="it511-titre-resultat"></div>
+        <div class="lg-res-haut">
+          <div class="lg-kpi"><div id="it511-total"></div><span>distance</span></div>
+          <div class="lg-kpi"><div id="it511-duree"></div><span>durée</span></div>
+          <div class="lg-kpi"><b id="lg-k-largeur">—</b><span>largeur</span></div>
+          <div class="lg-kpi"><b id="lg-k-hauteur">—</b><span>hauteur</span></div>
+          <span style="margin-left:auto"></span>
+          <button id="it511-copier-ligne" type="button" class="lg-btn">Copier la ligne du permis</button>
+          <button id="it511-copier-liste" type="button" class="lg-btn">Copier la liste des routes</button>
+          <button id="it511-sauver-voyage" type="button" class="lg-btn vert">✓ Enregistrer le voyage</button>
         </div>
-        <button id="it511-reinit-trace" type="button" style="display:none;width:100%;margin-bottom:10px;padding:6px;border:1px solid #c9ced6;border-radius:4px;background:#fff;font-size:12px;cursor:pointer;"></button>
-        <div style="font-size:13px;font-weight:600;margin-bottom:4px;">Routes empruntées</div>
-        <div id="it511-routes" style="border-top:1px solid #eef0f3;margin-bottom:10px;"></div>
-        <div style="font-size:13px;font-weight:600;margin-bottom:4px;">En ligne</div>
-        <div id="it511-enligne" style="font-size:13px;background:#f3f5f8;border-radius:4px;padding:8px 10px;margin-bottom:10px;line-height:1.5;"></div>
-        <div style="display:flex;gap:8px;">
-          <button id="it511-copier-ligne" type="button" style="flex:1;padding:7px;border:1px solid #c9ced6;border-radius:4px;background:#fff;font-size:13px;cursor:pointer;">Copier la ligne</button>
-          <button id="it511-copier-liste" type="button" style="flex:1;padding:7px;border:1px solid #c9ced6;border-radius:4px;background:#fff;font-size:13px;cursor:pointer;">Copier la liste</button>
+        <button id="it511-reinit-trace" type="button" class="lg-btn" style="display:none;"></button>
+        <div class="lg-etats">
+          <details><summary><span>Conformité classe 2</span><span id="it511-statut-classe2"></span></summary><div id="it511-classe2"></div></details>
+          <details><summary><span>Restrictions Bonneville</span><span id="it511-statut-restr"></span></summary><div id="it511-restrictions-trajet"></div></details>
+          <details><summary><span>Entraves 511</span><span id="it511-statut-entraves"></span></summary><div id="it511-entraves"></div></details>
         </div>
-        <details style="margin-top:10px;border:1px solid #e3e6eb;border-radius:4px;">
-          <summary style="cursor:pointer;padding:8px 10px;font-size:13px;font-weight:600;display:flex;justify-content:space-between;gap:8px;"><span>Conformité permis classe 2</span><span id="it511-statut-classe2" style="font-weight:600;"></span></summary>
-          <div id="it511-classe2" style="padding:4px 10px 10px;"></div>
-        </details>
-        <details style="margin-top:10px;border:1px solid #e3e6eb;border-radius:4px;">
-          <summary style="cursor:pointer;padding:8px 10px;font-size:13px;font-weight:600;display:flex;justify-content:space-between;gap:8px;"><span>Restrictions Bonneville</span><span id="it511-statut-restr" style="font-weight:600;"></span></summary>
-          <div id="it511-restrictions-trajet" style="padding:4px 10px 10px;"></div>
-        </details>
-        <details style="margin-top:10px;border:1px solid #e3e6eb;border-radius:4px;">
-          <summary style="cursor:pointer;padding:8px 10px;font-size:13px;font-weight:600;display:flex;justify-content:space-between;gap:8px;"><span>Entraves 511</span><span id="it511-statut-entraves" style="font-weight:600;"></span></summary>
-          <div id="it511-entraves" style="padding:4px 10px 10px;"></div>
-        </details>
+        <div><b>Routes :</b><div id="it511-routes"></div></div>
+        <div><b>Ligne du permis</b><div id="it511-enligne" style="font-size:13px;padding:10px 12px;margin-top:4px;line-height:1.5;"></div></div>
         <div id="it511-zone-suivi" style="display:none;margin-top:12px;border-top:1px solid #eef0f3;padding-top:10px;">
           <div style="font-size:13px;font-weight:600;margin-bottom:4px;">Suivi de l’actif</div>
           <div id="it511-suivi" style="font-size:12px;margin-bottom:8px;"></div>
@@ -2948,54 +3094,50 @@ geotab.addin.logistique = function () {
           <button id="it511-comparer" type="button" style="width:100%;padding:6px;border:1px solid #c9ced6;border-radius:4px;background:#fff;font-size:12px;cursor:pointer;">Comparer avec le trajet réel</button>
           <div id="it511-comparaison" style="font-size:12px;margin-top:6px;"></div>
         </div>
-      </div>
-
+      </section>
     </div>
-      <details open class="lg-carte lg-panneau" data-onglet="voyages" style="margin-top:16px;border-top:1px solid #eef0f3;padding-top:10px;">
-        <summary style="font-size:13px;cursor:pointer;font-weight:600;">Voyages enregistrés</summary>
-        <div class="lg-titre" style="font-size:18px;font-weight:800;margin-bottom:6px;">Voyages</div>
-        <div style="position:relative;margin:8px 0;">
-          <input id="it511-recherche" type="text" autocomplete="off" placeholder="Rechercher une série (ex. 175)" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
-          <div id="it511-sugg-voyages" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:2000;background:#fff;border:1px solid #c9ced6;border-radius:4px;max-height:220px;overflow:auto;"></div>
-        </div>
-        <div id="it511-liste-voyages"></div>
-      </details>
+  </div>
 
-      <details open class="lg-carte lg-panneau" data-onglet="formulaires" style="margin-top:16px;border-top:1px solid #eef0f3;padding-top:10px;">
-        <summary style="font-size:13px;cursor:pointer;font-weight:600;">Formulaires reçus (L1 à L6)</summary>
-        <div class="lg-titre" style="font-size:18px;font-weight:800;">Formulaires reçus (L1 à L6)</div>
-        <input id="it511-forms-serie" type="text" autocomplete="off" placeholder="Série (ex. 17513)" style="width:100%;box-sizing:border-box;margin:8px 0;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
-        <div id="it511-forms-liste"></div>
-        <button id="it511-forms-pdf-serie" type="button" style="display:none;width:100%;margin-top:8px;padding:8px;border:none;border-radius:4px;background:#15803d;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">Télécharger la série complète (PDF)</button>
-        <div style="font-size:11px;color:#8a8f98;margin-top:6px;">« PDF » : un formulaire seul. « Série complète » : tous les formulaires reçus de la série, l’un sous l’autre, en format lettre.</div>
-      </details>
+  <div class="lg-vue" data-onglet="voyages" style="display:none;">
+    <div class="lg-filtres">
+      <label class="lg-ch">Du<input id="lg-v-du" type="date"></label>
+      <label class="lg-ch">Au<input id="lg-v-au" type="date"></label>
+      <label class="lg-ch" style="width:150px">Série<input id="it511-recherche" type="text" autocomplete="off" placeholder="ex. 175"><div id="it511-sugg-voyages" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:2000;background:#fff;border:1px solid #d3d8dd;border-radius:8px;max-height:220px;overflow:auto;"></div></label>
+      <label class="lg-ch" style="width:200px">Statut<select id="lg-v-statut"><option value="">Tous</option><option value="actifs">Sur les cellulaires</option><option value="assigner">À assigner</option><option value="retires">Retirés des cellulaires</option></select></label>
+      <button id="lg-v-afficher" type="button" class="lg-btn noir">Afficher</button>
+      <span style="margin-left:auto"></span>
+      <button id="lg-v-nouveau" type="button" class="lg-btn jaune">+ Nouveau voyage</button>
+    </div>
+    <div class="lg-kpis" id="lg-v-kpis"></div>
+    <div class="lg-table"><div id="it511-liste-voyages"></div></div>
+    <div class="lg-aide">« Ouvrir » affiche le voyage sur la carte (onglet Planifier). « Modifier » permet de changer les champs, les personnes assignées, puis de recalculer et mettre à jour.</div>
+  </div>
 
-      <details open class="lg-carte lg-panneau" data-onglet="formulaires" style="margin-top:16px;border-top:1px solid #eef0f3;padding-top:10px;">
-        <summary style="font-size:13px;cursor:pointer;font-weight:600;">Exporter et archiver les formulaires</summary>
-        <div class="lg-titre" style="font-size:18px;font-weight:800;">Exporter et archiver</div>
-        <div style="display:flex;gap:8px;margin:8px 0;">
-          <label style="flex:1;display:flex;flex-direction:column;gap:3px;font-size:12px;color:#5a6270;">Du<input id="it511-exp-du" type="date" style="box-sizing:border-box;padding:6px 8px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;"></label>
-          <label style="flex:1;display:flex;flex-direction:column;gap:3px;font-size:12px;color:#5a6270;">Au<input id="it511-exp-au" type="date" style="box-sizing:border-box;padding:6px 8px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;"></label>
-        </div>
-        <label style="display:flex;flex-direction:column;gap:3px;font-size:12px;color:#5a6270;">Série (facultatif)<input id="it511-exp-serie" type="text" placeholder="toutes" style="box-sizing:border-box;padding:6px 8px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;"></label>
-        <div id="it511-exp-codes" style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0;font-size:12px;">
+  <div class="lg-vue" data-onglet="formulaires" style="display:none;">
+    <div class="lg-filtres">
+      <label class="lg-ch">Du<input id="it511-exp-du" type="date"></label>
+      <label class="lg-ch">Au<input id="it511-exp-au" type="date"></label>
+      <label class="lg-ch" style="width:140px">Série<input id="it511-exp-serie" type="text" placeholder="toutes"></label>
+      <div class="lg-ch">Formulaires<div id="it511-exp-codes" style="display:flex;flex-wrap:wrap;gap:8px;height:38px;align-items:center;font-size:13px;color:#14191e;">
           <label style="display:flex;align-items:center;gap:3px;"><input type="checkbox" value="L1" checked> L1</label><label style="display:flex;align-items:center;gap:3px;"><input type="checkbox" value="L2" checked> L2</label><label style="display:flex;align-items:center;gap:3px;"><input type="checkbox" value="L3" checked> L3</label><label style="display:flex;align-items:center;gap:3px;"><input type="checkbox" value="L3b" checked> L3b</label><label style="display:flex;align-items:center;gap:3px;"><input type="checkbox" value="L4" checked> L4</label><label style="display:flex;align-items:center;gap:3px;"><input type="checkbox" value="L5" checked> L5</label><label style="display:flex;align-items:center;gap:3px;"><input type="checkbox" value="L6" checked> L6</label>
-        </div>
-        <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin-bottom:8px;"><input id="it511-exp-nc" type="checkbox"> Seulement les formulaires avec une non-conformité</label>
-        <div style="display:flex;gap:8px;">
-          <button id="it511-exp-pdf" type="button" style="flex:1;padding:8px;border:1px solid #c9ced6;border-radius:4px;background:#fff;font-size:13px;cursor:pointer;">Un seul PDF</button>
-          <button id="it511-exp-zip" type="button" style="flex:1;padding:8px;border:none;border-radius:4px;background:#1565c0;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">ZIP + tableau Excel</button>
-        </div>
-        <button id="it511-exp-retirer" type="button" style="display:none;width:100%;margin-top:8px;padding:8px;border:1px solid #8a1c1c;border-radius:4px;background:#fff;color:#8a1c1c;font-size:13px;font-weight:600;cursor:pointer;"></button>
-        <div style="font-size:11px;color:#8a8f98;margin-top:6px;">Pour libérer de l’espace : exporte en ZIP, enregistre le fichier dans OneDrive, puis clique sur « Retirer de Geotab ». Seule une ligne de résumé est conservée.</div>
-      </details>
+        </div></div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;height:38px;"><input id="it511-exp-nc" type="checkbox"> Non-conformités seulement</label>
+      <button id="lg-f-afficher" type="button" class="lg-btn noir">Afficher</button>
+    </div>
+    <div class="lg-table"><div id="lg-f-liste"><div class="lg-aide" style="padding:14px">Choisis les filtres puis « Afficher ».</div></div></div>
+    <div class="lg-barre-actions" id="lg-f-actions" style="display:none;">
+      <b id="lg-f-nb">0 formulaire sélectionné</b><span style="margin-left:auto"></span>
+      <button id="it511-exp-pdf" type="button" class="lg-btn">Un seul PDF</button>
+      <button id="it511-exp-zip" type="button" class="lg-btn jaune">ZIP + tableau Excel</button>
+      <button id="it511-exp-retirer" type="button" class="lg-btn rose" style="display:none;"></button>
+    </div>
+    <div class="lg-aide">Pour libérer de l’espace : coche les formulaires, exporte en ZIP, enregistre le fichier dans OneDrive, puis « Retirer de Geotab ». Seule une ligne de résumé est conservée.</div>
+    <div style="display:none"><input id="it511-forms-serie" type="text"><div id="it511-forms-liste"></div><button id="it511-forms-pdf-serie" type="button"></button></div>
+  </div>
 
-      
-
-      <details open class="lg-carte lg-panneau" data-onglet="restrictions" style="margin-top:16px;border-top:1px solid #eef0f3;padding-top:10px;">
-        <summary style="font-size:13px;cursor:pointer;font-weight:600;">Restrictions et itinéraires privilégiés</summary>
-        <div class="lg-titre" style="font-size:18px;font-weight:800;">Restrictions et itinéraires privilégiés</div>
-        <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin-top:8px;"><input id="it511-eviter-peages" type="checkbox"> Éviter les péages (A-25 et A-30)</label>
+  <div class="lg-vue" data-onglet="restrictions" style="display:none;">
+    <section class="lg-carte" style="max-width:900px"><h3>Restrictions et itinéraires privilégiés</h3>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin-top:8px;"><input id="it511-eviter-peages" type="checkbox"> Éviter les péages (A-25 et A-30)</label>
         <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin:4px 0 8px;"><input id="it511-eviter-traversiers" type="checkbox"> Éviter les traversiers</label>
         <div style="font-size:12px;font-weight:600;margin-bottom:4px;">Restrictions</div>
         <div id="it511-liste-restrictions"></div>
@@ -3024,12 +3166,13 @@ geotab.addin.logistique = function () {
           <input id="it511-p-via" type="text" placeholder="Passer par (ex. Waterloo, QC)" style="width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #c9ced6;border-radius:4px;font-size:12px;margin-bottom:6px;">
           <div style="display:flex;gap:6px;"><button id="it511-p-sauver" type="button" style="padding:5px 10px;border:1px solid #c9ced6;border-radius:4px;background:#fff;font-size:12px;cursor:pointer;">Enregistrer</button><button id="it511-p-annuler" type="button" style="padding:5px 10px;border:1px solid #c9ced6;border-radius:4px;background:#fff;font-size:12px;cursor:pointer;">Annuler</button></div>
         </div>
-      </details>
 
-      <details open class="lg-carte lg-panneau" data-onglet="parametres" style="margin-top:16px;border-top:1px solid #eef0f3;padding-top:10px;">
-        <summary style="font-size:13px;cursor:pointer;color:#5a6270;">Paramètres</summary>
-        <div class="lg-titre" style="font-size:18px;font-weight:800;">Paramètres</div>
-        <label style="display:block;font-size:12px;color:#5a6270;margin:8px 0 3px;">Clé OpenRouteService</label>
+    </section>
+  </div>
+
+  <div class="lg-vue" data-onglet="parametres" style="display:none;">
+    <section class="lg-carte" style="max-width:720px"><h3>Paramètres</h3>
+      <label style="display:block;font-size:12px;color:#5a6270;margin:8px 0 3px;">Clé OpenRouteService</label>
         <div style="display:flex;gap:8px;">
           <input id="it511-cle" type="text" autocomplete="off" style="flex:1;min-width:0;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
           <button id="it511-sauver-cle" type="button" style="padding:7px 12px;border:1px solid #c9ced6;border-radius:4px;background:#fff;font-size:13px;cursor:pointer;">Enregistrer</button>
@@ -3044,16 +3187,9 @@ geotab.addin.logistique = function () {
           <input id="it511-cle-carto" type="text" autocomplete="off" style="flex:1;min-width:0;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
           <button id="it511-sauver-cle-carto" type="button" style="padding:7px 12px;border:1px solid #c9ced6;border-radius:4px;background:#fff;font-size:13px;cursor:pointer;">Enregistrer</button>
         </div>
-      </details>
-      <details class="lg-carte" data-onglet="parametres" style="margin-top:8px;">
-        <summary style="font-size:12px;cursor:pointer;color:#5a6270;">Détail technique du trajet (soutien)</summary>
-        <div id="it511-diagnostic" style="max-height:260px;overflow:auto;margin-top:6px;"></div>
-      </details>
-    </div>
 
-    <div id="lg-droite">
-      <div id="it511-carte" style="height:78vh;min-height:460px;width:100%;border:1px solid #c9ced6;border-radius:6px;"></div>
-    </div>
+    </section>
+    <details class="lg-carte" style="max-width:900px"><summary style="cursor:pointer;font-weight:700;color:#4f5963;">Détail technique du trajet (soutien)</summary><div id="it511-diagnostic" style="max-height:360px;overflow:auto;"></div></details>
   </div>
 </div>
 </body>
