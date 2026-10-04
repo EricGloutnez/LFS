@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Bonneville - Tempo</title>
-<script src="https://ericgloutnez.github.io/LFS/bonneville-commun.js?v=1.0.4"></script>
+<title>Bonneville - Heures &amp; Dépenses</title>
+<script src="https://ericgloutnez.github.io/LFS/bonneville-commun.js?v=1.0.6"></script>
 </head>
 <body>
 <div id="bh" data-theme="jour">
@@ -88,7 +88,7 @@
 <script>
 (function () {
   'use strict';
-  var VERSION = '1.1.0';
+  var VERSION = '1.1.1';
   var B = window.Bonneville;
   var G = null, api = null, moi = '', monNom = '';
   var employes = {}, profils = [], monEmp = null, droits = {}, voyages = [], journees = {}, equipeJ = [], maPaie = lire('bh-paie') || null;
@@ -284,7 +284,7 @@
     rendreOnglets(); majPastille();
     var html;
     if (!monEmp || !droits.heures) {
-      html = '<div class="ecran"><div class="carte"><h2>Accès à demander au bureau</h2><div class="aide">Ton compte n’a pas encore accès à Bonneville - Tempo. Le bureau doit te donner l’accès dans Bonneville - Employés.</div></div></div>';
+      html = '<div class="ecran"><div class="carte"><h2>Accès à demander au bureau</h2><div class="aide">Ton compte n’a pas encore accès à Heures &amp; Dépenses. Le bureau doit te donner l’accès dans Bonneville - Employés.</div></div></div>';
       $('bh-onglets').innerHTML = '';
     } else if (ecran === 'repas') { html = vueRepas(); }
     else if (ecran === 'km') { html = vueKm(); }

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Bonneville</title>
-<script src="https://ericgloutnez.github.io/LFS/bonneville-commun.js?v=1.0.4"></script>
+<script src="https://ericgloutnez.github.io/LFS/bonneville-commun.js?v=1.0.6"></script>
 </head>
 <body style="margin:0">
 <div id="bd" data-theme="jour">
@@ -67,13 +67,13 @@
 <script>
 (function () {
   'use strict';
-  var VERSION = '3.0.0';
+  var VERSION = '3.0.1';
   var B = window.Bonneville;
   var BASE = 'https://ericgloutnez.github.io/LFS/';
   var CACHER = '.entete { display: none !important; } #lfsd > .pied { display: none !important; }';
   var MODULES = {
     transport: { fichier: 'transport-drive.html', noms: ['transportDrive', 'bonneville', 'Bonneville'], titre: 'Transport' },
-    tempo: { fichier: 'tempo-drive.html', noms: ['tempoDrive', 'bonnevilleTempo', 'tempo'], titre: 'Tempo' }
+    tempo: { fichier: 'tempo-drive.html', noms: ['tempoDrive', 'bonnevilleTempo', 'tempo'], titre: 'Heures & Dépenses' }
   };
   var api = null, state = null, G = null, moi = '', prenom = '', droits = lire('bd-droits') || {}, instances = {}, enChargement = {}, courant = null, branche = false;
   function $(id) { return document.getElementById(id); }
@@ -203,7 +203,7 @@
       html += '</div>';
     }
     if (heures) {
-      html += '<span class="bd-section">Tempo</span><div class="bd-grille">';
+      html += '<span class="bd-section">Heures &amp; Dépenses</span><div class="bd-grille">';
       if (droits.tousVoyages) { html += tuile('tempo', 'journee', 'plus', '#1b7f3b', 'Ajouter des heures', 'Sur un voyage'); }
       html += tuile('tempo', 'journee', 'jour', '#1b7f3b', 'Ma journée', te.enService ? 'En service depuis ' + B.heureFr(te.debut) : (te.total ? 'Journée : ' + B.duree(te.total) : 'Pas encore commencée'));
       html += tuile('tempo', 'repas', 'repas', '#1b7f3b', 'Repas', te.repas ? B.argent(te.repas) + ' aujourd’hui' : 'Aucun aujourd’hui');

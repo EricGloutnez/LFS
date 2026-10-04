@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Bonneville</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="https://ericgloutnez.github.io/LFS/bonneville-commun.js?v=1.0.4"></script>
+<script src="https://ericgloutnez.github.io/LFS/bonneville-commun.js?v=1.0.6"></script>
 </head>
 <body style="margin:0">
 <div id="bn">
@@ -20,7 +20,7 @@
   #bn-nav button[hidden] { display: none; }
   #bn-qui { margin-left: auto; font-size: 13px; color: var(--doux); }
   #bn-accueil { padding: 22px 28px; display: flex; flex-direction: column; gap: 16px; }
-  .bn-blocs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start; }
+  .bn-blocs { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; align-items: start; }
   @media (max-width: 1000px) { .bn-blocs { grid-template-columns: 1fr; } }
   .bn-bloc { background: var(--surface); border: 1px solid var(--ligne); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 14px; }
   .bn-bloc h2 { margin: 0; font-size: 19px; display: flex; align-items: center; gap: 10px; }
@@ -46,7 +46,7 @@
   <nav id="bn-nav">
     <button type="button" data-m="accueil" class="on">Accueil</button>
     <button type="button" data-m="logistique">Logistique</button>
-    <button type="button" data-m="tempo" hidden>Tempo</button>
+    <button type="button" data-m="tempo" hidden>Heures &amp; Dépenses</button>
     <button type="button" data-m="employes" hidden>Employés 🔒</button>
   </nav>
   <span id="bn-qui"></span>
@@ -59,7 +59,7 @@
 <script>
 (function () {
   'use strict';
-  var VERSION = '3.0.0';
+  var VERSION = '3.0.2';
   var B = window.Bonneville;
   var BASE = 'https://ericgloutnez.github.io/LFS/';
   var MODULES = {
@@ -155,20 +155,18 @@
       var html = '<div style="display:flex;align-items:baseline;gap:12px"><span style="font-size:26px;font-weight:800">Bonjour</span><span class="bn-aide">' + h(B.JOURS[new Date().getDay()]) + ' ' + new Date().getDate() + ' ' + B.MOIS[new Date().getMonth()] + ' ' + new Date().getFullYear() + '</span></div><div class="bn-blocs">';
       html += bloc('#1f4f8a', IC.log, 'Logistique', [[prevus.length, 'voyages prévus'], [aAssigner.length, 'à assigner', '#b42318'], [aApprouver.length, 'formulaires à approuver', '#9a5b00']],
         [['+ Nouveau voyage', 'logistique', 'planifier', true], ['Voyages', 'logistique', 'voyages'], ['Formulaires', 'logistique', 'formulaires']]);
-      if (acces.tempo) { html += bloc('#1b7f3b', IC.tempo, 'Tempo', [[fin.length, 'à finaliser', '#9a5b00'], [chef.length, 'chez le chef', '#4f5963'], [B.duree(jr.filter(function (j) { return j.date >= B.debutSemaine(aujour); }).reduce(function (a, j) { return a + B.calculer(j).total; }, 0)), 'cette semaine']],
+      if (acces.tempo) { html += bloc('#1b7f3b', IC.tempo, 'Heures & Dépenses', [[fin.length, 'à finaliser', '#9a5b00'], [chef.length, 'chez le chef d’équipe', '#4f5963'], [B.duree(jr.filter(function (j) { return j.date >= B.debutSemaine(aujour); }).reduce(function (a, j) { return a + B.calculer(j).total; }, 0)), 'cette semaine']],
         [['Approuver', 'tempo', 'journees', true], ['Archivage', 'tempo', 'archivage']]); }
-      if (acces.employes) { html += bloc('#14191e', IC.emp, 'Employés', [[sansProfil.length, 'sans profil', '#b42318'], [Object.keys(emps).filter(function (k) { return emps[k].profil || emps[k].droits; }).length, 'avec profil'], [Object.keys(emps).filter(function (k) { return emps[k].masque; }).length, 'masqués', '#4f5963']],
-        [['Gérer les employés', 'employes', 'employes'], ['Profils', 'employes', 'profils']]); }
       html += '</div>';
       var todo = [];
       aAssigner.slice(0, 5).forEach(function (v) { todo.push(['#b42318', 'Voyage ' + v.ref + (v.departDate ? ' (départ ' + v.departDate + ')' : '') + ' : personne assignée', 'Assigner', 'logistique', 'voyages']); });
       nc.slice(0, 5).forEach(function (f) { todo.push(['#9a5b00', f.code + (f.module ? ' du module ' + f.serie + '-' + f.module : ' de la série ' + f.serie) + ' : ' + ((f.resume && f.resume.texte) || 'non-conformité'), 'Voir les formulaires', 'logistique', 'formulaires']); });
-      if (fin.length) { todo.push(['#9a5b00', fin.length + ' journée(s) approuvée(s) par les chefs attendent l’approbation finale', 'Approuver', 'tempo', 'journees']); }
+      if (fin.length) { todo.push(['#9a5b00', fin.length + ' journée(s) approuvée(s) par les chefs d’équipe attendent l’approbation finale', 'Approuver', 'tempo', 'journees']); }
       if (sansProfil.length) { todo.push(['#4f5963', sansProfil.length + ' compte(s) MyGeotab sans profil', 'Donner un profil', 'employes', 'employes', 'sansProfil']); }
       html += '<section class="bn-afaire"><h3>À faire aujourd’hui</h3>' + (todo.length ? todo.map(function (t) {
         return '<div class="bn-ligne"><span class="bn-point" style="background:' + t[0] + '"></span><span style="flex:1">' + h(t[1]) + '</span><button type="button" class="bn-lien" data-aller="' + t[3] + '" data-sous="' + t[4] + '" data-val="' + (t[5] || '') + '">' + h(t[2]) + '</button></div>';
       }).join('') : '<div class="bn-aide">Rien d’urgent pour l’instant.</div>') + '</section>';
-      html += '<div class="bn-aide">Tempo demande le profil Administrateur Tempo (Bonneville - Employés). Employés demande le rôle Administrateur de MyGeotab. Version ' + VERSION + '.</div>';
+      html += '<div class="bn-aide">Heures &amp; Dépenses demande le profil Administrateur Heures &amp; Dépenses (onglet Employés). Employés demande le rôle Administrateur de MyGeotab. Version ' + VERSION + '.</div>';
       $('bn-accueil').innerHTML = html;
     }).catch(function (e) { $('bn-accueil').innerHTML = '<div class="bn-aide">Lecture impossible : ' + h(e && e.message ? e.message : e) + '</div>'; });
   }
@@ -197,7 +195,7 @@
       acces.tempo = !!B.droitsEffectifs(emp, profils).admin;
       document.querySelector('#bn-nav [data-m=tempo]').hidden = !acces.tempo;
       document.querySelector('#bn-nav [data-m=employes]').hidden = !acces.employes;
-      $('bn-qui').textContent = moi + (acces.tempo ? ' · Administrateur Tempo' : '') + ' · version ' + VERSION;
+      $('bn-qui').textContent = moi + (acces.tempo ? ' · Administrateur Heures & Dépenses' : '') + ' · version ' + VERSION;
       if (courant === 'accueil') { chargerAccueil(); }
     });
   }

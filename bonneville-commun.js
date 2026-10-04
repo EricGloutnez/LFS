@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   var ADDIN_ID = 'aXdeNEZ7tQ7eMPNywYFFKrA';
-  var VERSION = '1.0.4';
+  var VERSION = '1.0.6';
   var TELEPHONE = '(438) 978-2162';
 
   // ---------- Accès à Geotab
@@ -79,21 +79,21 @@
 
   // ---------- Droits et profils
   var DROITS = [
-    { cle: 'admin', nom: 'Administrateur Tempo (accès à Tempo au bureau, approbation finale des heures)' },
+    { cle: 'admin', nom: 'Administrateur Heures & Dépenses (accès au bureau, approbation finale des heures)' },
     { cle: 'gps', nom: 'Transport Drive (GPS)' },
     { cle: 'formTransport', nom: 'Formulaires Transport (L1, L2)' },
     { cle: 'formInstallation', nom: 'Formulaires Installation (L3, L3b, L4, L5)' },
     { cle: 'formEvaluation', nom: 'Auto-évaluation (L6)' },
-    { cle: 'heures', nom: 'Tempo (heures et dépenses)' },
+    { cle: 'heures', nom: 'Heures & Dépenses' },
     { cle: 'chef', nom: 'Chef d’équipe (approuve son équipe)' },
     { cle: 'tousVoyages', nom: 'Commissionnaire (voit tous les voyages, répartit ses heures)' }
   ];
   var ROLES = [
     { cle: 'chauffeur', nom: 'Chauffeur' }, { cle: 'escorte', nom: 'Escorte' }, { cle: 'chef', nom: 'Chef d’équipe' },
-    { cle: 'installation', nom: 'Installation' }, { cle: 'commissionnaire', nom: 'Commissionnaire' }, { cle: 'bureau', nom: 'Bureau' }, { cle: 'administrateur', nom: 'Administrateur Tempo' }
+    { cle: 'installation', nom: 'Installation' }, { cle: 'commissionnaire', nom: 'Commissionnaire' }, { cle: 'bureau', nom: 'Bureau' }, { cle: 'administrateur', nom: 'Administrateur Heures & Dépenses' }
   ];
   var PROFILS_DEFAUT = [
-    { pid: 'administrateur', nom: 'Administrateur Tempo', role: 'administrateur', droits: { admin: true, heures: true } },
+    { pid: 'administrateur', nom: 'Administrateur Heures & Dépenses', role: 'administrateur', droits: { admin: true, heures: true } },
     { pid: 'chauffeur', nom: 'Chauffeur', role: 'chauffeur', droits: { gps: true, formTransport: true, heures: true } },
     { pid: 'escorte', nom: 'Escorte', role: 'escorte', droits: { gps: true, heures: true } },
     { pid: 'chef', nom: 'Chef d’équipe', role: 'chef', droits: { formInstallation: true, formEvaluation: true, heures: true, chef: true } },
@@ -192,8 +192,8 @@
   var STATUTS = {
     ouverte: { nom: 'En cours', couleur: 'gris' },
     terminee: { nom: 'À soumettre', couleur: 'gris' },
-    attente_chef: { nom: 'En attente du chef', couleur: 'gris' },
-    attente_admin: { nom: 'Approuvé par le chef', couleur: 'orange' },
+    attente_chef: { nom: 'En attente du chef d’équipe', couleur: 'gris' },
+    attente_admin: { nom: 'Approuvé par le chef d’équipe', couleur: 'orange' },
     approuvee: { nom: 'Approbation finale', couleur: 'vert' },
     a_corriger: { nom: 'À corriger', couleur: 'rouge' }
   };
