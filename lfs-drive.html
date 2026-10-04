@@ -19,9 +19,7 @@
     font-size: 16px; line-height: 1.4; font-variant-numeric: tabular-nums; -webkit-text-size-adjust: 100%;
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
-  @media (prefers-color-scheme: dark) {
-    #lfsd { --encre: #edf0f3; --doux: #a3adb7; --fond: #12161a; --surface: #1d2329; --ligne: #2f3842; --route: #fb923c; --bandeau: #000000; }
-  }
+  #lfsd[data-theme="nuit"] { --encre: #edf0f3; --doux: #a3adb7; --fond: #12161a; --surface: #1d2329; --ligne: #2f3842; --route: #fb923c; --bandeau: #000000; }
   #lfsd *, #lfsd *::before, #lfsd *::after { box-sizing: border-box; }
   #lfsd h2, #lfsd p, #lfsd ol { margin: 0; }
   #lfsd button, #lfsd input {
@@ -34,8 +32,10 @@
 
   #lfsd .entete { display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: var(--surface); border-bottom: 1px solid var(--ligne); }
   #lfsd .entete img { height: 20px; width: auto; display: block; }
-  #lfsd .entete { flex-wrap: wrap; row-gap: 4px; }
-  @media (prefers-color-scheme: dark) { #lfsd .entete img { filter: invert(1); } }
+  #lfsd .entete { flex-wrap: nowrap; gap: 8px; }
+  #lfsd .marque { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  #lfsd .entete .nom-app { font-size: 12px; }
+  #lfsd[data-theme="nuit"] .entete img { filter: invert(1); }
   #lfsd .entete .nom { display: none; font-size: 19px; font-weight: 800; line-height: 1.1; }
   #lfsd .entete .nom-app { font-size: 15px; font-weight: 700; color: var(--doux); line-height: 1.1; }
   #lfsd .entete .etat { margin-left: auto; font-size: 13px; color: var(--doux); text-align: right; max-width: 55%; }
@@ -157,8 +157,8 @@
   #lfsd .f-rond { flex: 0 0 auto; width: 40px !important; height: 40px !important; border-radius: 50% !important; padding: 0 !important; text-align: center !important; font-size: 20px !important; font-weight: 800 !important; border: 2px solid #7a848d !important; }
   #lfsd .f-rond.on { background: var(--ok) !important; border-color: var(--ok) !important; color: #ffffff !important; }
   #lfsd .f-boutons { display: flex; gap: 8px; justify-content: flex-end; }
-  #lfsd .f-pil { min-width: 64px; height: 46px; padding: 0 12px !important; text-align: center !important; font-weight: 700 !important; border-color: #7a848d !important; }
-  #lfsd .f-pil.grand { flex: 1; height: 92px; font-size: 26px !important; font-weight: 800 !important; }
+  #lfsd .f-pil { min-width: 64px; height: 46px !important; padding: 0 12px !important; text-align: center !important; font-weight: 700 !important; border-color: #7a848d !important; }
+  #lfsd .f-pil.grand { flex: 1; height: 110px !important; font-size: 26px !important; font-weight: 800 !important; }
   #lfsd .f-pil.oui.on { background: var(--ok) !important; border-color: var(--ok) !important; color: #ffffff !important; }
   #lfsd .f-pil.non.on { background: var(--signal) !important; border-color: var(--signal) !important; color: #ffffff !important; }
   #lfsd .f-pil.photo.on { background: #1f4f8a !important; border-color: #1f4f8a !important; color: #ffffff !important; }
@@ -183,8 +183,8 @@
   #lfsd .f-nav { flex-direction: row; }
   #lfsd .f-reste { font-size: 13px; font-weight: 700; color: var(--signal); text-align: center; }
   #lfsd .f-reste.ok { color: var(--ok); }
-  #lfsd .f-envoyer { flex: 1; height: 54px; text-align: center !important; font-size: 18px !important; font-weight: 800 !important; background: var(--accent) !important; border-color: var(--accent) !important; color: #1d2329 !important; }
-  #lfsd .f-prec { flex: 0 0 120px; height: 54px; text-align: center !important; font-weight: 700 !important; }
+  #lfsd .f-envoyer { flex: 1; height: 58px !important; text-align: center !important; font-size: 18px !important; font-weight: 800 !important; background: var(--accent) !important; border-color: var(--accent) !important; color: #1d2329 !important; }
+  #lfsd .f-prec { flex: 0 0 120px; height: 58px !important; text-align: center !important; font-weight: 700 !important; }
   #lfsd .f-manquants { margin: 6px 0 0; padding-left: 20px; font-size: 13px; color: var(--signal); }
   #lfsd .f-prog { background: var(--surface); padding: 10px 16px; border-bottom: 1px solid var(--ligne); display: flex; flex-direction: column; gap: 6px; }
   #lfsd .f-barre-prog { height: 8px; border-radius: 4px; background: #e3e6e9; overflow: hidden; }
@@ -193,28 +193,86 @@
   #lfsd .f-recap { padding: 10px 12px; border-bottom: 1px solid var(--ligne); }
   #lfsd .f-rep { font-weight: 800; }
   #lfsd .f-prog .f-sous { white-space: nowrap; font-style: normal; font-weight: 700; }
+
+  #lfsd { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+  #lfsd .entete { position: sticky; top: 0; z-index: 1500; }
+  #lfsd .pastille { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 15px; background: #1b7f3b; color: #ffffff; font-size: 13px; font-weight: 700; white-space: nowrap; }
+  #lfsd .pastille::before { content: ''; width: 8px; height: 8px; border-radius: 4px; background: #ffffff; }
+  #lfsd .pastille.hors { background: var(--signal); }
+  #lfsd .pastille.attente { background: #b26b00; }
+  #lfsd .appel { flex: 0 0 auto; width: 48px; height: 48px; border-radius: 24px; background: #1b7f3b; display: flex; align-items: center; justify-content: center; color: #ffffff; text-decoration: none; }
+  #lfsd .theme { flex: 0 0 auto; width: 48px !important; height: 48px !important; border-radius: 24px !important; padding: 0 !important; display: flex !important; align-items: center; justify-content: center; }
+  #lfsd .theme .ic-soleil { display: none; }
+  #lfsd[data-theme="nuit"] .theme .ic-soleil { display: block; }
+  #lfsd[data-theme="nuit"] .theme .ic-lune { display: none; }
+  #lfsd .info-etat { font-size: 13px; color: var(--doux); margin-bottom: 8px; }
+  #lfsd .info-etat.horsligne { color: var(--signal); font-weight: 700; }
+  #lfsd .alertes { display: none; margin: 12px 16px 0; border-radius: 12px; border: 2px solid var(--signal); background: #fdecea; padding: 12px 14px; }
+  #lfsd .alertes.visible { display: block; }
+  #lfsd .alertes b { display: block; color: var(--signal); font-size: 16px; font-weight: 800; margin-bottom: 4px; }
+  #lfsd .alertes div { color: #1d2329; font-size: 15px; font-weight: 600; line-height: 1.35; margin-top: 4px; }
+  #lfsd[data-theme="nuit"] .alertes { background: #3a1416; } #lfsd[data-theme="nuit"] .alertes div { color: #edf0f3; } #lfsd[data-theme="nuit"] .alertes b { color: #ff8a80; }
+  #lfsd .telechargement { margin-top: 14px; border: 1px solid var(--ligne); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+  #lfsd .telechargement:empty { display: none; }
+  #lfsd .telechargement .t-haut { display: flex; justify-content: space-between; gap: 10px; font-weight: 700; font-size: 15px; }
+  #lfsd .telechargement .t-rail { height: 12px; border-radius: 6px; background: var(--ligne); overflow: hidden; }
+  #lfsd .telechargement .t-rail div { height: 12px; background: var(--accent); transition: width .2s; }
+  #lfsd .telechargement.fini .t-rail div { background: #1b7f3b; }
+  #lfsd .telechargement.erreur .t-rail div { background: var(--signal); }
+  #lfsd .telechargement .t-detail { font-size: 13px; color: var(--doux); }
+  #lfsd .telechargement.erreur .t-detail { color: var(--signal); font-weight: 700; }
+  #lfsd .telechargement button { align-self: flex-start; padding: 8px 14px !important; font-weight: 700 !important; }
+  #lfsd .avancement { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+  #lfsd .avancement:empty { display: none; }
+  #lfsd .jauges { display: flex; gap: 16px; }
+  #lfsd .jauge { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+  #lfsd .jauge .haut { display: flex; justify-content: space-between; font-weight: 700; font-size: 15px; }
+  #lfsd .jauge .rail { height: 10px; border-radius: 5px; background: var(--ligne); overflow: hidden; }
+  #lfsd .jauge .rail div { height: 10px; }
+  #lfsd .onglets { position: fixed; left: 0; right: 0; bottom: 0; z-index: 2500; display: flex; background: var(--surface); border-top: 1px solid var(--ligne); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  #lfsd .onglets button { position: relative; flex: 1; height: 72px !important; border: none !important; border-radius: 0 !important; display: flex !important; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 13px !important; font-weight: 600 !important; color: var(--doux) !important; text-align: center !important; }
+  #lfsd .onglets button.on { color: var(--encre) !important; font-weight: 800 !important; box-shadow: inset 0 4px 0 var(--accent) !important; }
+  #lfsd .onglets button:disabled { opacity: 0.35; }
+  #lfsd .onglets .badge { position: absolute; top: 6px; right: calc(50% - 30px); min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--signal); color: #ffffff; font-size: 12px; font-weight: 800; display: none; align-items: center; justify-content: center; }
+  #lfsd .onglets .badge.visible { display: flex; }
+  #lfsd.en-form .onglets { display: none; }
+  #lfsd.en-form { padding-bottom: 0; }
+  #lfsd.en-dir .bloc.recherche-zone, #lfsd.en-dir .alertes, #lfsd.en-dir .carte-voyage, #lfsd.en-dir .carte, #lfsd.en-dir .progression,
+  #lfsd.en-dir .voyage details:not(.directions), #lfsd.en-dir .autre, #lfsd.en-dir .pied { display: none !important; }
+  #lfsd .nav-hors { display: none; position: absolute; left: 12px; right: 12px; bottom: 96px; z-index: 1000; background: rgba(20,25,30,0.88); color: #ffffff; border-radius: 12px; padding: 12px 14px; font-size: 14px; font-weight: 600; line-height: 1.35; }
+  #lfsd .nav-hors.visible { display: block; }
+  #lfsd .nav-bas .vitesse { width: 56px; display: flex; flex-direction: column; align-items: center; font-size: 22px; font-weight: 800; line-height: 1; }
+  #lfsd .nav-bas .vitesse small { font-size: 11px; font-weight: 400; color: var(--doux); }
+  #lfsd .f-envoi { position: fixed !important; left: 0; right: 0; bottom: 0; z-index: 2400; padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)) !important; }
+  #lfsd .ecran-form { padding-bottom: 170px; }
+  #lfsd .f-confirme { border-radius: 10px; background: #e7f3ec; color: var(--ok); padding: 12px; font-weight: 700; }
+  @media (min-width: 700px) { #lfsd .onglets, #lfsd .f-envoi { max-width: 720px; margin: 0 auto; } }
   @media (min-width: 700px) { #lfsd { max-width: 720px; margin: 0 auto; } }
 </style>
   <div class="entete">
-    <img id="lfsd-logo" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAPoAAAAfCAYAAADOZdAMAAAUdklEQVR42u1daZBc1XX+vvNet2Y0S89IzPSMNJrWFkRJxDjIELMvZgdTiDWYpQqHOHYZEwfiOHbKpsoOBC/g2InLju0ySRGgHChjbMTisglrWYAEZpMBjZZZpFk0W8+mmel+98uPXiSNZqTunm5KsudWvR8z/d699531O+fecx+ro0t/jHyaQBKTJLpAvJEo44bR7eUDwOZJzKatXRuq2tG53EKhiyGcTmiNAxcZWQ4oAalXwBaQG0i3vtLTxo6OjgkALscRvKrokosobx2IYJ93STjqV8NdrU/kNd9YrCwyrlslWwXAAGz1k/73+vtbhqbeWl0f+wTAswEAhLJjwz0U72l7Bkj/L7fmR6JLb5O4GlAgalelTf5rZ2fn2NT3jURjpwt2E6CJWfFGMBBxmnsg3tm2acGCldWBH1wt4nRICRIT9PnDwZ3b38QsW3V02YmAroFQC9KMeqbSTz7c0dGxJ/X70qsBngPJBI7REvcPdXW8OrWf2mjTsU7+dQKiIH1A64dCyV8i3c9sW6S+6TLQP1fCPAAE+Z9D3dtfzZOXB+k/9nmRa1Ck5htxc15PcD8BgD+qiUh09BEEi+6J9za+DWxK5KnhodpFu0/Azt3/oFDoEoCh1BiE7R00DHIRgUUAzoC8Lw5P4u2ahuZvDCZGH0Nf33AuMzfYWhpvyvKCAEnQaVlFdPnG0e5tPbnOeuHISCjpV15ihtNAAk6bJvzgxwCGDiSZTqXxr6fS0cHWAk0nA/kI32oDRi8xj6dBAKT3xkKhewHsr+irV3saGDvWA27QbEWPAKReyfsdgE39/S1DtY1LFwJ2gySQBqfkdgCzVnTKXU7jbRneKJl8pqOrI2uoDO4k0G4GQcENSf5LAA5Q9CS9ZoOuNVqMBATXu2Cs7Ml+oCiK7jz7iDncZIZyAKBzv5luHgXTgbiQxHnF6s+m5+ohLjKr8TTMI3kdfP+Vmsa+z8RisbKcrVYkVhNp6Puakz0l2DqAoX1pCWlCwh4JewAl97U0NBxL2P21ocoHauqX/XluxOMBIi8JIE4NIXl1Qb5uFvcZcFwk6l0zSx4qXwkq9JKSWTMfgK85uc4URBEQ2FmRaPOy2bzIggUrm0AeR6aGkQt2m8eNU1BbzjSfjt/Fa6Xse7r35Kx45+8v9BiT8Cog7+AGniGYKggsANAAwAjzCdw7MM5yAN84pEdcuGRR4ON7AC6HQICAnBPQSWmn8/Q+nddOuDGRIYn1Eo42U7OARgIVAkDax0ktrmloum2wq+O5wqynVTi5SyPR2OPx7tYd+OAaAX2prm71I7t3bx4p8VgBgHZInYfi77TQHegn2Jv5VzgRvJ30+SLJq9LG8nQIywBsL3iC3uRfAvZhKe3NgccTlujGn3qTEqDehTA2BVPnDt2nGKltQ907zszpydrlkeoy91Fz7kbI1sFQLsGD8JXKxuYXRzrbXpoxDmtqWpBMet8icMU+2HAXpKcQ4v2DO9uenyH2ZqS5eZkmcb3Ea4w4RoLBeDzg31PdsOTTQ13tG3OjHcZBDBJoUArbngW5ywD8W+n5pjaSiwF4pC0f556/BXBPif3DkOTujPe0/aQY3fX2tnVGGppfAXAVABitwgkfAda+kH/4ljW4HyHZIAgC4YSnhnft6vuT13Oi3yW9K4Z7t20pInTPsQ1siw917nh6sLvtOkE/SXsMmGG+J/7TQQdN2mchXZmNYJ3eEdzfDS6p+3R8Z+uzB0mwKd7Wtm2oq+1rPnWVgCcEBEjFiWsh++L8o5obcyRfj+geEtSRmrfng3ZZZUPz6tL6cAKwr0kazBhbD7qlqmrRwtKjB7Oi9ujwOuS2gmn4Dl0Uqd+9pKAkXNOKlTKtzeRn5FyLie9iroEAfW9yXpFj9AIyhBO6Q8Lg3twTTojEYjXT3rswdqbE62gWTivcDlC3xLvaHsGm3D1Bf1fbZgXu8wKeTAsGzHhlyMNFAHKApvRM9gaEnxIGyYHkGSHwghIzDS6pFyWszxo0arE/P/z3R5wEluE1ga8yDZEIngayuSC6JBMfFnBiKrkHgHiCCbbOqXnJknH5t7Z424DbJzYjGLYxb5qlgbUh+biMZquQTgXLubvi3a0vFDLu0O72rZbEtyFtBgmIAPm5SDS2JAeN8yDXhwC/cAraMskOJ/zV/LrFx5WS6F55Mixnd0KIp718SNANtY3Lm48k4Ym3tQ0AblM69AHNjNSpTU1N5XnLobO1RoukbQYAe2FgYFt8TkUPI0VPI9LB/R3XZOXUe6qifceTOCt1PyHpaRC/ycD+Qtpg747nHPV4SjoEo3ccqLW5JC1EhuO9ra/DdH96CQk0O2GeeefnhgoKDbp8G+7d/j6p/8He7GqjC4J/POJgZdJ7WcA7qay84MB1wwkvmk8fCxpiq0CdlA1tpN/T4f059TwMFX1KYk/AvAPWts1wHGEfgpQSb/Hn8e627bMeOeBvIbRkY0Xx45FILJKDxhkAWMD1cmlUkDIXN0Uam48rPfUT35LQl/Xq5MdrlyxZcyQJ0FE13it07q0s5cjjASzNi33QGpCnpOE/QP66MpzYMqeeh6NHd9pnDdVNmvPf2vf3xsbG+Qi0JrNG6qAeUEWx2n7E3wBoK7O4j2dbhV+V6/MDPa2/cwgeThkggcZjGOBiIPc9AYW0gV272h30/SwzqMVK8PYjSYBaWlomBL4spz3psA0Qz49GoxU5ddDUVC7wBKP5Kfa5hIBXO4q0g22uFVHRIw3LriDRkNFyQi/29b23n0cfTfqNII8GlIFn73tEUdZI+1tahkB2KqswXKLkRE1+oYe/HsJrKQgKiPxUpA7HlJoBTvYDSbvSs/Aknl27aMXJR5QUef4LAN7LwHcAVyQSVbW5PFqbwAoCZyotFxJeNtkf5lTzMFP0SH1sHaR7Qc5Lu+qBSYTvOFAYQrWgmpQJnonOPZPBULFeJIDrkpzLZAgEbwXy2Fww1LX9VRCPZWN9syZ4uqqurq6ylAwY7dm+m9Ddew0OYy4IbjmShCjeuXWTpPf2hmj8s8CfXJUbErRVBE9MwXYAwgsD3VvnFH1qjGleslhxNQDWVtfHriVx0KypHOaZh5gczqRxFYB0PKxeJ14/2rP1nQMYqqASwMKMIhIY8svceNFCB9kggHEQ81O+0ZqAtX5emzf85KNI+heC/GjKM/GziXD4fwG8UUqnnrSyh3xN3ApwZZqOp1Q3xC4Y6mp9qmiSIoQBnVJdHxshkUdIIkocQzh4eqijo39G+hueh3Q+gBoRgNll0Wh0Q3d39+iM3rx2eSTwdJoxtRVZ0iDMvYbcC5X+NLQcKE9IV0Wisfb8nLNIU+9gZ/vj+yk6gUUgf3pIGGAiQKPBB0A4l3CG+xHorqHd7dumHxJlFCpSWTgDhKSNhoLiKXqQgJnLlofJRbAybmjJvY/Bjo63qo9qXm+enQDCM1rEJf2bFi5c9ZWpoUgx20jn+wNV0didnvG+1OYfNgPuJgBFU3Qa5gO8FkK+e/o9ErssgbcAzKjoSeIZ32E7jH+R8s5aN6L5/wJgRkVHeHIJ5J8rEiQRSBuV9N+YU+0pvAOrKPyz8t9fbwj4BlaufMoOCFWJskNdaZgeykBjR0vCARRrZoLLkjxov6KV0lpBIYREgvlbz+BngjZk4k1Cn0lyfGWJpxuIE+shvb4PWDs5Uhe7vMjjhHLh7/4XQyTKMsh6ZmPV+q7o3t9bGWiLzdxBlzkdbZUZV2dWYTy5V2azzfOPW9c5rwDehQWUI5HgVEV3AAYFxXO4hpSy1kkjys3sk/Tt5Ui0+d9XLVxYdWCyiwGoxAdGGSKBUCjvCqPh3p1b5LA+k0WGeWH6/Fxd3eqSxuojXV19VHB3ZlWCZJOIaw8Mr2aDADG+l3c5XyMAhs3s0OjL+Gs49WZGM+FqNDVNGyZEmptrITsnI8dO6nKOm+Z0eia/hZE8+TYkaBjkMEIh+VO62zKI8bXzXdkhlqYq4Gm8in6wguJ5JNYJiKVgnn26x6tcAkSv3PcwCgrjKRjH6lTmHb6rSHgo0t4n0QsxdUBCau8LLY6WSEGxXsi5/0563kUgT4UEQTdNeHt+gCLWG0/n4CblP+c79zzNTocAI0+tqY9dPdjT+mARtHyEDt9MqOInPiYr8nrYEkHDwspd/V0Hv22SoV/PY/JzII9KhyCXVg6WfWFkmhpwb5INMl2YrVST3rCQ/+qcTk/LvH4X6Abzyv4gF+S1kWsyqUm0tEz6U+LoBLq6R8cOFlftbV0AtgB4qrZ2xXcUTj5I8lQAJvKc2ujobQPduHsfRRwhgj4QjWnBq06OW9HWqUVXQ7AsgxQVuA5gU0GZyr6+9l2Rhtijkj5EsJogJH0JjY3X48CTXIrWRnu2d9c0Lr0XwumAQGODnLuitnb5+tluB6UQCOgZ2725q5Dn4zkshO7Z2dIRjsbeJvDhTHLXqwxOxwh+jin11QF0rMGPpY4dAOC4aaB7a/ucVk+fgPI91zbQ/d6OQrsoyjr6wMDWdud7nxQwkkZi5RJvBM7IGhK6ZD/EdmY4LjSWh73qYtHCgzWQ6eosAUydeFL44QB78FMIb+xz0MW6Chc+EQXWA+eMJpJ6WcAvs2vStLOT4WDdEeN8Av4KUE/GFQm6LrX6sbdVNzUtgHhpquKNkFwrjRvmNPrgrmw2TxdtZ9zwzm0tgtu4N5ekBZWNbSdl/p7vJbogbUktcgsgjw6EaDHGXrByZTWkxgwlnNRm4fJZ1THH462DIh+ANJD2iPDIryIWm1dKdu7e3dpFBT+C5FKxutV4tEvr6mINR4I4etX2tBO7svZQ7tyK+v4F+4ms8+sEXoxMpRq02e1JvDSnzKVrVtzObG8Fmxj2FcQyf3d2do7B4zuZSicD6yWuKsa4yXjyowBXKJ2FI/GMxtysl8Pqu3b8l6DsOWgmnFUznkkgla4l5G2U8FAqdnWQdMGk6eLUr+U6nAVqYNu2OIRXodTRX0ar9OUu2tcWeEl3gmesTaWFnINx09DQzGv0c+0wU3S3D1QWZBLD+/3u8Ibg3kydYwXQdPlszxlLiY4+BmJlpihCcI8PDGyb9a67FmBCwo8g9qdDEkDuDqxcWVKvPtqzvdvRHpTTGACYWTnMLq9pWBor9PSWDzh59DCQQkIp0MnrMyFPJBKrEnmVsgTlNsGen1PFI0jRIWQhGoEkLBjYD953L3xN4jMpSy4QPA/COZhFSWhNQ9MZFC7JnFbgFLwJcROKdOzuUE/rQ6Be20sxHl8zkrza9/2S7t6iP7kB0AOpRKADhQskfSxjbg5noRravfAZkZ3ZdzGcVNvYuAQAQqFEPYHzs7Bd2DLUWf7cnCoeIYpeV1dXYcSJe3Wee8qc/X7/uzYlmNRjcno3UxJKsy9XRGOnFzJmdd2SFYL3BTK16SIlOPpevLu1mNlbEboH4GAWwQtfGi4rqyqpsnR09DuHn0tud4ZQJD+xsDG2isTE4S1WmxKA/g/QZNroz3PwLwdgkxY+C2bzUghP4yBenvU3AebaB6fok978uwBkz2uT9H73NLXm8b7WZ0n3oJxLQ1Au9YX/iDQ0X4m1a3PeOVcbXbKGnn0X6aOfaAbJPRwK8ARmcZDFtHFnV+tTgF7KeFICK8J79DekSqpw81DxosCHQQPkAOJjgeN5EsoOd8HyFH4I4kgWBwV2LRoby0Bdly4lBqm2wNPTfxSaxFKjrNkdLz0rRZ9fF2uINMQur2lofhTApzJxmIC4Ud+ZMZYfc98H+HDW9xtXE/xuTXvfjyKLY2ceZF6sbmpaWdPQ/FUH7xECFxLwUktRbqOob/T2tnWWgsyB07+IGk0zNQTarU6lLWPdvXvziMRfyAWt6ZI8CPoswWNR0FcZPrhakf7uLS8DaN0H4a1ZoNDFJE/Jyq20dXhn6weyrOYcA3KgZMroqKCE01dOOxMP0vYvahGX10RjL0GHOPfbCIAhCPMB1AKs59715QSdfjjY07Z+Rlg61NG/MLTkC4FvYZBXpAyELQJ1I5I4tyYa6wro3jXntWXOdachKqdjmLQmAVESlSmvQMjptSSTt490dZRsC+VwT+uGmobm9QCvAmAgjjJYyWPloZ4Fz1Y39DxG2q2pkm0eXaDHqQL45Zro0psLNPDmDM8Ode64Lfcx7TEoWAMyTMP8APZdpseWNCxnH0hsLglG3Bj4VefURKuSyG8vhAeiX+buiu9q++3M5LW7a6JLv5h/Wos+qD9MhoLb97S375rhtgWB+EhNdOkeFOdcd8wHeHImfp6ZgVO+y5QlKAIKX68MB98ePETCqK+vfVdtbe3Nbl7VFtBuoVQFwgguBrnYE48HNSmYS3ceIs1HOq+OLHxwj0H2lZHujrdKjs6kr0u6FMbyvTnH0se7VPNjkruAZkej8O8reSRjIGMFv79TXmgpyeBnHnA7gXBaahozZCPQ5Xn+rz5AbF0PY31hlgKDCuyoQ9y1POUA85wVCTnnhydYNvOROgwBXDMb/G0FmkhkDmgAACc3DuhhgScPVvvfzPUYoIGBgXi8q+4Oz3Qe4R4F0kUvSofCqYqd8lR9PP19DYuENwPquoFg7PrBnu1v5TbtA3YX5cWZge72d2Du/oL86SxavLvtGQBPzmA6WRDvCrnyhKcjna3vAnx7Os1xgd7v72rZXEJa8gB+F/7uIjkl7plmp1ohfTulYqoDY3xOpdlseOc7oaAvd5AYF9hlpreCYGLDUGVVHC0tE/kfDrUp0b8TG7B27TVVrZ3LzA9dDOGMQ31NtcrP+2uqcnCb6HhfCjFhkIZteb/3ROjOICzux2gnH8DWeUlvz+j08OxFOYTT7Av7lsh7117C532hwI3LsX6fr8GayF2VicmJAzbCb94cMNr8TgDvfqAIWXqBoL2ef/CqbzrahZmDOFNfkcW4PO+JQqbhYBsgVqS+pmpjtOTWaaGqgjYn/yEnRbP0Kuy9DdQw6faTFQvcRtDucw7zZpWIkzwztiZtcniKzXhSQFux8Mz/A4wvDgmqTU+eAAAAAElFTkSuQmCC" alt="Bonneville">
-    <div id="lfsd-nom-app" class="nom-app">Transport Drive</div>
-    <div id="lfsd-nom" class="nom">Bonneville Transport Drive</div>
-    <div id="lfsd-etat" class="etat">Chargement des voyages…</div>
+    <div class="marque"><img id="lfsd-logo" src="data:image/png;base64,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" alt="Bonneville">
+        <div id="lfsd-nom" class="nom">BONNEVILLE</div></div>
+    <span id="lfsd-pastille" class="pastille">En ligne</span>
+    <button id="lfsd-theme" type="button" class="theme" aria-label="Passer en mode nuit"><svg class="ic-lune" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path></svg><svg class="ic-soleil" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="none" stroke="currentColor" stroke-width="2"></circle><path d="M12 2v3 M12 19v3 M2 12h3 M19 12h3 M4.9 4.9l2.1 2.1 M17 17l2.1 2.1 M4.9 19.1L7 17 M17 7l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg></button>
+    <a id="lfsd-appel" class="appel" href="tel:4389782162" aria-label="Appeler Bonneville au (438) 978-2162"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"></path></svg></a>
   </div>
 
   <div class="bloc recherche-zone">
+    <div id="lfsd-etat" class="info-etat">Chargement des voyages…</div>
     <div class="titre-bloc">Série</div>
     <input id="lfsd-recherche" type="text" inputmode="numeric" autocomplete="off" placeholder="ex. 17513-2" aria-label="Série">
     <div id="lfsd-suggestions" class="suggestions"></div>
   </div>
 
   <div id="lfsd-voyage" class="voyage">
+    <div id="lfsd-alertes" class="alertes"></div>
     <div class="carte-voyage">
       <div id="lfsd-ref" class="ref"></div>
       <div id="lfsd-trajet" class="trajet"></div>
       <div id="lfsd-chiffres" class="chiffres"></div>
       <button id="lfsd-demarrer" type="button" class="demarrer">Démarrer la navigation</button>
-      <button id="lfsd-formulaires" type="button" class="formulaires">Formulaires L1 à L6</button>
+      <div id="lfsd-telechargement" class="telechargement"></div>
+      <div id="lfsd-avancement" class="avancement"></div>
     </div>
     <div id="lfsd-carte" class="carte" style="height:42vh;min-height:240px;"></div>
     <div class="progression" aria-live="polite">
@@ -258,6 +316,7 @@
         <div id="lfsd-m-ensuite" class="ensuite"></div>
       </div>
     </div>
+    <div id="lfsd-nav-hors" class="nav-hors">Carte indisponible sans réseau. La ligne bleue, le guidage et la voix restent actifs.</div>
     <div class="nav-boutons">
       <button id="lfsd-son" type="button" aria-label="Voix">🔊</button>
       <button id="lfsd-recentrer" type="button" aria-label="Recentrer">◎</button>
@@ -269,16 +328,23 @@
         <div id="lfsd-n-details" class="details"></div>
         <div id="lfsd-n-camion" class="camion-nav"></div>
       </div>
-      <div style="width:56px;"></div>
+      <div class="vitesse"><span id="lfsd-n-vitesse">-</span><small>km/h</small></div>
     </div>
   </div>
+
+  <nav id="lfsd-onglets" class="onglets" aria-label="Sections">
+    <button type="button" data-onglet="voyage" class="on"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h11v9H4z M15 10h3l2 3v3h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path><circle cx="8" cy="17.5" r="1.8" fill="currentColor"></circle><circle cx="17" cy="17.5" r="1.8" fill="currentColor"></circle></svg><span>Voyage</span></button>
+    <button type="button" data-onglet="gps"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 18-7-4-7 4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path></svg><span>GPS</span></button>
+    <button type="button" data-onglet="forms"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10v18H7z M10 8h4 M10 12h4 M10 16h2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg><span>Formulaires</span><b id="lfsd-badge" class="badge"></b></button>
+    <button type="button" data-onglet="dir"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14 M5 12h14 M5 18h9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path></svg><span>Directions</span></button>
+  </nav>
 
   <div class="pied">Consulter avant le départ ou à l'arrêt. Ouvrir la page pendant que le réseau est bon : les voyages et leurs directions restent ensuite disponibles sans connexion sur ce téléphone. Les conditions inscrites au permis ont préséance.</div>
 </div>
 <script>
 (function () {
   var ADDIN_ID = 'aXdeNEZ7tQ7eMPNywYFFKrA';
-  var VERSION = '1.6';
+  var VERSION = '1.9';
   var CLE_CACHE = 'lfsd-voyages', CLE_DERNIER = 'lfsd-dernier', CLE_PARAM = 'lfsd-parametres';
 
   var api = null, carte = null, coucheTrace = null, marqueurMoi = null, marqueurCamion = null;
@@ -288,10 +354,51 @@
   var surveillanceGps = null, minuterieCamion = null, positionMoi = null;
 
   function $(id) { return document.getElementById(id); }
+
+  // Les formulaires, les règles de la classe 2 et la carte sont gardés sur le téléphone :
+  // s'ils ne peuvent pas être chargés (pas de réseau), la copie gardée est utilisée.
+  var BIBLIOS = [
+    { cle: 'lfsd-lib-formulaires', url: 'https://ericgloutnez.github.io/LFS/formulaires-bonneville.js?v=1.1', ok: function () { return !!window.BonnevilleFormulaires; } },
+    { cle: 'lfsd-lib-regles', url: 'https://ericgloutnez.github.io/LFS/regles-classe2.js?v=1.3.1', ok: function () { return !!window.LFSClasse2; } },
+    { cle: 'lfsd-lib-leaflet', url: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js', ok: function () { return typeof window.L !== 'undefined'; } },
+    { cle: 'lfsd-lib-leaflet-css', url: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css', css: true }
+  ];
+  function lireBiblio(cle) { try { var v = localStorage.getItem(cle); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+  BIBLIOS.forEach(function (b) {
+    var garde = lireBiblio(b.cle);
+    if (b.css) {
+      if (garde && garde.src && !document.getElementById('lfsd-css-garde')) {
+        var st = document.createElement('style'); st.id = 'lfsd-css-garde'; st.textContent = garde.src; (document.head || document.body).appendChild(st);
+      }
+    } else if (!b.ok() && garde && garde.src) {
+      try { (0, eval)(garde.src); } catch (e) {}
+    }
+    if (!garde || garde.url !== b.url) {
+      try {
+        fetch(b.url).then(function (r) { return r.ok ? r.text() : null; }).then(function (t) {
+          if (t) { try { localStorage.setItem(b.cle, JSON.stringify({ url: b.url, src: t })); } catch (e) {} }
+        }).catch(function () {});
+      } catch (e) {}
+    }
+  });
+  function formulairesGardes() { var g = lireBiblio('lfsd-lib-formulaires'); return !!(g && g.src); }
   function nombreFr(n, dec) { return Number(n || 0).toLocaleString('fr-CA', { minimumFractionDigits: dec, maximumFractionDigits: dec }); }
   function lireCache(cle) { try { var v = localStorage.getItem(cle); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
   function ecrireCache(cle, v) { try { localStorage.setItem(cle, JSON.stringify(v)); } catch (e) {} }
-  function etat(texte, horsLigne) { var el = $('lfsd-etat'); el.textContent = texte; el.className = 'etat' + (horsLigne ? ' horsligne' : ''); }
+  var horsReseau = false;
+  function etat(texte, horsLigne) {
+    var el = $('lfsd-etat'); el.textContent = texte; el.className = 'info-etat' + (horsLigne ? ' horsligne' : '');
+    majPastille();
+  }
+  function majPastille() {
+    var p = $('lfsd-pastille'); if (!p) { return; }
+    var attente = (typeof fileEnvois !== 'undefined' && fileEnvois) ? fileEnvois.length : 0;
+    var hors = horsReseau || (navigator.onLine === false);
+    if (attente) { p.className = 'pastille attente'; p.textContent = attente + ' envoi' + (attente > 1 ? 's' : '') + ' en attente'; }
+    else if (hors) { p.className = 'pastille hors'; p.textContent = 'Hors réseau'; }
+    else { p.className = 'pastille'; p.textContent = 'En ligne'; }
+    var nh = $('lfsd-nav-hors'); if (nh) { nh.className = 'nav-hors' + (hors ? ' visible' : ''); }
+  }
 
   function appel(methode, params) {
     return new Promise(function (ok, ko) {
@@ -354,8 +461,10 @@
       });
       ecrireCache(CLE_CACHE, { date: new Date().toISOString(), voyages: liste, directions: directions, formulaires: formsServeur });
       ecrireCache(CLE_PARAM, { cleCarto: parametres.cleCarto || '' });
+      horsReseau = false;
       etat(liste.length + ' voyage' + (liste.length > 1 ? 's' : '') + ' - à jour à ' + new Date().toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' }));
     }).catch(function () {
+      horsReseau = true;
       var cache = lireCache(CLE_CACHE);
       var p = lireCache(CLE_PARAM);
       if (p) { parametres = p; }
@@ -500,6 +609,9 @@
     }
 
     afficherRegles(d, routes);
+    afficherAvancement();
+    telechargerFormulairesVoyage();
+    majOnglets();
     demarrerGps();
     demarrerCamion();
     if (positionMoi) { majProgression(positionMoi); }
@@ -571,6 +683,22 @@
     });
   }
 
+  function afficherAlertes(lignes) {
+    var z = $('lfsd-alertes'); if (!z) { return; }
+    z.innerHTML = '';
+    var garder = (lignes || []).filter(function (l) { return /^INTERDIT|^Permis SPÉCIFIQUE|^Hors des limites|^Escorte/.test(l.t); });
+    var courts = garder.map(function (l) {
+      var t = l.t.replace(/^INTERDIT : /, '').replace(/ \(art\. 10[^)]*\)/, '');
+      t = t.replace(/\(largeur au corps[^)]*\)/, '').replace(/ Change l’heure de départ\.| Change la date de départ\./, '');
+      t = t.charAt(0).toUpperCase() + t.slice(1);
+      return t.length > 120 ? t.slice(0, 117) + '…' : t;
+    }).slice(0, 4);
+    if (!courts.length) { z.className = 'alertes'; return; }
+    var b = document.createElement('b'); b.textContent = 'À surveiller (départ maintenant)'; z.appendChild(b);
+    courts.forEach(function (t) { var d = document.createElement('div'); d.textContent = t; z.appendChild(d); });
+    z.className = 'alertes visible';
+  }
+
   function afficherRegles(d, routes) {
     var zone = $('lfsd-regles');
     zone.innerHTML = '';
@@ -591,6 +719,7 @@
         catch (e) { lignes = [{ t: 'Analyse impossible pour ce voyage.', c: '#c8102e' }]; }
       }
     }
+    afficherAlertes(lignes);
     lignes.forEach(function (l) {
       var el = document.createElement('div');
       el.textContent = l.t;
@@ -671,6 +800,127 @@
     } catch (e) {}
   }
 
+
+
+  // ----- Téléchargement des formulaires vides du voyage (pour le hors réseau)
+  var prets = lireCache('lfsd-prets') || {};
+  var telechargementEnCours = null;
+
+  function attendreMs(ms) { return new Promise(function (ok) { setTimeout(ok, ms); }); }
+
+  function garderBiblio(b) {
+    var garde = lireBiblio(b.cle);
+    if (garde && garde.url === b.url && garde.src) { return Promise.resolve(true); }
+    return fetch(b.url).then(function (r) { return r.ok ? r.text() : null; }).then(function (t) {
+      if (!t) { return !!(garde && garde.src); }
+      try { localStorage.setItem(b.cle, JSON.stringify({ url: b.url, src: t })); } catch (e) {}
+      if (!b.css && !b.ok()) { try { (0, eval)(t); } catch (e) {} }
+      return true;
+    }).catch(function () { return !!(garde && garde.src); });
+  }
+
+  function formulaireVide(code, sm, module) {
+    var def = FB().defs[code], r = {};
+    (def.entete || []).forEach(function (c) {
+      if (c.auto === 'serie') { r[c.id] = sm.serie; }
+      if (c.auto === 'module') { r[c.id] = module || ''; }
+      if (c.auto === 'auteur') { r[c.id] = auteurNom; }
+    });
+    return r;
+  }
+
+  function afficherTelechargement(fait, total, texte, etatT, relancer) {
+    var z = $('lfsd-telechargement'); if (!z) { return; }
+    z.innerHTML = '';
+    z.className = 'telechargement' + (etatT ? ' ' + etatT : '');
+    var pct = total ? Math.round(fait / total * 100) : 0;
+    var titre = etatT === 'fini' ? '✓ Formulaires prêts hors réseau' : (etatT === 'erreur' ? 'Téléchargement incomplet' : 'Téléchargement des formulaires');
+    z.appendChild(el('div', { classe: 't-haut' }, [el('span', { texte: titre }), el('span', { texte: fait + ' / ' + total })]));
+    var rail = el('div', { classe: 't-rail' }, [el('div', {})]); rail.firstChild.style.width = pct + '%';
+    z.appendChild(rail);
+    z.appendChild(el('div', { classe: 't-detail', texte: texte }));
+    if (relancer) { z.appendChild(el('button', { type: 'button', texte: 'Réessayer', onclick: function () { telechargerFormulairesVoyage(true); } })); }
+  }
+
+  function telechargerFormulairesVoyage(forcer) {
+    if (!voyageActif) { return Promise.resolve(); }
+    var id = voyageActif.id;
+    if (telechargementEnCours === id && !forcer) { return Promise.resolve(); }
+    telechargementEnCours = id;
+    var etapes = [];
+    BIBLIOS.forEach(function (b) { etapes.push({ nom: b.css ? 'Style de la carte' : (b.cle === 'lfsd-lib-formulaires' ? 'Modèles des formulaires L1 à L6' : (b.cle === 'lfsd-lib-regles' ? 'Règles de la classe 2' : 'Carte')), biblio: b }); });
+    var total = etapes.length, fait = 0, erreurs = [];
+    afficherTelechargement(0, total, 'Préparation…');
+    var chaine = Promise.resolve();
+    etapes.forEach(function (e) {
+      chaine = chaine.then(function () {
+        if (telechargementEnCours !== id) { return; }
+        afficherTelechargement(fait, total, e.nom + '…');
+        return garderBiblio(e.biblio).then(function (ok) { if (!ok) { erreurs.push(e.nom); } fait++; return attendreMs(60); });
+      });
+    });
+    return chaine.then(function () {
+      if (telechargementEnCours !== id) { return; }
+      if (!FB()) {
+        afficherTelechargement(fait, total, 'Pas de réseau : les modèles de formulaires n’ont pas pu être téléchargés. Réessaie quand le téléphone a du Wi-Fi ou du réseau cellulaire.', 'erreur', true);
+        return;
+      }
+      // Préparer un formulaire vide par module (L1, L2) et un par série (L3 à L6)
+      var sm = serieModule(), mods = modulesSerie(sm), liste = [];
+      FB().ordre.forEach(function (code) {
+        var def = FB().defs[code];
+        if (def.parModule) { mods.forEach(function (m) { liste.push({ code: code, module: m }); }); }
+        else { liste.push({ code: code, module: '' }); }
+      });
+      total += liste.length;
+      var c2 = Promise.resolve();
+      liste.forEach(function (x) {
+        c2 = c2.then(function () {
+          if (telechargementEnCours !== id) { return; }
+          var cle = cleForm(x.code, sm.serie, x.module);
+          prets[cle] = { r: formulaireVide(x.code, sm, x.module), date: new Date().toISOString() };
+          fait++;
+          afficherTelechargement(fait, total, x.code + (x.module ? ' – module ' + sm.serie + '-' + x.module : '') + '…');
+          return attendreMs(40);
+        });
+      });
+      return c2.then(function () {
+        if (telechargementEnCours !== id) { return; }
+        ecrireCache('lfsd-prets', prets);
+        var nbForms = liste.length;
+        var detail = nbForms + ' formulaire' + (nbForms > 1 ? 's' : '') + ' vides gardés sur ce téléphone (' + (mods.length ? mods.length + ' module' + (mods.length > 1 ? 's' : '') : 'nombre de modules non indiqué') + '), le ' + dateFr(new Date()) + '.';
+        if (!mods.length) { detail += ' L1 et L2 manquent : inscrire le nombre de modules dans LFS.'; }
+        if (erreurs.length) { afficherTelechargement(fait, total, detail + ' Non téléchargé : ' + erreurs.join(', ') + '.', 'erreur', true); }
+        else { afficherTelechargement(fait, total, detail, mods.length ? 'fini' : 'erreur', !mods.length); }
+      });
+    });
+  }
+
+  // Envoi automatique des formulaires remplis dès qu'il y a du réseau (Wi-Fi ou cellulaire)
+  setInterval(function () { if (fileEnvois.length && navigator.onLine !== false) { viderFile(); } }, 30000);
+
+  function afficherAvancement() {
+    var z = $('lfsd-avancement'); if (!z) { return; }
+    z.innerHTML = '';
+    if (!voyageActif || !FB()) { return; }
+    var sm = serieModule(), mods = modulesSerie(sm), aFaire = 0;
+    var jauges = el('div', { classe: 'jauges' });
+    ['L1', 'L2'].forEach(function (code) {
+      var fait = 0, alerte = false;
+      mods.forEach(function (m) { var c = cleForm(code, sm.serie, m), env = envoisLocaux[c] || formsServeur[c]; if (env) { fait++; if (env.resume && env.resume.alerte) { alerte = true; } } });
+      aFaire += Math.max(0, mods.length - fait);
+      var pct = mods.length ? Math.round(fait / mods.length * 100) : 0;
+      var col = alerte ? 'var(--signal)' : (fait === mods.length && mods.length ? '#1b7f3b' : '#b26b00');
+      var rail = el('div', { classe: 'rail' }, [el('div', {})]); rail.firstChild.style.width = pct + '%'; rail.firstChild.style.background = col;
+      var val = el('span', { texte: mods.length ? fait + ' sur ' + mods.length : 'modules ?' }); val.style.color = col;
+      jauges.appendChild(el('div', { classe: 'jauge' }, [el('div', { classe: 'haut' }, [el('span', { texte: code }), val]), rail]));
+    });
+    z.appendChild(el('div', { classe: 'gras', texte: 'Formulaires de la série' }));
+    z.appendChild(jauges);
+    var badge = $('lfsd-badge');
+    if (badge) { badge.textContent = aFaire > 99 ? '99+' : String(aFaire); badge.className = 'badge' + (aFaire ? ' visible' : ''); }
+  }
+
   // ----- Envoi vers Geotab, avec file d'attente hors connexion
   function viderFile() {
     if (envoiEnCours || !fileEnvois.length || !api) { majEtatEnvois(); return Promise.resolve(); }
@@ -690,7 +940,9 @@
     return envoyerSuivant().catch(function () { envoiEnCours = false; majEtatEnvois(); });
   }
   function majEtatEnvois() {
-    if (fileEnvois.length) { etat(fileEnvois.length + ' formulaire' + (fileEnvois.length > 1 ? 's' : '') + ' en attente d’envoi (réseau)', true); }
+    majPastille();
+    afficherAvancement();
+
     if (formCourant === null && $('lfsd').className === 'en-forms') { if (ecranModules) { ouvrirChoixModule(ecranModules, true); } else { rendreListeForms(); } }
   }
 
@@ -771,7 +1023,7 @@
     var z = $('lfsd-forms');
     z.innerHTML = '';
     var sm = serieModule();
-    z.appendChild(el('div', { classe: 'f-barre' }, [el('button', { type: 'button', classe: 'f-retour', onclick: function () { $('lfsd').className = ''; window.scrollTo(0, 0); } }, ['‹ Voyage ' + (voyageActif ? voyageActif.d.ref : '')])]));
+    z.appendChild(el('div', { classe: 'f-barre' }, [el('button', { type: 'button', classe: 'f-retour', onclick: function () { allerOnglet('voyage'); } }, ['‹ Voyage ' + (voyageActif ? voyageActif.d.ref : '')])]));
     var b = el('div', { classe: 'bloc' });
     b.appendChild(el('h2', { classe: 'f-h1', texte: 'Formulaires' }));
     var nbm = modulesSerie(sm).length;
@@ -789,6 +1041,7 @@
           el('span', { classe: 'f-txt' }, [el('span', { classe: 'f-titre', texte: def.titreCourt }), el('span', { classe: 'f-qui', texte: def.qui }), st])]));
       });
     });
+    b.appendChild(el('div', { classe: 'vide', texte: formulairesGardes() ? 'Formulaires téléchargés sur ce téléphone : ils fonctionnent aussi sans réseau. Les formulaires remplis partent dès qu’il y a du Wi-Fi ou du réseau cellulaire.' : 'Formulaires pas encore téléchargés : ouvre le voyage avec du réseau.' }));
     z.appendChild(b);
   }
 
@@ -826,14 +1079,14 @@
     if (moduleChoisi) { sm.module = moduleChoisi; }
     var cle = cleForm(code, sm.serie, sm.module);
     var br = brouillons[cle];
-    var r = br ? br.r : {};
+    var r = br ? br.r : (prets[cle] ? JSON.parse(JSON.stringify(prets[cle].r)) : {});
     if (!br) {
       var maintenant = new Date();
       (def.entete || []).forEach(function (c) {
         if (c.auto === 'serie') { r[c.id] = sm.serie; }
         if (c.auto === 'module') { r[c.id] = sm.module; }
         if (c.auto === 'date') { r[c.id] = dateFr(maintenant); }
-        if (c.auto === 'auteur') { r[c.id] = auteurNom; }
+        if (c.auto === 'auteur') { r[c.id] = r[c.id] || auteurNom; }
       });
       def.sections.forEach(function (s) { s.items.forEach(function (it) {
         if (it.t === 'champ' && it.auto === 'date') { r[it.id] = dateFr(maintenant); }
@@ -851,8 +1104,7 @@
         }
       }
     }
-    var modePref = lireCache('lfsd-mode-form');
-    formCourant = { code: code, cle: cle, serie: sm.serie, module: sm.module, r: r, mode: modePref || null, etape: 0 };
+    formCourant = { code: code, cle: cle, serie: sm.serie, module: sm.module, r: r, mode: 'question', etape: 0 };
     $('lfsd').className = 'en-form';
     rendreForm();
     window.scrollTo(0, 0);
@@ -881,28 +1133,42 @@
     return lab;
   }
 
+  var confirmation = '';
+  function avancerApres(texte) {
+    if (!formCourant) { return; }
+    var etapeAvant = formCourant.etape, cle = formCourant.cle;
+    try { if (navigator.vibrate) { navigator.vibrate(30); } } catch (e) {}
+    confirmation = texte;
+    var y = window.scrollY; rendreForm(); window.scrollTo(0, y);
+    setTimeout(function () {
+      if (formCourant && formCourant.cle === cle && formCourant.etape === etapeAvant) {
+        confirmation = ''; formCourant.etape++; rendreForm(); window.scrollTo(0, 0);
+      }
+    }, 650);
+  }
+
   function controle(it, grand) {
     var r = formCourant.r, v = r[it.id];
     var bloc = el('div', { classe: 'f-ctrl' + (grand ? ' grand' : '') });
     switch (it.t) {
       case 'check':
-        if (grand) { bloc.appendChild(pilule(v ? '✓ Vérifié' : 'Oui, c’est vérifié', !!v, 'oui', function () { maj(it.id, !v, true); }, true)); }
+        if (grand) { bloc.appendChild(pilule(v ? '✓ Vérifié' : 'Oui, c’est vérifié', !!v, 'oui', function () { maj(it.id, !v, true); if (!v) { avancerApres('Vérifié. Question suivante…'); } }, true)); }
         else { bloc.appendChild(el('div', { classe: 'f-ligne' }, [el('div', { classe: 'f-q', texte: it.texte }), rond(!!v, it.texte, function () { maj(it.id, !v, true); })])); }
         break;
       case 'action':
         if (!FB().actionVisible(it, r)) { return null; }
-        if (grand) { bloc.appendChild(pilule(v ? '✓ C’est fait' : 'C’est fait', !!v, 'oui', function () { maj(it.id, !v, true); }, true)); }
+        if (grand) { bloc.appendChild(pilule(v ? '✓ C’est fait' : 'C’est fait', !!v, 'oui', function () { maj(it.id, !v, true); if (!v) { avancerApres('Fait. Étape suivante…'); } }, true)); }
         else { bloc.appendChild(el('div', { classe: 'f-ligne' }, [el('div', { classe: 'f-q f-action', texte: it.texte }), rond(!!v, it.texte, function () { maj(it.id, !v, true); })])); }
         break;
       case 'oui':
         if (!grand) { bloc.appendChild(el('div', { classe: 'f-q', texte: it.texte })); }
-        bloc.appendChild(el('div', { classe: 'f-boutons' }, [pilule('OUI', v === 'oui', 'oui', function () { maj(it.id, v === 'oui' ? '' : 'oui', true); }, grand)]));
+        bloc.appendChild(el('div', { classe: 'f-boutons' }, [pilule('OUI', v === 'oui', 'oui', function () { var nv = v === 'oui' ? '' : 'oui'; maj(it.id, nv, true); if (grand && nv) { avancerApres('OUI enregistré. Question suivante…'); } }, grand)]));
         break;
       case 'ouinon':
         if (!grand) { bloc.appendChild(el('div', { classe: 'f-q', texte: it.texte })); }
         var bt = [];
         if (it.photo && !grand) { bt.push(pilule((r[it.id + '_photo'] ? '✓ ' : '') + 'PHOTO', !!r[it.id + '_photo'], 'photo', function () { maj(it.id + '_photo', !r[it.id + '_photo'], true); })); }
-        bt.push(pilule('OUI', v === 'oui', 'oui', function () { maj(it.id, 'oui', true); }, grand));
+        bt.push(pilule('OUI', v === 'oui', 'oui', function () { maj(it.id, 'oui', true); if (grand && !it.photo) { avancerApres('OUI enregistré. Question suivante…'); } }, grand));
         bt.push(pilule('NON', v === 'non', 'non', function () { maj(it.id, 'non', true); }, grand));
         bloc.appendChild(el('div', { classe: 'f-boutons' }, bt));
         if (v === 'non' && !it.sansExplication) { bloc.appendChild(champTexte(it.id + '_expl', 'Explication (obligatoire)', grand, r[it.id + '_expl'], true)); }
@@ -1007,9 +1273,7 @@
     var autre = formCourant.mode === 'question' ? 'Voir le formulaire complet' : 'Une question à la fois';
     return el('div', { classe: 'f-barre' }, [
       el('button', { type: 'button', classe: 'f-retour', onclick: function () { var c = formCourant.code; if (FB().defs[c].parModule) { formCourant = null; ouvrirChoixModule(c); } else { ouvrirListeForms(); } } }, [FB().defs[formCourant.code].parModule ? '‹ Modules' : '‹ Formulaires']),
-      formCourant.mode ? el('button', { type: 'button', classe: 'f-petit', texte: autre, onclick: function () {
-        formCourant.mode = formCourant.mode === 'question' ? 'complet' : 'question'; formCourant.etape = 0; rendreForm(); window.scrollTo(0, 0);
-      } }) : null]);
+      null]);
   }
 
   function rendreForm() {
@@ -1017,8 +1281,7 @@
     z.innerHTML = '';
     z.appendChild(barreForm(def));
     z.appendChild(el('div', { classe: 'f-bande' }, [el('h2', { texte: def.code + ' – ' + def.titre }), def.parModule ? el('div', { classe: 'f-sous', texte: 'Module ' + formCourant.serie + '-' + formCourant.module }) : null]));
-    if (!formCourant.mode) { rendreChoixMode(z, def); return; }
-    if (formCourant.mode === 'question') { rendreQuestion(z, def); } else { rendreComplet(z, def); }
+    rendreQuestion(z, def);
   }
 
   function rendreChoixMode(z, def) {
@@ -1125,6 +1388,7 @@
   }
 
   function rendreQuestion(z, def) {
+    if (!formCourant) { return; }
     var L = etapes(def);
     if (formCourant.etape >= L.length) { formCourant.etape = L.length - 1; }
     var e = L[formCourant.etape];
@@ -1146,6 +1410,7 @@
         if (e.it.t === 'option') { q = 'Quelle option le client choisit-il?'; }
         if (q && e.it.t !== 'signature') { b.appendChild(el('div', { classe: 'f-grandeq', texte: q })); }
         b.appendChild(controle(e.it, true));
+        if (confirmation) { b.appendChild(el('div', { classe: 'f-confirme', texte: confirmation })); }
       }
     } else if (e.k === 'initiales') {
       b.appendChild(el('div', { classe: 'f-grandeq', texte: 'Tes initiales' }));
@@ -1279,7 +1544,7 @@
   function ajusterHauteurNav() {
     var el = $('lfsd-nav-carte');
     var haut = el.getBoundingClientRect().top + (window.scrollY || 0);
-    var h = Math.max(320, window.innerHeight - Math.max(0, el.getBoundingClientRect().top));
+    var h = Math.max(320, window.innerHeight - Math.max(0, el.getBoundingClientRect().top) - 72);
     el.style.height = h + 'px';
     if (nav.carte) { nav.carte.invalidateSize(); }
     return haut;
@@ -1289,6 +1554,7 @@
     if (!voyageActif || !trace.length) { return; }
     if (typeof L === 'undefined') { alert('La carte n’a pas pu être chargée (pas de connexion à l’ouverture de la page).'); return; }
     $('lfsd').className = 'en-nav';
+    majPastille();
     window.scrollTo(0, 0);
     creerCarteNav();
     ajusterHauteurNav();
@@ -1319,6 +1585,7 @@
   function quitterNavigation() {
     nav.actif = false;
     $('lfsd').className = '';
+    majOnglets();
     if (nav.verrou) { try { nav.verrou.release(); } catch (e) {} nav.verrou = null; }
     if (window.speechSynthesis) { try { window.speechSynthesis.cancel(); } catch (e) {} }
     if (carte) { setTimeout(function () { carte.invalidateSize(); }, 200); }
@@ -1326,6 +1593,7 @@
 
   function majNavigation(p, cap, vitesse) {
     if (!nav.actif || !nav.carte) { return; }
+    var vt = $('lfsd-n-vitesse'); if (vt) { vt.textContent = (vitesse !== null && vitesse !== undefined) ? Math.round(vitesse) : '-'; }
     var icone = L.divIcon({ className: '', iconSize: [34, 34], iconAnchor: [17, 17],
       html: '<svg class="moi" viewBox="0 0 34 34" style="transform:rotate(' + (cap || 0) + 'deg)"><circle cx="17" cy="17" r="15" fill="#ffffff"/><path d="M17 5 L26 27 L17 22 L8 27 Z" fill="#1a73e8"/></svg>' });
     if (!nav.marqueur) { nav.marqueur = L.marker(p, { icon: icone, interactive: false }).addTo(nav.carte); }
@@ -1474,22 +1742,73 @@
     minuterieCamion = setInterval(lire, 60000);
   }
 
+  // ----- Onglets
+  function majOnglets() {
+    var c = $('lfsd').className, actif = 'voyage';
+    if (c === 'en-nav') { actif = 'gps'; } else if (c === 'en-forms' || c === 'en-form') { actif = 'forms'; } else if (c === 'en-dir') { actif = 'dir'; }
+    Array.prototype.forEach.call(document.querySelectorAll('#lfsd-onglets button'), function (b) {
+      b.className = b.getAttribute('data-onglet') === actif ? 'on' : '';
+      b.disabled = b.getAttribute('data-onglet') !== 'voyage' && !voyageActif;
+    });
+  }
+  function allerOnglet(nom) {
+    if (nom !== 'gps' && nav.actif) { quitterNavigation(); }
+    if (nom === 'voyage') { formCourant = null; $('lfsd').className = ''; if (carte) { setTimeout(function () { carte.invalidateSize(); }, 200); } }
+    else if (nom === 'gps') { if (!nav.actif) { demarrerNavigation(); } }
+    else if (nom === 'forms') { ouvrirListeForms(); }
+    else if (nom === 'dir') {
+      formCourant = null; $('lfsd').className = 'en-dir';
+      var d = document.querySelector('#lfsd details.directions'); if (d) { d.open = true; }
+    }
+    majOnglets();
+    window.scrollTo(0, 0);
+  }
+  if (window.MutationObserver) {
+    new MutationObserver(function () { majOnglets(); }).observe(document.getElementById('lfsd'), { attributes: true, attributeFilter: ['class'] });
+  }
+
+  // ----- Mode jour / nuit (choisi dans l'application, mémorisé sur le téléphone)
+  function appliquerTheme(theme) {
+    $('lfsd').setAttribute('data-theme', theme);
+    var b = $('lfsd-theme');
+    if (b) { b.setAttribute('aria-label', theme === 'nuit' ? 'Passer en mode jour' : 'Passer en mode nuit'); }
+  }
+  (function () {
+    var choix = lireCache('lfsd-theme');
+    if (choix !== 'jour' && choix !== 'nuit') {
+      choix = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'nuit' : 'jour';
+    }
+    appliquerTheme(choix);
+  })();
+
   function brancher() {
+    $('lfsd-theme').addEventListener('click', function () {
+      var nouveau = $('lfsd').getAttribute('data-theme') === 'nuit' ? 'jour' : 'nuit';
+      appliquerTheme(nouveau); ecrireCache('lfsd-theme', nouveau);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('#lfsd-onglets button'), function (b) {
+      b.addEventListener('click', function () { allerOnglet(b.getAttribute('data-onglet')); });
+    });
+    window.addEventListener('offline', majPastille);
+    window.addEventListener('online', function () {
+      horsReseau = false; majPastille(); viderFile();
+      var z = $('lfsd-telechargement'); if (voyageActif && z && /erreur/.test(z.className)) { telechargerFormulairesVoyage(true); }
+    });
     var logo = $('lfsd-logo');
-    var sansLogo = function () { logo.style.display = 'none'; $('lfsd-nom-app').style.display = 'none'; $('lfsd-nom').style.display = 'block'; };
+    var sansLogo = function () { logo.style.display = 'none'; $('lfsd-nom').style.display = 'block'; };
     logo.addEventListener('error', sansLogo);
     if (logo.complete && !logo.naturalWidth) { sansLogo(); }
     $('lfsd-recherche').addEventListener('input', function () {
       if (voyageActif && $('lfsd-recherche').value.trim() !== voyageActif.d.ref) {
         voyageActif = null;
         $('lfsd-voyage').style.display = 'none';
+        majOnglets();
       }
       suggerer();
     });
     $('lfsd-telecharger').addEventListener('click', telechargerDirections);
     nav.voix = lireCache('lfsd-voix') !== false;
     $('lfsd-demarrer').addEventListener('click', demarrerNavigation);
-    $('lfsd-formulaires').addEventListener('click', function () { ouvrirListeForms(); });
     window.addEventListener('online', function () { viderFile(); });
     $('lfsd-quitter').addEventListener('click', quitterNavigation);
     $('lfsd-recentrer').addEventListener('click', function () { nav.suivre = true; if (positionMoi && nav.carte) { nav.carte.setView(positionMoi, 16); } });
@@ -1502,6 +1821,8 @@
     $('lfsd-autre').addEventListener('click', function () {
       voyageActif = null;
       $('lfsd-voyage').style.display = 'none';
+      $('lfsd-alertes').className = 'alertes';
+      majOnglets();
       $('lfsd-recherche').value = '';
       suggerer();
       $('lfsd-recherche').focus();
@@ -1515,6 +1836,7 @@
       initialize: function (geotabApi, state, callback) {
         api = geotabApi;
         if (!branche) { brancher(); branche = true; }
+        majOnglets(); majPastille();
         creerCarte();
         callback();
       },
