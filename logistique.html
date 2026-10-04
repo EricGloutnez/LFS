@@ -2932,7 +2932,7 @@ geotab.addin.logistique = function () {
       setTimeout(function () { carte.invalidateSize(); }, 300);
       setTimeout(function () { carte.invalidateSize(); }, 1500);
       apiGeotab = api;
-      chargerStockage().then(verifierAcces).then(function (ok) { if (!ok) { return; } return chargerUtilisateurs().then(function () { afficherListeVoyages(); afficherAssignation(); }); }).catch(function () {});
+      chargerStockage().then(function () { return chargerUtilisateurs(); }).then(function () { afficherListeVoyages(); afficherAssignation(); }).catch(function () {});
       chargerActifs(api);
       rafraichirRadar();
       chargerEntraves(false);
@@ -3055,13 +3055,9 @@ geotab.addin.logistique = function () {
       <button type="button" data-o="restrictions">Restrictions</button>
       <button type="button" data-o="parametres">Paramètres</button>
     </nav>
-    <span id="lg-etat" title="Cliquer pour voir l’état des sources"><span>version 2.2.0</span><span id="it511-statut">Démarrage...</span><span id="it511-sources"></span></span>
+    <span id="lg-etat" title="Cliquer pour voir l’état des sources"><span>version 2.2.1</span><span id="it511-statut">Démarrage...</span><span id="it511-sources"></span></span>
   </div>
 
-  <div id="lg-refus" style="display:none;margin:80px auto;max-width:560px;background:#fff;border:3px solid #b42318;border-radius:16px;padding:28px;flex-direction:column;gap:12px;text-align:center;">
-    <div style="font-size:28px;font-weight:800;color:#b42318;">Accès réservé</div>
-    <div style="font-size:18px;line-height:1.45;">Bonneville - Logistique est réservée au profil <b>Administrateur</b>. Demande à un administrateur de te le donner dans Bonneville - Employés.</div>
-  </div>
   <div id="lg-planifier" data-onglet="planifier">
     <div id="lg-gauche">
       <section class="lg-carte"><h3>Trajet</h3>

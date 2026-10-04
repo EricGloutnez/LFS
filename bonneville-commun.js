@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   var ADDIN_ID = 'aXdeNEZ7tQ7eMPNywYFFKrA';
-  var VERSION = '1.0.3';
+  var VERSION = '1.0.4';
   var TELEPHONE = '(438) 978-2162';
 
   // ---------- Accès à Geotab
@@ -79,7 +79,7 @@
 
   // ---------- Droits et profils
   var DROITS = [
-    { cle: 'admin', nom: 'Administrateur (Logistique, approbation finale dans Tempo, accès complet dans Drive)' },
+    { cle: 'admin', nom: 'Administrateur Tempo (accès à Tempo au bureau, approbation finale des heures)' },
     { cle: 'gps', nom: 'Transport Drive (GPS)' },
     { cle: 'formTransport', nom: 'Formulaires Transport (L1, L2)' },
     { cle: 'formInstallation', nom: 'Formulaires Installation (L3, L3b, L4, L5)' },
@@ -90,10 +90,10 @@
   ];
   var ROLES = [
     { cle: 'chauffeur', nom: 'Chauffeur' }, { cle: 'escorte', nom: 'Escorte' }, { cle: 'chef', nom: 'Chef d’équipe' },
-    { cle: 'installation', nom: 'Installation' }, { cle: 'commissionnaire', nom: 'Commissionnaire' }, { cle: 'bureau', nom: 'Bureau' }, { cle: 'administrateur', nom: 'Administrateur' }
+    { cle: 'installation', nom: 'Installation' }, { cle: 'commissionnaire', nom: 'Commissionnaire' }, { cle: 'bureau', nom: 'Bureau' }, { cle: 'administrateur', nom: 'Administrateur Tempo' }
   ];
   var PROFILS_DEFAUT = [
-    { pid: 'administrateur', nom: 'Administrateur', role: 'administrateur', droits: { admin: true, gps: true, formTransport: true, formInstallation: true, formEvaluation: true, heures: true, chef: true, tousVoyages: true } },
+    { pid: 'administrateur', nom: 'Administrateur Tempo', role: 'administrateur', droits: { admin: true, heures: true } },
     { pid: 'chauffeur', nom: 'Chauffeur', role: 'chauffeur', droits: { gps: true, formTransport: true, heures: true } },
     { pid: 'escorte', nom: 'Escorte', role: 'escorte', droits: { gps: true, heures: true } },
     { pid: 'chef', nom: 'Chef d’équipe', role: 'chef', droits: { formInstallation: true, formEvaluation: true, heures: true, chef: true } },
@@ -107,7 +107,6 @@
     if (!employe) { return {}; }
     var base = employe.droits;
     if (!base) { var p = (profils || []).filter(function (x) { return x.pid === employe.profil; })[0]; base = p ? p.droits || {} : {}; }
-    if (base.admin) { var tout = {}; DROITS.forEach(function (d) { tout[d.cle] = true; }); return tout; }
     return base;
   }
   function roleEffectif(employe, profils) {

@@ -375,7 +375,7 @@
 <script>
 (function () {
   var ADDIN_ID = 'aXdeNEZ7tQ7eMPNywYFFKrA';
-  var VERSION = '2.0.2';
+  var VERSION = '2.0.3';
   var CLE_CACHE = 'lfsd-voyages', CLE_DERNIER = 'lfsd-dernier', CLE_PARAM = 'lfsd-parametres';
 
   var api = null, carte = null, coucheTrace = null, marqueurMoi = null, marqueurCamion = null;
@@ -538,7 +538,7 @@
     if (!e) { mesDroits = {}; return; }
     var base = e.droits;
     if (!base) { var p = profilsB.filter(function (x) { return x.pid === e.profil; })[0]; base = p ? (p.droits || {}) : {}; }
-    mesDroits = base.admin ? { admin: true, gps: true, formTransport: true, formInstallation: true, formEvaluation: true, heures: true, chef: true, approbateur: true, tousVoyages: true } : base;
+    mesDroits = base;
   }
   function voitLeVoyage(v) { return mesDroits.tousVoyages || (v.d.assignes || []).indexOf(sessionUser) >= 0; }
   function accesGps() { return !!(mesDroits.gps || mesDroits.tousVoyages); }
