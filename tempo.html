@@ -363,6 +363,7 @@ geotab.addin.tempo = function () {
     }
   }
   document.addEventListener('click', function () { if (multiOuvert) { multiOuvert = false; rendre(); } });
+  window.BonnevilleModule = { aller: function (nom, statut) { onglet = nom === 'archivage' ? 'archivage' : 'journees'; if (statut && filtre) { filtre.statut = statut; } message = null; if (filtre) { rendre(); } } };
 
   return {
     initialize: function (api, state, callback) {

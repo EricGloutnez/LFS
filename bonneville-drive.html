@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bonneville</title>
+<script src="https://ericgloutnez.github.io/LFS/bonneville-commun.js?v=1.0.4"></script>
+</head>
+<body style="margin:0">
+<div id="bd" data-theme="jour">
+<style>
+  #bd { --encre: #14191e; --doux: #4f5963; --ligne: #d3d8dd; --fond: #eef0f2; --surface: #ffffff; --bande: #e3e6e9; --accent: #f2a900; --ok: #1b7f3b; --non: #b42318; --orange: #9a5b00; --bleu: #1f4f8a; --noire: #14191e;
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; color: var(--encre); background: var(--fond); min-height: 100vh; -webkit-text-size-adjust: 100%; }
+  #bd[data-theme="nuit"] { --encre: #edf0f3; --doux: #a3adb7; --fond: #12161a; --surface: #1d2329; --ligne: #2f3842; --bande: #2a323a; --noire: #000000; }
+  #bd * { box-sizing: border-box; }
+  #bd button { font-family: inherit; color: inherit; }
+  .bd-entete { position: sticky; top: 0; z-index: 40; height: 64px; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: var(--surface); border-bottom: 1px solid var(--ligne); }
+  .bd-entete img { height: 20px; }
+  #bd[data-theme="nuit"] .bd-entete img { filter: invert(1); }
+  .bd-accueil-btn { display: none; height: 46px; padding: 0 12px; border-radius: 10px; border: 2px solid var(--ligne); background: var(--surface); font-size: 15px; font-weight: 800; align-items: center; gap: 6px; cursor: pointer; }
+  #bd.en-module .bd-accueil-btn { display: inline-flex; }
+  #bd.en-module #bd-logo { display: none; }
+  .bd-titre { font-size: 18px; font-weight: 800; display: none; }
+  #bd.en-module .bd-titre { display: block; }
+  #bd.en-module .bd-pastille { display: none; }
+  .bd-pastille { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 14px; background: var(--ok); color: #fff; font-size: 12px; font-weight: 700; white-space: nowrap; }
+  .bd-pastille.hors { background: var(--non); }
+  .bd-rond { width: 46px; height: 46px; border-radius: 23px; border: 2px solid var(--ligne); background: var(--surface); display: flex; align-items: center; justify-content: center; padding: 0; text-decoration: none; color: var(--encre); cursor: pointer; }
+  .bd-rond.tel { background: var(--ok); border-color: var(--ok); color: #fff; }
+  #bd-accueil { padding: 14px; display: flex; flex-direction: column; gap: 10px; padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }
+  #bd.en-module #bd-accueil { display: none; }
+  .bd-bonjour b { font-size: 24px; display: block; } .bd-bonjour span { font-size: 14px; color: var(--doux); }
+  .bd-noire { background: var(--noire); color: #fff; border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+  .bd-noire .haut { display: flex; justify-content: space-between; align-items: center; }
+  .bd-noire .gros { font-size: 26px; font-weight: 800; }
+  .bd-noire .sous { font-size: 14px; font-weight: 600; color: #c9d1d8; }
+  .bd-puce { display: inline-flex; align-items: center; height: 24px; padding: 0 9px; border-radius: 12px; font-size: 12px; font-weight: 700; background: var(--ok); color: #fff; }
+  .bd-puce.gris { background: #2c343c; }
+  .bd-rangee { display: flex; gap: 8px; }
+  .bd-btn { flex: 1; min-height: 52px; border-radius: 12px; border: none; background: var(--accent); color: #14191e !important; font-size: 16px; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 6px 10px; }
+  .bd-btn.sombre { background: #2c343c; color: #fff !important; flex: 0 0 96px; }
+  .bd-section { font-size: 13px; font-weight: 800; color: var(--doux); letter-spacing: .4px; text-transform: uppercase; margin-top: 4px; }
+  .bd-grille { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .bd-tuile { position: relative; min-height: 112px; border-radius: 16px; border: 1px solid var(--ligne); background: var(--surface); padding: 14px; display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 8px; text-align: left; cursor: pointer; }
+  .bd-tuile .ic { width: 44px; height: 44px; border-radius: 12px; color: #fff; display: flex; align-items: center; justify-content: center; }
+  .bd-tuile b { font-size: 17px; display: block; } .bd-tuile small { font-size: 12px; color: var(--doux); }
+  .bd-badge { position: absolute; top: 10px; right: 10px; min-width: 24px; height: 24px; padding: 0 6px; border-radius: 12px; background: var(--non); color: #fff; font-size: 13px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+  .bd-refus { margin: 24px 2px; padding: 24px 20px; border-radius: 16px; background: var(--surface); border: 3px solid var(--non); display: flex; flex-direction: column; gap: 14px; text-align: center; }
+  .bd-refus b { font-size: 30px; color: var(--non); line-height: 1.15; } .bd-refus span { font-size: 21px; font-weight: 600; line-height: 1.4; }
+  #bd-modules iframe { display: none; width: 100%; height: calc(100vh - 64px); border: none; background: var(--fond); }
+  #bd-modules iframe.on { display: block; }
+  #bd-attente { display: none; padding: 40px 20px; text-align: center; color: var(--doux); font-size: 16px; }
+</style>
+<div class="bd-entete">
+  <button type="button" class="bd-accueil-btn" id="bd-retour"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9H4z M10 20v-6h4v6" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path></svg>Accueil</button>
+  <img id="bd-logo" alt="Bonneville" src="https://ericgloutnez.github.io/LFS/logo-bonneville.png">
+  <span class="bd-titre" id="bd-titre"></span>
+  <span class="bd-pastille" id="bd-pastille">En ligne</span>
+  <button type="button" class="bd-rond" id="bd-theme" aria-label="Mode nuit"><svg width="21" height="21" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path></svg></button>
+  <a class="bd-rond tel" href="tel:4389782162" aria-label="Appeler Bonneville au (438) 978-2162"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"></path></svg></a>
+</div>
+<div id="bd-accueil"><div style="color:var(--doux)">Chargement…</div></div>
+<div id="bd-attente">Ouverture…</div>
+<div id="bd-modules"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var VERSION = '3.0.0';
+  var B = window.Bonneville;
+  var BASE = 'https://ericgloutnez.github.io/LFS/';
+  var CACHER = '.entete { display: none !important; } #lfsd > .pied { display: none !important; }';
+  var MODULES = {
+    transport: { fichier: 'transport-drive.html', noms: ['transportDrive', 'bonneville', 'Bonneville'], titre: 'Transport' },
+    tempo: { fichier: 'tempo-drive.html', noms: ['tempoDrive', 'bonnevilleTempo', 'tempo'], titre: 'Tempo' }
+  };
+  var api = null, state = null, G = null, moi = '', prenom = '', droits = lire('bd-droits') || {}, instances = {}, enChargement = {}, courant = null, branche = false;
+  function $(id) { return document.getElementById(id); }
+  function h(t) { return String(t === undefined || t === null ? '' : t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function lire(c) { try { var v = localStorage.getItem(c); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+  function ecrire(c, v) { try { localStorage.setItem(c, JSON.stringify(v)); } catch (e) {} }
+
+  // ---------- Thème
+  function themeActuel() { return $('bd').getAttribute('data-theme'); }
+  function appliquerTheme(t) {
+    $('bd').setAttribute('data-theme', t);
+    Object.keys(instances).forEach(function (k) { try { instances[k].fenetre.BonnevilleModule.theme(t); } catch (e) {} });
+  }
+
+  // ---------- Modules (pages existantes dans des cadres de la même origine, gardées pour le hors réseau)
+  function texteModule(m) {
+    var cle = 'bd-mod-' + m.fichier;
+    return fetch(BASE + m.fichier + '?v=' + VERSION + '-' + Date.now().toString(36).slice(0, 5)).then(function (r) {
+      if (!r.ok) { throw new Error('HTTP ' + r.status); }
+      return r.text();
+    }).then(function (t) { try { localStorage.setItem(cle, t); } catch (e) {} return t; })
+      .catch(function (e) { var t = null; try { t = localStorage.getItem(cle); } catch (x) {} if (t) { return t; } throw e; });
+  }
+  function chargerModule(cle) {
+    if (instances[cle]) { return Promise.resolve(instances[cle]); }
+    if (enChargement[cle]) { return enChargement[cle]; }
+    var m = MODULES[cle];
+    enChargement[cle] = texteModule(m).then(function (html) {
+      var avant = '<script>window.geotab = { addin: {} }; window.__bonnevilleIntegre = true;<\/script><style>' + CACHER + '</style>';
+      html = html.replace(/<head>/i, '<head>' + avant);
+      return new Promise(function (ok, ko) {
+        var cadre = document.createElement('iframe');
+        cadre.title = 'Bonneville - ' + m.titre; cadre.setAttribute('data-m', cle);
+        cadre.onload = function () {
+          try {
+            var w = cadre.contentWindow, fab = null;
+            m.noms.forEach(function (n) { if (!fab && w.geotab && w.geotab.addin && w.geotab.addin[n]) { fab = w.geotab.addin[n]; } });
+            if (!fab) { throw new Error('Le module ' + m.titre + ' ne s’est pas annoncé.'); }
+            var inst = fab();
+            inst.initialize(api, state || {}, function () {
+              try { inst.focus(api, state || {}); } catch (e) {}
+              instances[cle] = { cadre: cadre, inst: inst, fenetre: w };
+              try { w.BonnevilleModule.theme(themeActuel()); } catch (e) {}
+              ok(instances[cle]);
+            });
+          } catch (e) { ko(e); }
+        };
+        cadre.srcdoc = html;
+        $('bd-modules').appendChild(cadre);
+      });
+    });
+    return enChargement[cle].catch(function (e) { delete enChargement[cle]; throw e; });
+  }
+  function ouvrir(cle, ecran) {
+    courant = cle;
+    $('bd').className = 'en-module';
+    $('bd-titre').textContent = MODULES[cle].titre;
+    Array.prototype.forEach.call(document.querySelectorAll('#bd-modules iframe'), function (f) { f.className = f.getAttribute('data-m') === cle ? 'on' : ''; });
+    $('bd-attente').style.display = instances[cle] ? 'none' : 'block';
+    chargerModule(cle).then(function (x) {
+      $('bd-attente').style.display = 'none';
+      if (courant !== cle) { return; }
+      x.cadre.className = 'on';
+      if (ecran) { setTimeout(function () { try { x.fenetre.BonnevilleModule.aller(ecran); } catch (e) {} }, 50); }
+    }).catch(function (e) { $('bd-attente').textContent = 'Ouverture impossible : ' + (e && e.message ? e.message : e) + '. Vérifie le réseau puis réessaie.'; });
+    window.scrollTo(0, 0);
+  }
+  function accueil() {
+    courant = null; $('bd').className = '';
+    Array.prototype.forEach.call(document.querySelectorAll('#bd-modules iframe'), function (f) { f.className = ''; });
+    $('bd-attente').style.display = 'none';
+    rendreAccueil(); window.scrollTo(0, 0);
+  }
+
+  // ---------- Accueil
+  var IC = {
+    gps: '<path d="M12 3l7 18-7-4-7 4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
+    forms: '<path d="M7 3h10v18H7z M10 8h4 M10 12h4 M10 16h2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    dir: '<path d="M5 6h14 M5 12h14 M5 18h9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>',
+    liste: '<path d="M8 6h12 M8 12h12 M8 18h12 M4 6h.01 M4 12h.01 M4 18h.01" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>',
+    jour: '<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    repas: '<path d="M7 3v8 M5 3v5a2 2 0 0 0 4 0V3 M7 11v10 M16 3c-2 1-3 4-3 7h3v11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+    km: '<path d="M4 17l4-10h8l4 10 M8 13h8 M6 17v3 M18 17v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+    semaine: '<path d="M4 6h16v14H4z M4 10h16 M8 3v5 M16 3v5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
+    equipe: '<circle cx="9" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6 M16 5.5a3 3 0 0 1 0 5.8 M18 14.5c1.9.8 3 2.7 3 5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    plus: '<path d="M12 5v14 M5 12h14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>',
+    swap: '<path d="M4 8h13l-3-3 M20 16H7l3 3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>'
+  };
+  function svg(k, t) { return '<svg width="' + (t || 24) + '" height="' + (t || 24) + '" viewBox="0 0 24 24" aria-hidden="true">' + IC[k] + '</svg>'; }
+  function tuile(mod, ecran, ic, couleur, titre, sous, badge) {
+    return '<button type="button" class="bd-tuile" data-mod="' + mod + '" data-ecran="' + ecran + '"><span class="ic" style="background:' + couleur + '">' + svg(ic) + '</span><span><b>' + h(titre) + '</b><small>' + h(sous || '') + '</small></span>' + (badge ? '<span class="bd-badge">' + h(badge) + '</span>' : '') + '</button>';
+  }
+  function etatModule(cle) { try { return instances[cle] ? instances[cle].fenetre.BonnevilleModule.etat() : null; } catch (e) { return null; } }
+  function rendreAccueil() {
+    if (courant) { return; }
+    var tr = etatModule('transport') || {}, te = etatModule('tempo') || {};
+    var gps = !!(droits.gps || droits.tousVoyages), forms = !!(droits.formTransport || droits.formInstallation || droits.formEvaluation), heures = !!droits.heures;
+    var d = new Date();
+    var html = '<div class="bd-bonjour"><b>Bonjour' + (prenom ? ' ' + h(prenom) : '') + '</b><span>' + B.JOURS[d.getDay()] + ' ' + d.getDate() + ' ' + B.MOIS[d.getMonth()] + (droits.tousVoyages ? ' · Commissionnaire' : '') + (droits.chef ? ' · Chef d’équipe' : '') + '</span></div>';
+    if (!gps && !forms && !heures) {
+      $('bd-accueil').innerHTML = html + '<div class="bd-refus"><b>Accès à demander au bureau</b><span>Ton compte n’a encore accès à aucune partie de Bonneville. Demande au bureau de te donner un profil dans Bonneville - Employés.</span><a class="bd-btn" style="background:#1b7f3b;color:#fff !important;text-decoration:none" href="tel:4389782162">Appeler le bureau</a></div>';
+      return;
+    }
+    // Carte de la journée
+    if (heures) {
+      if (te.enService) {
+        html += '<section class="bd-noire"><div class="haut"><span class="bd-puce">● ' + (te.enPause ? 'En pause' : 'En service') + '</span><span class="gros">' + B.duree(te.total) + '</span></div>'
+          + '<span class="sous">' + (te.commissionnaire ? 'En ce moment sur ' + h(te.voyage || 'temps général') : (te.voyage ? 'Voyage ' + h(te.voyage) : 'Sans voyage')) + ' · depuis ' + h(B.heureFr(te.debut)) + '</span>'
+          + '<div class="bd-rangee">' + (te.commissionnaire ? '<button type="button" class="bd-btn" data-mod="tempo" data-ecran="journee">' + svg('swap', 20) + 'Changer de voyage</button>'
+            : (gps && tr.voyage ? '<button type="button" class="bd-btn" data-mod="transport" data-ecran="gps">' + svg('gps', 20) + 'Démarrer la navigation</button>' : '<button type="button" class="bd-btn" data-mod="tempo" data-ecran="journee">Ma journée</button>'))
+          + '<button type="button" class="bd-btn sombre" data-action="pause">' + (te.enPause ? 'Reprendre' : 'Pause') + '</button></div></section>';
+      } else {
+        html += '<section class="bd-noire"><span class="sous">' + (te.voyagesDuJour && te.voyagesDuJour.length ? 'Voyage prévu aujourd’hui : ' + h(te.voyagesDuJour.join(', ')) : 'Journée pas encore commencée') + '</span>'
+          + '<div class="bd-rangee"><button type="button" class="bd-btn" data-mod="tempo" data-ecran="journee">Commencer ma journée</button></div></section>';
+      }
+    } else if (gps && tr.voyage) {
+      html += '<section class="bd-noire"><span class="sous">Voyage ' + h(tr.voyage) + '</span><div class="bd-rangee"><button type="button" class="bd-btn" data-mod="transport" data-ecran="gps">' + svg('gps', 20) + 'Démarrer la navigation</button></div></section>';
+    }
+    if (gps || forms) {
+      html += '<span class="bd-section">Transport</span><div class="bd-grille">';
+      if (gps) {
+        html += tuile('transport', tr.voyage ? 'gps' : 'voyages', 'gps', '#1f4f8a', 'Navigation', tr.voyage ? 'Voyage ' + tr.voyage : 'Choisir un voyage');
+        html += tuile('transport', 'voyages', 'liste', '#1f4f8a', droits.tousVoyages ? 'Tous les voyages' : 'Mes voyages', tr.nbVoyages !== undefined ? tr.nbVoyages + ' voyage' + (tr.nbVoyages > 1 ? 's' : '') + (droits.tousVoyages ? '' : ' assigné' + (tr.nbVoyages > 1 ? 's' : '')) : '');
+      }
+      if (forms) { html += tuile('transport', tr.voyage ? 'forms' : 'voyages', 'forms', '#1f4f8a', 'Formulaires', tr.voyage ? 'Série ' + tr.voyage.split('-')[0] + ' · avec photos' : 'Ouvre d’abord un voyage', tr.badge && tr.badge !== '0' ? tr.badge : ''); }
+      if (gps) { html += tuile('transport', tr.voyage ? 'dir' : 'voyages', 'dir', '#1f4f8a', 'Directions', tr.voyage ? 'Liste des manœuvres' : 'Ouvre d’abord un voyage'); }
+      html += '</div>';
+    }
+    if (heures) {
+      html += '<span class="bd-section">Tempo</span><div class="bd-grille">';
+      if (droits.tousVoyages) { html += tuile('tempo', 'journee', 'plus', '#1b7f3b', 'Ajouter des heures', 'Sur un voyage'); }
+      html += tuile('tempo', 'journee', 'jour', '#1b7f3b', 'Ma journée', te.enService ? 'En service depuis ' + B.heureFr(te.debut) : (te.total ? 'Journée : ' + B.duree(te.total) : 'Pas encore commencée'));
+      html += tuile('tempo', 'repas', 'repas', '#1b7f3b', 'Repas', te.repas ? B.argent(te.repas) + ' aujourd’hui' : 'Aucun aujourd’hui');
+      html += tuile('tempo', 'km', 'km', '#1b7f3b', 'Kilomètres', te.km ? te.km + ' km aujourd’hui' : 'Aucun aujourd’hui');
+      html += tuile('tempo', 'semaine', 'semaine', '#1b7f3b', 'Ma semaine', B.duree(te.semaine || 0) + (te.aSoumettre ? ' · à soumettre' : ''), te.aSoumettre ? String(te.aSoumettre) : '');
+      if (droits.chef) { html += tuile('tempo', 'equipe', 'equipe', '#9a5b00', 'Mon équipe', te.equipe ? te.equipe + ' journée(s) à approuver' : 'Rien à approuver', te.equipe ? String(te.equipe) : ''); }
+      html += '</div>';
+    }
+    $('bd-accueil').innerHTML = html;
+  }
+
+  // ---------- Démarrage
+  function majPastille() { var p = $('bd-pastille'); var hors = navigator.onLine === false; p.className = 'bd-pastille' + (hors ? ' hors' : ''); p.textContent = hors ? 'Hors réseau' : 'En ligne'; }
+  function brancher() {
+    $('bd-retour').addEventListener('click', accueil);
+    $('bd-theme').addEventListener('click', function () { var n = themeActuel() === 'nuit' ? 'jour' : 'nuit'; appliquerTheme(n); ecrire('bd-theme', n); });
+    $('bd-accueil').addEventListener('click', function (e) {
+      var a = e.target.closest('[data-action="pause"]');
+      if (a) { try { instances.tempo.fenetre.BonnevilleModule.pause(); } catch (x) {} setTimeout(rendreAccueil, 300); return; }
+      var b = e.target.closest('[data-mod]'); if (!b) { return; }
+      ouvrir(b.getAttribute('data-mod'), b.getAttribute('data-ecran'));
+    });
+    window.addEventListener('online', majPastille); window.addEventListener('offline', majPastille);
+    setInterval(function () { try { majPastille(); rendreAccueil(); } catch (e) {} }, 15000);
+  }
+  function demarrer() {
+    G = B.creerApi(api);
+    var t = lire('bd-theme'); if (t !== 'jour' && t !== 'nuit') { t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'nuit' : 'jour'; }
+    appliquerTheme(t); majPastille();
+    rendreAccueil();
+    G.session().then(function (s) {
+      moi = s.userName || '';
+      return Promise.all([
+        G.lireTypes(['employe', 'profil']),
+        G.appel('Get', { typeName: 'User', search: { name: moi } }).catch(function () { return []; })
+      ]);
+    }).then(function (r) {
+      var emp = null, profils = [];
+      r[0].forEach(function (l) { if (l.details.type === 'employe' && l.details.user === moi) { emp = l.details; } else if (l.details.type === 'profil') { profils.push(l.details); } });
+      droits = B.droitsEffectifs(emp, profils); ecrire('bd-droits', droits);
+      prenom = (r[1] && r[1][0] && r[1][0].firstName) || ''; ecrire('bd-prenom', prenom);
+    }).catch(function () { prenom = lire('bd-prenom') || ''; }).then(function () {
+      rendreAccueil();
+      // Les deux modules se préparent en arrière-plan pour que l'accueil affiche leur état
+      if (droits.gps || droits.tousVoyages || droits.formTransport || droits.formInstallation || droits.formEvaluation) { chargerModule('transport').then(rendreAccueil).catch(function () {}); }
+      if (droits.heures) { chargerModule('tempo').then(rendreAccueil).catch(function () {}); }
+      setTimeout(rendreAccueil, 1500); setTimeout(rendreAccueil, 4000);
+    });
+  }
+  var fabrique = function () {
+    return {
+      initialize: function (a, s, callback) { api = a; state = s; try { if (!branche) { brancher(); branche = true; } demarrer(); } catch (e) { console.warn(e); } callback(); },
+      focus: function (a, s) { api = a; state = s; Object.keys(instances).forEach(function (k) { try { instances[k].inst.focus(api, state || {}); } catch (e) {} }); setTimeout(rendreAccueil, 800); },
+      blur: function () {}
+    };
+  };
+  window.geotab = window.geotab || {}; window.geotab.addin = window.geotab.addin || {};
+  ['bonneville', 'Bonneville', 'BONNEVILLE', 'bonnevilleDrive', 'bonneville-drive', 'BonnevilleDrive'].forEach(function (n) { window.geotab.addin[n] = fabrique; });
+})();
+</script>
+</body>
+</html>

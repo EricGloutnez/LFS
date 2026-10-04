@@ -2044,40 +2044,73 @@ geotab.addin.logistique = function () {
     (choixZip.length ? Promise.resolve(choixZip) : selectionExport()).then(function (liste) {
       if (!liste.length) { message('Aucun formulaire ne correspond aux filtres.', true); return; }
       var zip = new window.JSZip();
-      var lignesCsv = ['Série;Formulaire;Titre;Module;Rempli par;Date;Résultat;Non-conformités;Fichier'];
+      var lignesCsv = ['Série;Formulaire;Titre;Module;Rempli par;Date;Résultat;Non-conformités;Photos;Fichier'];
       liste.forEach(function (fr, i) {
         var f = formulaireComplet(fr), def = FB.defs[fr.code] || {};
         var date = String(fr.date || '').slice(0, 10);
         var nom = nomFichier(fr.serie + ' - ' + fr.code + (fr.module ? ' - module ' + fr.module : '') + ' - ' + date + (liste.filter(function (x) { return x.serie === fr.serie && x.code === fr.code && x.module === fr.module && String(x.date).slice(0, 10) === date; }).length > 1 ? ' - ' + (i + 1) : '') + '.pdf');
         zip.folder(nomFichier('Série ' + fr.serie)).file(nom, FB.pdfBlob([f]));
         var res = fr.resume || {};
-        lignesCsv.push([fr.serie, fr.code, def.titreCourt || '', fr.module || '', fr.auteur || '', fr.date ? (function (x) { var z = function (n) { return (n < 10 ? '0' : '') + n; }; return x.getFullYear() + '-' + z(x.getMonth() + 1) + '-' + z(x.getDate()) + ' ' + z(x.getHours()) + ':' + z(x.getMinutes()); })(new Date(fr.date)) : '', res.texte || '', res.nonConformites || 0, 'Série ' + fr.serie + '/' + nom].map(csvVal).join(';'));
+        lignesCsv.push([fr.serie, fr.code, def.titreCourt || '', fr.module || '', fr.auteur || '', fr.date ? (function (x) { var z = function (n) { return (n < 10 ? '0' : '') + n; }; return x.getFullYear() + '-' + z(x.getMonth() + 1) + '-' + z(x.getDate()) + ' ' + z(x.getHours()) + ':' + z(x.getMinutes()); })(new Date(fr.date)) : '', res.texte || '', res.nonConformites || 0, (photosParFid[fr.fid] || []).length, 'Série ' + fr.serie + '/' + nom].map(csvVal).join(';'));
       });
+      // Photos : dans le dossier de la série, sous « Photos »
+      var aTelecharger = [];
+      liste.forEach(function (fr) { (photosParFid[fr.fid] || []).forEach(function (p) { aTelecharger.push({ fr: fr, p: p }); }); });
+      var manquantes = 0;
+      var photosPretes = !aTelecharger.length ? Promise.resolve() : sessionGeotab().then(function (ses) {
+        var c = Promise.resolve(), n = 0;
+        aTelecharger.forEach(function (x) {
+          c = c.then(function () {
+            message('Téléchargement des photos : ' + (++n) + ' / ' + aTelecharger.length + '…');
+            return telechargerPhoto(ses, x.p.id).then(function (b) {
+              zip.folder(nomFichier('Série ' + x.fr.serie)).folder('Photos').file(nomFichier(x.p.nom || (x.fr.code + ' - photo ' + x.p.n + '.jpg')), b);
+            }).catch(function () { manquantes++; });
+          });
+        });
+        return c;
+      }).catch(function () { manquantes = aTelecharger.length; });
       zip.file('Résumé des formulaires.csv', '\ufeff' + lignesCsv.join('\r\n'));
-      return zip.generateAsync({ type: 'blob' }).then(function (blob) {
+      return photosPretes.then(function () { return zip.generateAsync({ type: 'blob' }); }).then(function (blob) {
         var a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
         a.download = 'Formulaires-Bonneville-' + new Date().toISOString().slice(0, 10) + '.zip';
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
         setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
         dernierExport = liste;
+        approuverForms(liste);
         trouver('it511-exp-retirer').style.display = 'inline-flex'; majActionsForms();
         trouver('it511-exp-retirer').textContent = 'Retirer de Geotab les ' + liste.length + ' formulaire' + (liste.length > 1 ? 's' : '') + ' exporté' + (liste.length > 1 ? 's' : '');
-        message('Fichier ZIP produit : ' + liste.length + ' formulaire(s), un PDF par formulaire, rangés par série, avec le tableau « Résumé des formulaires » (s’ouvre dans Excel).');
+        message('Approuvé et téléchargé : ' + liste.length + ' formulaire(s) et ' + (aTelecharger.length - manquantes) + ' photo(s), rangés par série (PDF + dossier Photos), avec le tableau « Résumé des formulaires ». Glisse le ZIP décompressé dans OneDrive, puis « Retirer de Geotab ».' + (manquantes ? ' Attention : ' + manquantes + ' photo(s) n’ont pas pu être téléchargées.' : ''), !!manquantes);
       });
     }).catch(function (e) { message('Export impossible : ' + (e && e.message ? e.message : e), true); });
+  }
+
+  function approuverForms(liste) {
+    var c = Promise.resolve(), q = new Date().toISOString();
+    liste.forEach(function (fr) {
+      c = c.then(function () {
+        var r = resumesForms[fr.fid];
+        var d = r ? Object.assign({}, r.d) : { type: 'formresume', fid: fr.fid, cle: '', code: fr.code, serie: fr.serie, module: fr.module, auteur: fr.auteur, date: fr.date, resume: fr.resume };
+        d.approuve = true; d.approuveLe = q; d.nbPhotos = (photosParFid[fr.fid] || []).length;
+        var ent = { addInId: ADDIN_ID, groups: [{ id: 'GroupCompanyId' }], details: d };
+        return (r ? appelGeotab('Set', { typeName: 'AddInData', entity: Object.assign({ id: r.id }, ent) }).then(function () { r.d = d; })
+          : appelGeotab('Add', { typeName: 'AddInData', entity: ent }).then(function (id) { resumesForms[fr.fid] = { id: id, d: d }; })).catch(function () {});
+      });
+    });
+    return c.then(function () { try { afficherTableForms(); } catch (e) {} });
   }
 
   function retirerExportes() {
     var liste = dernierExport || [];
     if (!liste.length) { return; }
-    if (!window.confirm('As-tu bien enregistré le fichier ZIP dans OneDrive (ou un autre endroit sûr)?\n\n' + liste.length + ' formulaire(s) seront retirés de Geotab. Une ligne de résumé (série, formulaire, date, résultat) sera conservée dans Bonneville - Logistique. Cette action est définitive.')) { return; }
+    if (!window.confirm('As-tu bien enregistré le fichier ZIP dans OneDrive (ou un autre endroit sûr)?\n\n' + liste.length + ' formulaire(s) et leurs photos seront retirés de Geotab. Une ligne de résumé (série, formulaire, date, résultat) sera conservée dans Bonneville - Logistique. Cette action est définitive.')) { return; }
     var bouton = trouver('it511-exp-retirer'); bouton.disabled = true;
     var fait = 0, chaine = Promise.resolve();
     liste.forEach(function (fr) {
       chaine = chaine.then(function () {
         var c = Promise.resolve();
         (fr.ids || []).forEach(function (id) { c = c.then(function () { return appelGeotab('Remove', { typeName: 'AddInData', entity: { id: id } }); }); });
+        (photosParFid[fr.fid] || []).forEach(function (p) { c = c.then(function () { return appelGeotab('Remove', { typeName: 'MediaFile', entity: { id: p.id } }).catch(function () {}); }); });
         return c.then(function () {
           var r = resumesForms[fr.fid];
           var d = r ? Object.assign({}, r.d) : { type: 'formresume', fid: fr.fid, cle: '', code: fr.code, serie: fr.serie, module: fr.module, auteur: fr.auteur, date: fr.date, resume: fr.resume };
@@ -2095,6 +2128,36 @@ geotab.addin.logistique = function () {
     }).catch(function (e) {
       bouton.disabled = false;
       message('Retrait interrompu après ' + fait + ' formulaire(s) : ' + (e && e.message ? e.message : e) + '. Relance le retrait.', true);
+    });
+  }
+
+
+  // ----- Photos des formulaires (fichiers média de Geotab)
+  var photosParFid = {};
+  function chargerPhotos() {
+    return appelGeotab('Get', { typeName: 'MediaFile', search: { solutionId: ADDIN_ID } }).then(function (l) {
+      photosParFid = {};
+      (l || []).forEach(function (m) {
+        var meta = {}; try { meta = typeof m.metaData === 'string' ? JSON.parse(m.metaData) : (m.metaData || {}); } catch (e) {}
+        if (meta.type !== 'photoFormulaire' || !meta.fid) { return; }
+        (photosParFid[meta.fid] = photosParFid[meta.fid] || []).push({ id: m.id, nom: m.name, n: meta.n || 0, meta: meta });
+      });
+      Object.keys(photosParFid).forEach(function (k) { photosParFid[k].sort(function (a, b) { return a.n - b.n; }); });
+    }).catch(function () { photosParFid = {}; });
+  }
+  function sessionGeotab() {
+    return new Promise(function (ok, ko) {
+      try { apiGeotab.getSession(function (cred, serveur) { ok({ cred: { database: cred.database, userName: cred.userName, sessionId: cred.sessionId }, serveur: serveur || cred.server || 'my.geotab.com' }); }); } catch (e) { ko(e); }
+    });
+  }
+  function telechargerPhoto(ses, id) {
+    var fd = new FormData();
+    fd.append('JSON-RPC', JSON.stringify({ method: 'DownloadMediaFile', params: { credentials: ses.cred, mediaFile: { id: id } } }));
+    return fetch('https://' + ses.serveur + '/apiv1', { method: 'POST', body: fd }).then(function (rep) {
+      if (!rep.ok) { throw new Error('HTTP ' + rep.status); }
+      var type = rep.headers.get('content-type') || '';
+      if (/json/.test(type)) { return rep.text().then(function (t) { throw new Error(t.slice(0, 160)); }); }
+      return rep.blob();
     });
   }
 
@@ -2562,7 +2625,7 @@ geotab.addin.logistique = function () {
     var tout = document.createElement('input'); tout.type = 'checkbox'; tout.setAttribute('aria-label', 'Tout sélectionner');
     tout.addEventListener('change', function () { formsTable.forEach(function (f) { formsChoisis[f.fid] = tout.checked; }); afficherTableForms(); });
     var c0 = document.createElement('th'); c0.appendChild(tout); th.appendChild(c0);
-    ['Série', 'Code', 'Module', 'Rempli par', 'Reçu le', 'Résultat', 'État', ''].forEach(function (x) { var c = document.createElement('th'); c.textContent = x; th.appendChild(c); });
+    ['Série', 'Code', 'Module', 'Rempli par', 'Reçu le', 'Résultat', 'Photos', 'État', ''].forEach(function (x) { var c = document.createElement('th'); c.textContent = x; th.appendChild(c); });
     var thead = document.createElement('thead'); thead.appendChild(th); t.appendChild(thead);
     var tb = document.createElement('tbody');
     formsTable.forEach(function (fr) {
@@ -2573,7 +2636,10 @@ geotab.addin.logistique = function () {
       cellule(tr, fr.date ? new Date(fr.date).toLocaleString('fr-CA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '');
       var res = (fr.resume && fr.resume.texte) || 'Reçu', cr = cellule(tr, res);
       if (fr.resume && fr.resume.alerte) { cr.style.color = '#b42318'; cr.style.fontWeight = '700'; }
-      cellule(tr, puce('Dans Geotab', 'gris'));
+      var nbp = (photosParFid[fr.fid] || []).length;
+      cellule(tr, nbp ? nbp + ' photo' + (nbp > 1 ? 's' : '') : '—');
+      var rf = resumesForms[fr.fid];
+      cellule(tr, rf && rf.d.approuve ? puce('Approuvé', 'orange') : puce('À approuver', 'gris'));
       var b = document.createElement('button'); b.type = 'button'; b.className = 'lg-lien'; b.textContent = 'PDF';
       b.addEventListener('click', function () { telechargerPdf([fr], fr.serie + '-' + fr.code + (fr.module ? '-' + fr.module : '') + '.pdf'); });
       cellule(tr, b);
@@ -2583,7 +2649,7 @@ geotab.addin.logistique = function () {
       var tr = document.createElement('tr');
       cellule(tr, ''); cellule(tr, String(r.serie), true); cellule(tr, r.code, true); cellule(tr, r.module || '—'); cellule(tr, r.auteur || '');
       cellule(tr, r.date ? new Date(r.date).toLocaleString('fr-CA', { day: 'numeric', month: 'short' }) : '');
-      cellule(tr, (r.resume && r.resume.texte) || 'Reçu'); cellule(tr, puce('Archivé', 'vert')); cellule(tr, '');
+      cellule(tr, (r.resume && r.resume.texte) || 'Reçu'); cellule(tr, r.nbPhotos ? r.nbPhotos + ' photo' + (r.nbPhotos > 1 ? 's' : '') : '—'); cellule(tr, puce('Archivé', 'vert')); cellule(tr, '');
       tb.appendChild(tr);
     });
     t.appendChild(tb); z.appendChild(t);
@@ -2598,7 +2664,7 @@ geotab.addin.logistique = function () {
   }
   function chargerTableForms() {
     trouver('lg-f-liste').innerHTML = '<div class="lg-aide" style="padding:14px">Lecture des formulaires…</div>';
-    selectionExport().then(function (l) { formsTable = l; formsChoisis = {}; afficherTableForms(); })
+    Promise.all([selectionExport(), chargerPhotos()]).then(function (r) { formsTable = r[0]; formsChoisis = {}; afficherTableForms(); })
       .catch(function (e) { trouver('lg-f-liste').innerHTML = ''; message('Lecture impossible : ' + (e && e.message ? e.message : e), true); });
   }
   function brancherVues() {
@@ -2632,6 +2698,7 @@ geotab.addin.logistique = function () {
     });
   }
   var ongletCourant = 'planifier';
+  window.BonnevilleModule = { aller: function (nom) { try { allerOnglet(nom); if (nom === 'formulaires') { chargerTableForms(); } } catch (e) {} } };
 
   // ----- Onglets
   function allerOnglet(nom) {
@@ -3055,7 +3122,7 @@ geotab.addin.logistique = function () {
       <button type="button" data-o="restrictions">Restrictions</button>
       <button type="button" data-o="parametres">Paramètres</button>
     </nav>
-    <span id="lg-etat" title="Cliquer pour voir l’état des sources"><span>version 2.2.2</span><span id="it511-statut">Démarrage...</span><span id="it511-sources"></span></span>
+    <span id="lg-etat" title="Cliquer pour voir l’état des sources"><span>version 2.3.0</span><span id="it511-statut">Démarrage...</span><span id="it511-sources"></span></span>
   </div>
 
   <div id="lg-planifier" data-onglet="planifier">
@@ -3162,10 +3229,10 @@ geotab.addin.logistique = function () {
     <div class="lg-barre-actions" id="lg-f-actions" style="display:none;">
       <b id="lg-f-nb">0 formulaire sélectionné</b><span style="margin-left:auto"></span>
       <button id="it511-exp-pdf" type="button" class="lg-btn">Un seul PDF</button>
-      <button id="it511-exp-zip" type="button" class="lg-btn jaune">ZIP + tableau Excel</button>
+      <button id="it511-exp-zip" type="button" class="lg-btn jaune">✓ Approuver et télécharger (ZIP)</button>
       <button id="it511-exp-retirer" type="button" class="lg-btn rose" style="display:none;"></button>
     </div>
-    <div class="lg-aide">Pour libérer de l’espace : coche les formulaires, exporte en ZIP, enregistre le fichier dans OneDrive, puis « Retirer de Geotab ». Seule une ligne de résumé est conservée.</div>
+    <div class="lg-aide">Coche les formulaires, puis « Approuver et télécharger » : le ZIP contient, pour chaque série, un dossier avec les PDF des formulaires et un sous-dossier « Photos ». Glisse-le dans OneDrive, puis « Retirer de Geotab » pour libérer l’espace (une ligne de résumé est conservée).</div>
     <div style="display:none"><input id="it511-forms-serie" type="text"><div id="it511-forms-liste"></div><button id="it511-forms-pdf-serie" type="button"></button></div>
   </div>
 

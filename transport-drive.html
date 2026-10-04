@@ -210,6 +210,11 @@
   #lfsd[data-theme="nuit"] .theme .ic-soleil { display: block; }
   #lfsd[data-theme="nuit"] .theme .ic-lune { display: none; }
   #lfsd .info-etat { font-size: 13px; color: var(--doux); margin-bottom: 8px; }
+  #lfsd .f-photos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  #lfsd .f-vignette { position: relative; border-radius: 10px; overflow: hidden; aspect-ratio: 1; background: var(--ligne); }
+  #lfsd .f-vignette img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  #lfsd .f-vignette button { position: absolute; top: 4px; right: 4px; width: 34px !important; height: 34px !important; border-radius: 17px !important; background: rgba(0,0,0,.65) !important; color: #fff !important; border: none !important; font-size: 20px !important; padding: 0 !important; text-align: center !important; }
+  #lfsd .f-photo-btn { height: 64px !important; border-radius: 14px !important; border: 2px dashed #1f4f8a !important; background: var(--surface) !important; color: #1f4f8a !important; font-size: 18px !important; font-weight: 800 !important; text-align: center !important; }
   #lfsd .refus-acces { margin: 24px 16px; padding: 24px 20px; border-radius: 16px; background: var(--surface); border: 3px solid var(--signal); display: flex; flex-direction: column; gap: 14px; text-align: center; }
   #lfsd .refus-titre { font-size: 30px; font-weight: 800; line-height: 1.15; color: var(--signal); }
   #lfsd .refus-texte { font-size: 21px; font-weight: 600; line-height: 1.4; }
@@ -375,7 +380,7 @@
 <script>
 (function () {
   var ADDIN_ID = 'aXdeNEZ7tQ7eMPNywYFFKrA';
-  var VERSION = '2.0.3';
+  var VERSION = '2.1.0';
   var CLE_CACHE = 'lfsd-voyages', CLE_DERNIER = 'lfsd-dernier', CLE_PARAM = 'lfsd-parametres';
 
   var api = null, carte = null, coucheTrace = null, marqueurMoi = null, marqueurCamion = null;
@@ -1245,12 +1250,17 @@
     for (var i = 0; i < charge.length; i += 7000) { morceaux.push(charge.slice(i, i + 7000)); }
     var fid = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
     var date = new Date().toISOString();
+    var cleForm = f.cle;
     var records = morceaux.map(function (mo, i) {
       var d = { type: 'formulaire', fid: fid, cle: f.cle, code: f.code, serie: f.serie, module: f.module, auteur: auteurNom, date: date, partie: i + 1, total: morceaux.length, morceau: mo };
       if (i === 0) { d.resume = res; }
       return d;
     });
     records.push({ type: 'formresume', fid: fid, cle: f.cle, code: f.code, serie: f.serie, module: f.module, auteur: auteurNom, date: date, resume: res });
+    rattacherPhotos(cleForm, fid).then(function (n) {
+      if (n) { records.forEach(function (rec) { if (rec.type === 'formresume' || rec.partie === 1) { rec.nbPhotos = n; } }); sauverEtat(); }
+      envoyerPhotos();
+    });
     fileEnvois.push({ fid: fid, cle: f.cle, records: records, fait: 0 });
     envoisLocaux[f.cle] = { date: date, resume: res, enAttente: true, reponses: f.code === 'L3' ? f.r : undefined };
     delete brouillons[f.cle];
@@ -1670,6 +1680,136 @@
     z.appendChild(boutonEnvoyer(def));
   }
 
+
+  // ===================== Photos des formulaires =====================
+  // Gardées sur le téléphone (IndexedDB), puis envoyées dans les fichiers média de Geotab.
+  var bdPhotos = null, photosEnvoiEnCours = false;
+  function ouvrirBd() {
+    if (bdPhotos) { return Promise.resolve(bdPhotos); }
+    return new Promise(function (ok, ko) {
+      try {
+        var req = indexedDB.open('bonneville-photos', 1);
+        req.onupgradeneeded = function () { var db = req.result; if (!db.objectStoreNames.contains('photos')) { var st = db.createObjectStore('photos', { keyPath: 'id', autoIncrement: true }); st.createIndex('cle', 'cle'); } };
+        req.onsuccess = function () { bdPhotos = req.result; ok(bdPhotos); };
+        req.onerror = function () { ko(req.error); };
+      } catch (e) { ko(e); }
+    });
+  }
+  function bdFaire(mode, f) {
+    return ouvrirBd().then(function (db) {
+      return new Promise(function (ok, ko) {
+        var tx = db.transaction('photos', mode), st = tx.objectStore('photos'), res = f(st);
+        tx.oncomplete = function () { ok(res && res.result !== undefined ? res.result : res); };
+        tx.onerror = function () { ko(tx.error); };
+      });
+    });
+  }
+  function photosDe(cle) {
+    return ouvrirBd().then(function (db) {
+      return new Promise(function (ok) {
+        var l = [], tx = db.transaction('photos', 'readonly'), c = tx.objectStore('photos').openCursor();
+        c.onsuccess = function () { var cur = c.result; if (cur) { if (!cle || cur.value.cle === cle) { l.push(cur.value); } cur.continue(); } else { ok(l); } };
+        c.onerror = function () { ok([]); };
+      });
+    }).catch(function () { return []; });
+  }
+  function reduirePhoto(fichier) {
+    return new Promise(function (ok, ko) {
+      var url = URL.createObjectURL(fichier), img = new Image();
+      img.onload = function () {
+        var max = 1600, w = img.naturalWidth, hh = img.naturalHeight, k = Math.min(1, max / Math.max(w, hh));
+        var cv = document.createElement('canvas'); cv.width = Math.round(w * k); cv.height = Math.round(hh * k);
+        cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+        URL.revokeObjectURL(url);
+        cv.toBlob(function (b) { if (b) { ok(b); } else { ko(new Error('Photo illisible')); } }, 'image/jpeg', 0.75);
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); ko(new Error('Photo illisible')); };
+      img.src = url;
+    });
+  }
+  function ajouterPhotos(fichiers) {
+    var f = formCourant; if (!f) { return Promise.resolve(); }
+    var c = Promise.resolve();
+    Array.prototype.forEach.call(fichiers, function (fi) {
+      c = c.then(function () { return reduirePhoto(fi); }).then(function (blob) {
+        return bdFaire('readwrite', function (st) { return st.add({ cle: f.cle, code: f.code, serie: f.serie, module: f.module || '', statut: 'brouillon', blob: blob, date: new Date().toISOString() }); });
+      }).catch(function (e) { alert('Photo non ajoutée : ' + (e && e.message ? e.message : e)); });
+    });
+    return c;
+  }
+  function retirerPhoto(id) { return bdFaire('readwrite', function (st) { return st.delete(id); }); }
+  function rattacherPhotos(cle, fid) {
+    return photosDe(cle).then(function (l) {
+      var c = Promise.resolve(), n = 0;
+      l.filter(function (p) { return p.statut === 'brouillon'; }).forEach(function (p) {
+        n++; p.statut = 'attente'; p.fid = fid; p.n = n; p.auteur = auteurNom; p.user = sessionUser;
+        c = c.then(function () { return bdFaire('readwrite', function (st) { return st.put(p); }); });
+      });
+      return c.then(function () { return n; });
+    });
+  }
+  function serveurEtSession() {
+    return new Promise(function (ok, ko) {
+      try { api.getSession(function (cred, serveur) { ok({ cred: { database: cred.database, userName: cred.userName, sessionId: cred.sessionId }, serveur: serveur || cred.server || 'my.geotab.com' }); }); } catch (e) { ko(e); }
+    });
+  }
+  function nomPhoto(p) { return p.serie + ' - ' + p.code + (p.module ? ' - module ' + p.module : '') + ' - photo ' + p.n + '.jpg'; }
+  function envoyerPhotos() {
+    if (photosEnvoiEnCours || !api || navigator.onLine === false) { return Promise.resolve(); }
+    photosEnvoiEnCours = true;
+    return photosDe(null).then(function (l) {
+      var aEnvoyer = l.filter(function (p) { return p.statut === 'attente' && p.fid; });
+      if (!aEnvoyer.length) { return; }
+      return serveurEtSession().then(function (ses) {
+        var c = Promise.resolve();
+        aEnvoyer.forEach(function (p) {
+          c = c.then(function () {
+            var depart = p.mediaId ? Promise.resolve(p.mediaId) : appel('Add', { typeName: 'MediaFile', entity: {
+              name: nomPhoto(p), solutionId: ADDIN_ID, mediaType: 'Image', fromDate: p.date, toDate: p.date,
+              metaData: JSON.stringify({ type: 'photoFormulaire', fid: p.fid, cle: p.cle, code: p.code, serie: p.serie, module: p.module, n: p.n, auteur: p.auteur, user: p.user })
+            } }).then(function (id) { p.mediaId = id; return bdFaire('readwrite', function (st) { return st.put(p); }).then(function () { return id; }); });
+            return depart.then(function (id) {
+              var fd = new FormData();
+              fd.append('JSON-RPC', JSON.stringify({ method: 'UploadMediaFile', params: { credentials: ses.cred, mediaFile: { id: id } } }));
+              fd.append('file', p.blob, nomPhoto(p));
+              return fetch('https://' + ses.serveur + '/apiv1', { method: 'POST', body: fd }).then(function (rep) {
+                if (!rep.ok) { throw new Error('HTTP ' + rep.status); }
+                return rep.text();
+              }).then(function (t) {
+                if (/"error"/.test(t)) { throw new Error(t.slice(0, 200)); }
+                return retirerPhoto(p.id);
+              });
+            });
+          }).catch(function (e) { console.warn('Photo non envoyée', e); });
+        });
+        return c;
+      });
+    }).catch(function () {}).then(function () { photosEnvoiEnCours = false; majPastille(); });
+  }
+  setInterval(function () { try { envoyerPhotos(); } catch (e) {} }, 60000);
+  window.addEventListener('online', function () { setTimeout(envoyerPhotos, 2000); });
+
+  function blocPhotos(b) {
+    var f = formCourant;
+    b.appendChild(el('div', { classe: 'f-grandeq', texte: 'Photos' }));
+    b.appendChild(el('div', { classe: 'f-info', texte: 'Ajoute les photos demandées (chargement, problèmes, formulaire signé…). Elles partent avec le formulaire et seront classées dans le dossier de la série.' }));
+    var zone = el('div', { classe: 'f-photos' });
+    b.appendChild(zone);
+    var entree = document.createElement('input');
+    entree.type = 'file'; entree.accept = 'image/*'; entree.setAttribute('capture', 'environment'); entree.multiple = true; entree.style.display = 'none';
+    entree.addEventListener('change', function () { ajouterPhotos(entree.files).then(function () { if (formCourant === f) { rendreForm(); } }); });
+    b.appendChild(entree);
+    b.appendChild(el('button', { type: 'button', classe: 'f-photo-btn', texte: '📷 Prendre une photo', onclick: function () { entree.click(); } }));
+    photosDe(f.cle).then(function (l) {
+      l = l.filter(function (p) { return p.statut === 'brouillon'; });
+      if (!l.length) { zone.appendChild(el('div', { classe: 'f-sous', texte: 'Aucune photo pour l’instant.' })); return; }
+      l.forEach(function (p) {
+        var u = URL.createObjectURL(p.blob), im = document.createElement('img'); im.src = u; im.alt = 'Photo';
+        zone.appendChild(el('div', { classe: 'f-vignette' }, [im, el('button', { type: 'button', texte: '×', 'aria-label': 'Retirer la photo', onclick: function () { retirerPhoto(p.id).then(function () { rendreForm(); }); } })]));
+      });
+    });
+  }
+
   function etapes(def) {
     var liste = [{ k: 'entete', titre: 'Renseignements' }];
     def.sections.forEach(function (s) {
@@ -1682,6 +1822,7 @@
       if (infos.length) { liste.push({ k: 'info', s: s, infos: infos }); }
     });
     if (def.initiales) { liste.push({ k: 'initiales', titre: 'Initiales' }); }
+    liste.push({ k: 'photos', titre: 'Photos' });
     liste.push({ k: 'recap', titre: 'Récapitulatif' });
     return liste;
   }
@@ -1725,6 +1866,8 @@
         b.appendChild(controle(e.it, true));
         if (confirmation) { b.appendChild(el('div', { classe: 'f-confirme', texte: confirmation })); }
       }
+    } else if (e.k === 'photos') {
+      blocPhotos(b);
     } else if (e.k === 'initiales') {
       b.appendChild(el('div', { classe: 'f-grandeq', texte: 'Tes initiales' }));
       b.appendChild(piedContact(def));
@@ -2064,6 +2207,11 @@
       b.disabled = b.getAttribute('data-onglet') !== 'voyage' && !voyageActif;
     });
   }
+  window.BonnevilleModule = {
+    aller: function (nom) { try { if (nom === 'voyages') { allerOnglet('voyage'); var r = $('lfsd-recherche'); if (r) { r.focus(); } } else { allerOnglet(nom); } } catch (e) {} },
+    theme: function (t) { try { appliquerTheme(t); } catch (e) {} },
+    etat: function () { return { voyage: voyageActif ? voyageActif.d.ref : '', depart: voyageActif ? voyageActif.d.departDate || '' : '', acces: accesGps(), droits: mesDroits, nbVoyages: voyages.length, badge: ($('lfsd-badge') || {}).textContent || '' }; }
+  };
   function allerOnglet(nom) {
     if (nom !== 'gps' && nav.actif) { quitterNavigation(); }
     if (nom === 'voyage') { formCourant = null; $('lfsd').className = ''; if (carte) { setTimeout(function () { carte.invalidateSize(); }, 200); } }

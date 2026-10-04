@@ -88,7 +88,7 @@
 <script>
 (function () {
   'use strict';
-  var VERSION = '1.0.7';
+  var VERSION = '1.1.0';
   var B = window.Bonneville;
   var G = null, api = null, moi = '', monNom = '';
   var employes = {}, profils = [], monEmp = null, droits = {}, voyages = [], journees = {}, equipeJ = [], maPaie = lire('bh-paie') || null;
@@ -678,6 +678,22 @@
       } catch (e) {}
     }, 30000);
   }
+
+  // Accroches pour l'application unique Bonneville
+  window.BonnevilleModule = {
+    aller: function (nom) { try { if (nom === 'equipe') { chargerEquipe().then(rendre); } ecran = nom; if (nom === 'semaine') { semaineSel = B.debutSemaine(dateSel || aujour()); } dateSel = dateSel || aujour(); rendre(); window.scrollTo(0, 0); } catch (e) {} },
+    theme: function (t) { appliquerTheme(t); },
+    etat: function () {
+      var j = journees[aujour()], c = j ? B.calculer(j.d) : null, deb = B.debutSemaine(aujour()), sm = 0, soum = 0;
+      for (var i = 0; i < 7; i++) { var x = journees[B.ajouterJours(deb, i)]; if (x) { sm += B.calculer(x.d).total; if ((x.d.statut === 'terminee' || x.d.statut === 'a_corriger') && x.d.fin) { soum++; } } }
+      var seg = j && j.d.segments && j.d.segments.length ? j.d.segments[j.d.segments.length - 1] : null;
+      return { pret: pret, droits: droits, acces: !!(monEmp && droits.heures), enService: !!(j && j.d.statut === 'ouverte' && !j.d.fin), enPause: !!(j && j.d.pauses && j.d.pauses.length && !j.d.pauses[j.d.pauses.length - 1].fin),
+        total: c ? c.total : 0, debut: j ? j.d.debut : '', voyage: j ? (seg ? seg.serie : j.d.voyage) : '', repas: c ? c.repas : 0, km: c ? c.km : 0,
+        semaine: sm, aSoumettre: soum, equipe: equipeJ.length, commissionnaire: !!droits.tousVoyages, chef: !!droits.chef,
+        voyagesDuJour: voyages.filter(function (v) { return v.d.departDate === aujour(); }).map(function (v) { return v.d.ref; }) };
+    },
+    pause: function () { try { if (jour(aujour())) { dateSel = aujour(); basculerPause(); } } catch (e) {} }
+  };
 
   function demarrer(a) {
     api = a; G = B.creerApi(a);

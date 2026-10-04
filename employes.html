@@ -560,6 +560,7 @@ geotab.addin.employes = function () {
     };
   }
 
+  window.BonnevilleModule = { aller: function (nom, valeur) { onglet = nom || 'employes'; if (valeur === 'sansProfil') { filtre.profil = '-'; } message = null; if (users.length) { rendre(); } } };
   function refuser() {
     $('be-onglets').style.display = 'none';
     $('be-contenu').innerHTML = '<div class="refus"><div style="font-size:40px">🔒</div><h2>Accès réservé aux administrateurs MyGeotab</h2><p class="aide">Bonneville - Employés demande le rôle de sécurité <b>Administrateur dans MyGeotab</b> (Utilisateurs → Autorisation de sécurité). Le profil « Administrateur Tempo » de Bonneville - Employés ne suffit pas. Adresse-toi à un administrateur Geotab de Bonneville.</p></div>';
