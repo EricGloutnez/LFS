@@ -4,7 +4,7 @@
  * Les textes reprennent ceux des formulaires papier. Toute modification des formulaires se fait ici seulement.
  */
 (function () {
-  var VERSION = '1.3';
+  var VERSION = '1.4';
   var TELEPHONE = '(438) 978-2162';
 
   function ouinon(id, texte, opts) { var o = { t: 'ouinon', id: id, texte: texte }; for (var k in (opts || {})) { o[k] = opts[k]; } return o; }
@@ -541,8 +541,16 @@
     doc.save(nomFichier || 'formulaires.pdf');
   }
 
+  function pdfBlob(formulaires) {
+    var J = window.jspdf && window.jspdf.jsPDF;
+    if (!J) { throw new Error('La bibliothèque PDF n’a pas été chargée.'); }
+    var doc = new J({ unit: 'pt', format: 'letter', orientation: 'portrait' });
+    formulaires.forEach(function (f, i) { dessinerFormulaire(doc, f, i === 0); });
+    return doc.output('blob');
+  }
+
   window.BonnevilleFormulaires = {
     version: VERSION, telephone: TELEPHONE, logo: LOGO, defs: DEFS, ordre: ORDRE,
-    manquants: manquants, resume: resume, actionVisible: actionVisible, aUnNon: aUnNon, pdf: pdf
+    manquants: manquants, resume: resume, actionVisible: actionVisible, aUnNon: aUnNon, pdf: pdf, pdfBlob: pdfBlob
   };
 })();
