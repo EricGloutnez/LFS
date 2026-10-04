@@ -210,6 +210,10 @@
   #lfsd[data-theme="nuit"] .theme .ic-soleil { display: block; }
   #lfsd[data-theme="nuit"] .theme .ic-lune { display: none; }
   #lfsd .info-etat { font-size: 13px; color: var(--doux); margin-bottom: 8px; }
+  #lfsd .refus-acces { margin: 24px 16px; padding: 24px 20px; border-radius: 16px; background: var(--surface); border: 3px solid var(--signal); display: flex; flex-direction: column; gap: 14px; text-align: center; }
+  #lfsd .refus-titre { font-size: 30px; font-weight: 800; line-height: 1.15; color: var(--signal); }
+  #lfsd .refus-texte { font-size: 21px; font-weight: 600; line-height: 1.4; }
+  #lfsd .refus-appel { display: flex; align-items: center; justify-content: center; height: 64px; border-radius: 14px; background: #1b7f3b; color: #ffffff; font-size: 21px; font-weight: 800; text-decoration: none; }
   #lfsd .info-espace { font-size: 12px; color: var(--doux); margin: -4px 0 8px; }
   #lfsd .info-espace.plein { color: var(--signal); font-weight: 700; }
   #lfsd .info-etat.horsligne { color: var(--signal); font-weight: 700; }
@@ -277,7 +281,12 @@
     <a id="lfsd-appel" class="appel" href="tel:4389782162" aria-label="Appeler Bonneville au (438) 978-2162"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"></path></svg></a>
   </div>
 
-  <div class="bloc recherche-zone">
+  <div id="lfsd-refus" class="refus-acces" style="display:none;">
+    <div class="refus-titre">Accès à demander au bureau</div>
+    <div class="refus-texte">Ton compte n’a pas encore accès à Bonneville Transport Drive. Demande au bureau de te donner l’accès dans Bonneville - Employés.</div>
+    <a class="refus-appel" href="tel:4389782162">Appeler le bureau</a>
+  </div>
+  <div class="bloc recherche-zone" id="lfsd-zone-recherche">
     <div id="lfsd-etat" class="info-etat">Chargement des voyages…</div>
     <div id="lfsd-espace" class="info-espace"></div>
     <div class="titre-bloc">Série</div>
@@ -366,7 +375,7 @@
 <script>
 (function () {
   var ADDIN_ID = 'aXdeNEZ7tQ7eMPNywYFFKrA';
-  var VERSION = '2.0';
+  var VERSION = '2.0.1';
   var CLE_CACHE = 'lfsd-voyages', CLE_DERNIER = 'lfsd-dernier', CLE_PARAM = 'lfsd-parametres';
 
   var api = null, carte = null, coucheTrace = null, marqueurMoi = null, marqueurCamion = null;
@@ -533,6 +542,13 @@
   }
   function voitLeVoyage(v) { return mesDroits.tousVoyages || (v.d.assignes || []).indexOf(sessionUser) >= 0; }
   function accesGps() { return !!(mesDroits.gps || mesDroits.tousVoyages); }
+  function afficherRefus() {
+    var refus = !accesGps(), r = $('lfsd-refus'), z = $('lfsd-zone-recherche');
+    if (r) { r.style.display = refus ? 'flex' : 'none'; }
+    if (z) { z.style.display = refus ? 'none' : ''; }
+    if (refus && voyageActif) { fermerVoyage(); }
+    var o = $('lfsd-onglets'); if (o) { o.style.display = refus ? 'none' : ''; }
+  }
 
   function chargerVoyages() {
     etat('Chargement des voyages…');
@@ -576,7 +592,8 @@
       if (voyageActif && !liste.some(function (v) { return v.id === voyageActif.id; })) { fermerVoyage(); }
       ecrireCache(CLE_PARAM, { cleCarto: parametres.cleCarto || '' });
       horsReseau = false;
-      if (!accesGps()) { etat('Accès à Bonneville Transport Drive à demander au bureau (Bonneville - Employés).', true); return; }
+      afficherRefus();
+      if (!accesGps()) { return; }
       etat(voyages.length + ' voyage' + (voyages.length > 1 ? 's' : '') + (mesDroits.tousVoyages ? ' (commissionnaire : tous les voyages)' : ' assigné' + (voyages.length > 1 ? 's' : '')) + ' - à jour à ' + new Date().toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' }));
     }).catch(function () {
       horsReseau = true;
@@ -589,6 +606,7 @@
         acces = cache.acces || null;
         calculerDroits();
         if (!accesGps()) { voyages = []; }
+        afficherRefus();
         directions = cache.directions || {};
         formsServeur = cache.formulaires || {};
         etat('Hors connexion - voyages du ' + new Date(cache.date).toLocaleString('fr-CA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }), true);
@@ -2163,6 +2181,20 @@
   ['transportDrive', 'transport-drive', 'TransportDrive', 'transportdrive', 'bonnevilleTransportDrive', 'BonnevilleTransportDrive', 'bonnevilletransportdrive', 'bonneville-transport-drive', 'bonneville', 'Bonneville', 'BONNEVILLE', 'lfsEscortes', 'lfsescortes', 'LFSEscortes', 'lfs_escortes', 'lfs-escortes', 'lfsDrive', 'lfs-drive', 'lfs'].forEach(function (nom) {
     window.geotab.addin[nom] = fabrique;
   });
+  (function (noms, f) {
+  var vus = {};
+  noms.forEach(function (n) {
+    var sans = n.normalize ? n.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : n;
+    [n, sans].forEach(function (x) {
+      var mots = x.split(/[^A-Za-z0-9\u00C0-\u00FF]+/).filter(Boolean);
+      if (!mots.length) { return; }
+      var camel = mots[0].charAt(0).toLowerCase() + mots[0].slice(1) + mots.slice(1).map(function (m) { return m.charAt(0).toUpperCase() + m.slice(1); }).join('');
+      var camelBas = mots[0].toLowerCase() + mots.slice(1).map(function (m) { return m.charAt(0).toUpperCase() + m.slice(1).toLowerCase(); }).join('');
+      [x, camel, camelBas, camel.charAt(0).toUpperCase() + camel.slice(1), camel.toLowerCase(), mots.join(''), mots.join('-'), mots.join('-').toLowerCase(), mots.join('_').toLowerCase(), mots.join(' ')].forEach(function (v) { vus[v] = 1; });
+    });
+  });
+  Object.keys(vus).forEach(function (v) { if (!window.geotab.addin[v]) { window.geotab.addin[v] = f; } });
+})(['Bonneville - Logistique', 'Bonneville Logistique', 'Bonneville Transport Drive', 'Bonneville - Transport Drive', 'Bonneville', 'LFS Escortes'], fabrique);
   window.LFSDriveVersion = VERSION;
 })();
 </script>

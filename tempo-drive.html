@@ -88,7 +88,7 @@
 <script>
 (function () {
   'use strict';
-  var VERSION = '1.0.2';
+  var VERSION = '1.0.3';
   var B = window.Bonneville;
   var G = null, api = null, moi = '', monNom = '';
   var employes = {}, profils = [], monEmp = null, droits = {}, voyages = [], journees = {}, equipeJ = [];
@@ -682,7 +682,21 @@
     };
   };
   window.geotab = window.geotab || {}; window.geotab.addin = window.geotab.addin || {};
-  ['tempoDrive', 'tempo-drive', 'TempoDrive', 'tempodrive', 'heuresDrive', 'heures-drive', 'bonnevilleTempo', 'BonnevilleTempo', 'bonnevilletempo', 'bonneville-tempo', 'tempo', 'Tempo', 'bonnevilleHeuresDepenses', 'heuresEtDepenses'].forEach(function (n) { window.geotab.addin[n] = fabrique; });
+  ['tempoDrive', 'tempo-drive', 'TempoDrive', 'tempodrive', 'heuresDrive', 'heures-drive'].forEach(function (n) { window.geotab.addin[n] = fabrique; });
+  (function (noms, f) {
+  var vus = {};
+  noms.forEach(function (n) {
+    var sans = n.normalize ? n.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : n;
+    [n, sans].forEach(function (x) {
+      var mots = x.split(/[^A-Za-z0-9\u00C0-\u00FF]+/).filter(Boolean);
+      if (!mots.length) { return; }
+      var camel = mots[0].charAt(0).toLowerCase() + mots[0].slice(1) + mots.slice(1).map(function (m) { return m.charAt(0).toUpperCase() + m.slice(1); }).join('');
+      var camelBas = mots[0].toLowerCase() + mots.slice(1).map(function (m) { return m.charAt(0).toUpperCase() + m.slice(1).toLowerCase(); }).join('');
+      [x, camel, camelBas, camel.charAt(0).toUpperCase() + camel.slice(1), camel.toLowerCase(), mots.join(''), mots.join('-'), mots.join('-').toLowerCase(), mots.join('_').toLowerCase(), mots.join(' ')].forEach(function (v) { vus[v] = 1; });
+    });
+  });
+  Object.keys(vus).forEach(function (v) { if (!window.geotab.addin[v]) { window.geotab.addin[v] = f; } });
+})(['Bonneville - Tempo', 'Bonneville Tempo', 'tempo'], fabrique);
 })();
 </script>
 </body>
