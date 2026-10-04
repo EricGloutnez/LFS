@@ -91,7 +91,7 @@
 geotab.addin.employes = function () {
   'use strict';
   var B = window.Bonneville;
-  var VERSION = '1.0.6';
+  var VERSION = '1.0.7';
   var G = null, moi = '', onglet = 'employes';
   var users = [], employes = {}, profils = [], paies = {}, param = null, groupesGeotab = [];
   var modifies = {}, filtre = { texte: '', profil: '', inactifs: false, masques: false }, message = null, notes = {};
@@ -115,7 +115,7 @@ geotab.addin.employes = function () {
       G.lireType('noteEmploye').catch(function () { return []; })
     ]).then(function (r) {
       users = r[0]; employes = {}; profils = []; param = null; paies = {}; notes = {};
-      (r[4] || []).forEach(function (l) { if (l.details.user) { notes[l.details.user] = { id: l.id, d: l.details }; } });
+      (r[4] || []).forEach(function (l) { var su = l.details.sujet || l.details.user; if (su) { notes[su] = { id: l.id, d: l.details }; } });
       r[1].forEach(function (l) {
         var d = l.details;
         if (d.type === 'employe' && d.user) { employes[d.user] = { id: l.id, d: d }; }
@@ -258,12 +258,11 @@ geotab.addin.employes = function () {
       }).join('') + '</tbody></table>';
   }
   function carteConfidentielle() {
-    var badge = '<span class="conf-badge">🔒 Confidentiel : groupe Paie seulement</span>';
-    if (!param || !param.d.paieGroupe) {
-      return '<section class="carte conf"><h3>Rémunération (taux horaire)' + badge + '</h3><div class="message erreur">Choisis d’abord le groupe Geotab « Paie » dans l’onglet Paramètres. Les taux horaires ne seront enregistrés que dans ce groupe restreint.</div></section>';
-    }
+    var pg = param && param.d.paieGroupe;
+    var badge = '<span class="conf-badge">🔒 ' + (pg ? 'Groupe Paie seulement' : 'Visible seulement par l’employé lui-même et l’Administrateur Tempo') + '</span>';
     var p = fichePaie, aujour = B.jourIso();
     var html = '<section class="carte conf"><h3>Rémunération (taux horaire)' + badge + '</h3>'
+      + '<div class="aide">Dans Tempo, l’employé voit seulement sa propre paye brute estimée. Son chef d’équipe ne reçoit que les heures.</div>'
       + '<div class="barre"><label class="ligne-case"><input type="radio" name="bf-mode" value="unique"' + (p.mode !== 'jour' ? ' checked' : '') + '> Même taux tous les jours</label>'
       + '<label class="ligne-case"><input type="radio" name="bf-mode" value="jour"' + (p.mode === 'jour' ? ' checked' : '') + '> Taux selon le jour de la semaine</label></div>';
     if (p.mode === 'jour') {
@@ -388,9 +387,9 @@ geotab.addin.employes = function () {
     });
     var pg = param && param.d.paieGroupe;
     var paieRemplie = (fichePaie.unique && fichePaie.unique.length) || (fichePaie.jours && fichePaie.jours.length) || (fichePaie.exceptions && fichePaie.exceptions.length) || paies[u];
-    if (pg && paieRemplie) {
+    if (paieRemplie) {
       fichePaie.type = 'paie'; fichePaie.user = u; fichePaie.maj = new Date().toISOString(); fichePaie.majPar = moi;
-      c = c.then(function () { return G.enregistrer(paies[u], fichePaie, [{ id: pg }]).then(function (id) { paies[u] = { id: id, d: fichePaie }; }); });
+      c = c.then(function () { return G.enregistrer(paies[u], fichePaie, pg ? [{ id: pg }] : null).then(function (id) { paies[u] = { id: id, d: fichePaie }; }); });
     }
     c.then(function () { fermerFicheDom(); dire('Fiche de ' + nomUser(u) + ' enregistrée.'); })
       .catch(function (er) { alert('Enregistrement impossible : ' + (er && er.message ? er.message : er)); });
@@ -414,11 +413,10 @@ geotab.addin.employes = function () {
     var pg = param && param.d.paieGroupe, n = notes[u];
     var fond = document.createElement('div'); fond.className = 'fond-modale'; fond.id = 'be-modale-note';
     fond.innerHTML = '<section class="modale" role="dialog" aria-label="Notes"><h2>Notes – ' + h(nomUser(u)) + '</h2>'
-      + (pg ? '<div class="aide">🔒 Confidentiel : visible seulement par le groupe Paie, dans Bonneville - Employés.</div><textarea id="be-note-texte" placeholder="Écrire une note…">' + h(n ? n.d.texte : '') + '</textarea>'
+      + '<div class="aide">🔒 Visible seulement dans Bonneville - Employés (rôle Administrateur de MyGeotab).</div><textarea id="be-note-texte" placeholder="Écrire une note…">' + h(n ? n.d.texte : '') + '</textarea>'
         + (n && n.d.maj ? '<div class="aide">Dernière modification : ' + h(new Date(n.d.maj).toLocaleString('fr-CA')) + ' par ' + h(nomUser(n.d.majPar)) + '</div>' : '')
-        : '<div class="message erreur">Choisis d’abord le groupe « Paie » dans l’onglet Paramètres : les notes y sont enregistrées pour rester confidentielles.</div>')
-      + '<div class="barre">' + (n && pg ? '<button type="button" class="btn rouge" id="be-note-suppr">Effacer la note</button>' : '') + '<span style="margin-left:auto"></span><button type="button" class="btn" id="be-note-fermer">Fermer</button>'
-      + (pg ? '<button type="button" class="btn jaune" id="be-note-sauver">Enregistrer</button>' : '') + '</div></section>';
+      + '<div class="barre">' + (n ? '<button type="button" class="btn rouge" id="be-note-suppr">Effacer la note</button>' : '') + '<span style="margin-left:auto"></span><button type="button" class="btn" id="be-note-fermer">Fermer</button>'
+      + '<button type="button" class="btn jaune" id="be-note-sauver">Enregistrer</button></div></section>';
     $('be').appendChild(fond);
     var fermer = function () { if (fond.parentNode) { fond.parentNode.removeChild(fond); } };
     fond.addEventListener('click', function (e) { if (e.target === fond) { fermer(); } });
@@ -427,8 +425,8 @@ geotab.addin.employes = function () {
     if ($('be-note-sauver')) {
       $('be-note-sauver').onclick = function () {
         var t = $('be-note-texte').value.trim();
-        var d = { type: 'noteEmploye', user: u, texte: t, maj: new Date().toISOString(), majPar: moi };
-        var p = !t && n ? G.retirer(n.id).then(function () { delete notes[u]; }) : (!t ? Promise.resolve() : G.enregistrer(n, d, [{ id: pg }]).then(function (id) { notes[u] = { id: id, d: d }; }));
+        var d = { type: 'noteEmploye', sujet: u, texte: t, maj: new Date().toISOString(), majPar: moi };
+        var p = !t && n ? G.retirer(n.id).then(function () { delete notes[u]; }) : (!t ? Promise.resolve() : G.enregistrer(n, d, pg ? [{ id: pg }] : null).then(function (id) { notes[u] = { id: id, d: d }; }));
         p.then(function () { fermer(); dire('Note de ' + nomUser(u) + ' enregistrée.'); }).catch(function (er) { alert('Enregistrement impossible : ' + (er && er.message ? er.message : er)); });
       };
     }
@@ -478,9 +476,9 @@ geotab.addin.employes = function () {
   // ---------- Paramètres
   function vueParametres() {
     var pg = param ? param.d.paieGroupe : '';
-    var html = '<section class="carte" style="max-width:720px"><h3>Groupe « Paie » (données confidentielles)</h3>'
-      + '<div class="aide">Les taux horaires sont enregistrés dans ce groupe Geotab. Seuls les comptes qui ont accès à ce groupe (configuré par votre administrateur Geotab) peuvent les lire. Choisis un groupe réservé au bureau : jamais « Entreprise ».</div>'
-      + '<label class="champ">Groupe<select id="bs-groupe"><option value="">Choisir…</option>' + groupesGeotab.filter(function (g) { return g.id !== 'GroupCompanyId'; }).map(function (g) { return '<option value="' + h(g.id) + '"' + (g.id === pg ? ' selected' : '') + '>' + h(g.nom) + '</option>'; }).join('') + '</select></label>'
+    var html = '<section class="carte" style="max-width:720px"><h3>Protection renforcée des taux et des notes (facultatif)</h3>'
+      + '<div class="aide">Sans groupe : les applications n’affichent le taux horaire qu’à l’employé lui-même et à l’Administrateur Tempo, et les notes seulement dans Bonneville - Employés. Avec un groupe Geotab réservé au bureau : ces données deviennent illisibles même par une lecture directe de la base. Laisser vide si ce n’est pas nécessaire.</div>'
+      + '<label class="champ">Groupe<select id="bs-groupe"><option value="">Aucun (protection par l’application)</option>' + groupesGeotab.filter(function (g) { return g.id !== 'GroupCompanyId'; }).map(function (g) { return '<option value="' + h(g.id) + '"' + (g.id === pg ? ' selected' : '') + '>' + h(g.nom) + '</option>'; }).join('') + '</select></label>'
       + '<div class="barre"><button type="button" class="btn jaune" id="bs-sauver">Enregistrer</button></div></section>';
     if (ancienAcces) {
       html += '<section class="carte" style="max-width:720px"><h3>Reprendre les accès aux formulaires de Bonneville - Logistique</h3><div class="aide">Bonneville - Logistique (anciennement LFS) contient encore l’ancienne liste « Donner l’accès aux formulaires ». Ce bouton recopie ces droits dans les fiches des employés (formulaires Transport, Installation et Auto-évaluation).</div><div class="barre"><button type="button" class="btn noir" id="bs-import">Reprendre les accès</button></div></section>';

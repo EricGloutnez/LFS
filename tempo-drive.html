@@ -88,10 +88,10 @@
 <script>
 (function () {
   'use strict';
-  var VERSION = '1.0.6';
+  var VERSION = '1.0.7';
   var B = window.Bonneville;
   var G = null, api = null, moi = '', monNom = '';
-  var employes = {}, profils = [], monEmp = null, droits = {}, voyages = [], journees = {}, equipeJ = [];
+  var employes = {}, profils = [], monEmp = null, droits = {}, voyages = [], journees = {}, equipeJ = [], maPaie = lire('bh-paie') || null;
   var ecran = 'journee', dateSel = null, semaineSel = null, feuille = null, horsReseau = false, pret = false, branche = false;
   var CLE_CACHE = 'bh-cache', CLE_THEME = 'bh-theme';
   var minuterie = null;
@@ -185,9 +185,23 @@
       voyages = droits.tousVoyages ? tous : tous.filter(function (v) { return (v.d.assignes || []).indexOf(moi) >= 0; });
       voyages.sort(function (a, b) { return String(a.d.departDate || a.d.date || '').localeCompare(String(b.d.departDate || b.d.date || '')); });
       garderCache();
-      if (droits.chef) { return chargerEquipe(); }
+      return chargerMaPaie().then(function () { if (droits.chef) { return chargerEquipe(); } });
     }).then(function () { pret = true; viderFile(); rendre(); });
   }
+  // Mon taux horaire : on ne lit QUE mon enregistrement (jamais ceux des autres).
+  function chargerMaPaie() {
+    return G.appel('Get', { typeName: 'AddInData', search: { addInId: B.ADDIN_ID, whereClause: 'user = "' + moi + '"' } }).then(function (l) {
+      var x = (l || []).filter(function (y) { return y.details && y.details.type === 'paie' && y.details.user === moi; })[0];
+      maPaie = x ? x.details : null; ecrire('bh-paie', maPaie);
+    }).catch(function () {});
+  }
+  function payeBrute(j) {
+    if (!maPaie || !j) { return null; }
+    var t = j.d.tauxHoraireApplique !== undefined ? j.d.tauxHoraireApplique : B.tauxHoraireA(maPaie, j.d.date);
+    if (t === null || isNaN(t)) { return null; }
+    return B.calculer(j.d).total / 60 * t;
+  }
+
   function chargerEquipe() {
     return G.lireChamp('journee', 'statut', 'attente_chef').then(function (l) {
       equipeJ = l.filter(function (x) { return (x.details.approbateursChef || []).indexOf(moi) >= 0; }).map(function (x) { return { id: x.id, d: x.details }; });
@@ -330,7 +344,8 @@
       html += '<div class="rangee" style="justify-content:space-between"><span class="sous">Depuis ' + h(B.heureFr(j.d.debut)) + (c.pauses ? ', pause de ' + B.duree(c.pauses) + ' déduite' : '') + (estCommissionnaire() ? ' · total ' + B.duree(c.total) : '') + '</span><button type="button" class="btn lien" data-a="feuille" data-v="debut">Modifier l’heure</button></div>'
         + '<div class="rangee"><button type="button" class="btn sombre" data-a="pause">' + (enPause(j) ? 'Reprendre' : 'Pause') + '</button><button type="button" class="btn ' + (estCommissionnaire() ? 'sombre' : 'jaune') + '" data-a="terminer">Terminer la journée</button></div></section>';
     } else {
-      html += '<div class="carte"><h2>Journée : ' + B.duree(c.total) + ' ' + puceStatut(j.d.statut) + '</h2>'
+      var pbj = payeBrute(j);
+      html += '<div class="carte"><h2>Journée : ' + B.duree(c.total) + ' ' + puceStatut(j.d.statut) + '</h2>' + (pbj !== null ? '<div class="aide">Paye brute estimée du jour : <b>' + B.argent(pbj) + '</b> (visible seulement par toi)</div>' : '')
         + '<div class="ligne"><span style="flex:1"><span class="t">Début</span><br><span class="s">' + h(B.heureFr(j.d.debut)) + (j.d.debutOrigine && j.d.debutOrigine !== j.d.debut ? ' (enregistré ' + h(B.heureFr(j.d.debutOrigine)) + ')' : '') + '</span></span>' + (B.modifiable(j.d) ? '<button type="button" class="btn lien" data-a="feuille" data-v="debut">Modifier</button>' : '') + '</div>'
         + '<div class="ligne"><span style="flex:1"><span class="t">Fin</span><br><span class="s">' + h(j.d.fin ? B.heureFr(j.d.fin) : 'pas encore terminée') + (j.d.finOrigine && j.d.finOrigine !== j.d.fin ? ' (enregistré ' + h(B.heureFr(j.d.finOrigine)) + ')' : '') + '</span></span>' + (B.modifiable(j.d) && j.d.fin ? '<button type="button" class="btn lien" data-a="feuille" data-v="fin">Modifier</button>' : '') + '</div>'
         + (j.d.fin && dateSel === aujour() && j.d.statut === 'terminee' ? '<button type="button" class="btn" data-a="reprendre">Reprendre la journée</button>' : '')
@@ -449,6 +464,9 @@
       html += '<button type="button" class="semaine-l" data-a="ouvrir-jour" data-v="' + date + '"><span style="font-weight:800">' + h(B.dateCourte(date).replace(/ \S+$/, '')) + '</span><span>' + (c ? B.duree(c.total) : '—') + '</span><span>' + (c && c.repas ? B.argent(c.repas) : '—') + '</span><span>' + (c && c.km ? c.km : '—') + '</span><span>' + (j ? puceStatut(j.d.statut) : '') + '</span></button>';
     }
     html += '<div class="semaine-l titre" style="font-size:16px;color:var(--encre);font-weight:800;border:none"><span>Total</span><span>' + B.duree(t.m) + '</span><span>' + B.argent(t.r) + '</span><span>' + t.k + '</span><span></span></div></div>';
+    var pb = 0, pbOk = false;
+    for (var q = 0; q < 7; q++) { var jq = journees[B.ajouterJours(semaineSel, q)], v = payeBrute(jq); if (v !== null) { pb += v; pbOk = true; } }
+    if (pbOk) { html += '<div class="carte"><h2>Ma paye brute estimée <span>' + B.argent(pb) + '</span></h2><div class="aide">Heures de la semaine × ton taux horaire, avant déductions. Visible seulement par toi.</div></div>'; }
     corrections.forEach(function (j) { html += '<button type="button" class="alerte" style="border:none;text-align:left" data-a="ouvrir-jour" data-v="' + j.d.date + '">' + h(B.dateCourte(j.d.date)) + ' retournée pour correction' + (j.d.commentaire ? ' : « ' + h(j.d.commentaire) + ' »' : '') + '. Touche pour corriger.</button>'; });
     html += '<div class="aide">Une fois soumise, la semaine passe à ton chef d’équipe, puis au bureau pour l’approbation finale. Une journée retournée pour correction redevient modifiable.</div>';
     html += '<button type="button" class="btn jaune" data-a="soumettre"' + (aSoumettre ? '' : ' disabled') + '>' + (aSoumettre ? 'Soumettre ' + aSoumettre + ' journée' + (aSoumettre > 1 ? 's' : '') + ' pour approbation' : 'Rien à soumettre') + '</button>';
