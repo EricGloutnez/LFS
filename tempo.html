@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Bonneville - Tempo</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="https://ericgloutnez.github.io/LFS/bonneville-commun.js?v=1.0.1"></script>
+<script src="https://ericgloutnez.github.io/LFS/bonneville-commun.js?v=1.0.3"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
@@ -78,7 +78,7 @@
 <script>
 geotab.addin.tempo = function () {
   'use strict';
-  var VERSION = '1.0.3';
+  var VERSION = '1.0.5';
   var B = window.Bonneville;
   var G = null, moi = '', estAdmin = false, onglet = 'journees';
   var users = [], employes = {}, profils = [], voyages = {}, journees = [], paies = {};
@@ -113,8 +113,8 @@ geotab.addin.tempo = function () {
     });
   }
   function peutApprouver() {
-    if (estAdmin) { return true; }
-    return !!B.droitsEffectifs(employes[moi], profils).approbateur;
+    var d = B.droitsEffectifs(employes[moi], profils);
+    return !!d.admin;
   }
   function employesAvecHeures() {
     var s = {};
@@ -378,7 +378,7 @@ geotab.addin.tempo = function () {
         .then(function (a) { estAdmin = a; return charger(); })
         .then(function () {
           if (!peutApprouver()) {
-            $('hb-contenu').innerHTML = '<div class="refus"><h2>Accès réservé</h2><p class="aide">Cette page est réservée aux administrateurs et aux approbateurs des heures. L’accès se donne dans Bonneville - Employés.</p></div>';
+            $('hb-contenu').innerHTML = '<div class="refus"><h2>Accès réservé</h2><p class="aide">Cette page est réservée au profil Administrateur de Bonneville - Employés. Sans ce profil, il n’est pas possible d’approuver les heures.</p></div>';
           }
         })
         .catch(function (e) { $('hb-contenu').innerHTML = '<main><div class="message erreur">Lecture impossible : ' + h(e && e.message ? e.message : e) + '</div></main>'; });

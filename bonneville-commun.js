@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   var ADDIN_ID = 'aXdeNEZ7tQ7eMPNywYFFKrA';
-  var VERSION = '1.0.1';
+  var VERSION = '1.0.3';
   var TELEPHONE = '(438) 978-2162';
 
   // ---------- Accès à Geotab
@@ -79,34 +79,36 @@
 
   // ---------- Droits et profils
   var DROITS = [
+    { cle: 'admin', nom: 'Administrateur (Logistique, approbation finale dans Tempo, accès complet dans Drive)' },
     { cle: 'gps', nom: 'Transport Drive (GPS)' },
     { cle: 'formTransport', nom: 'Formulaires Transport (L1, L2)' },
     { cle: 'formInstallation', nom: 'Formulaires Installation (L3, L3b, L4, L5)' },
     { cle: 'formEvaluation', nom: 'Auto-évaluation (L6)' },
     { cle: 'heures', nom: 'Tempo (heures et dépenses)' },
     { cle: 'chef', nom: 'Chef d’équipe (approuve son équipe)' },
-    { cle: 'approbateur', nom: 'Approbateur final des heures' },
     { cle: 'tousVoyages', nom: 'Commissionnaire (voit tous les voyages, répartit ses heures)' }
   ];
   var ROLES = [
     { cle: 'chauffeur', nom: 'Chauffeur' }, { cle: 'escorte', nom: 'Escorte' }, { cle: 'chef', nom: 'Chef d’équipe' },
-    { cle: 'installation', nom: 'Installation' }, { cle: 'commissionnaire', nom: 'Commissionnaire' }, { cle: 'bureau', nom: 'Bureau' }
+    { cle: 'installation', nom: 'Installation' }, { cle: 'commissionnaire', nom: 'Commissionnaire' }, { cle: 'bureau', nom: 'Bureau' }, { cle: 'administrateur', nom: 'Administrateur' }
   ];
   var PROFILS_DEFAUT = [
+    { pid: 'administrateur', nom: 'Administrateur', role: 'administrateur', droits: { admin: true, gps: true, formTransport: true, formInstallation: true, formEvaluation: true, heures: true, chef: true, tousVoyages: true } },
     { pid: 'chauffeur', nom: 'Chauffeur', role: 'chauffeur', droits: { gps: true, formTransport: true, heures: true } },
     { pid: 'escorte', nom: 'Escorte', role: 'escorte', droits: { gps: true, heures: true } },
     { pid: 'chef', nom: 'Chef d’équipe', role: 'chef', droits: { formInstallation: true, formEvaluation: true, heures: true, chef: true } },
     { pid: 'installation', nom: 'Installation', role: 'installation', droits: { formEvaluation: true, heures: true } },
     { pid: 'commissionnaire', nom: 'Commissionnaire', role: 'commissionnaire', droits: { gps: true, heures: true, tousVoyages: true } },
-    { pid: 'bureau', nom: 'Bureau', role: 'bureau', droits: { approbateur: true } }
+    { pid: 'bureau', nom: 'Bureau', role: 'bureau', droits: { heures: true } }
   ];
   function nomRole(cle) { var r = ROLES.filter(function (x) { return x.cle === cle; })[0]; return r ? r.nom : (cle || ''); }
   // employe : details d'un enregistrement « employe » ; profils : liste de details « profil »
   function droitsEffectifs(employe, profils) {
     if (!employe) { return {}; }
-    if (employe.droits) { return employe.droits; }
-    var p = (profils || []).filter(function (x) { return x.pid === employe.profil; })[0];
-    return p ? p.droits || {} : {};
+    var base = employe.droits;
+    if (!base) { var p = (profils || []).filter(function (x) { return x.pid === employe.profil; })[0]; base = p ? p.droits || {} : {}; }
+    if (base.admin) { var tout = {}; DROITS.forEach(function (d) { tout[d.cle] = true; }); return tout; }
+    return base;
   }
   function roleEffectif(employe, profils) {
     if (!employe) { return ''; }

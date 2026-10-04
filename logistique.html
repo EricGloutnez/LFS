@@ -2616,8 +2616,26 @@ geotab.addin.logistique = function () {
     new MutationObserver(function () { majChiffresDims(); }).observe(trouver('it511-resultat'), { attributes: true, attributeFilter: ['style'] });
   }
 
+  // ----- Accès : profil Administrateur dans Bonneville - Employés
+  function verifierAcces() {
+    return new Promise(function (ok) {
+      try { apiGeotab.getSession(function (s) { ok((s && s.userName) || ''); }); } catch (e) { ok(''); }
+    }).then(function (moi) {
+      var e = employesB[moi], base = e ? e.droits : null;
+      if (e && !base) { var p = profilsB.filter(function (x) { return x.pid === e.profil; })[0]; base = p ? p.droits : null; }
+      var admis = !!(base && base.admin);
+      trouver('lg-refus').style.display = admis ? 'none' : 'flex';
+      trouver('lg-onglets').style.display = admis ? '' : 'none';
+      if (admis) { allerOnglet(ongletCourant || 'planifier'); }
+      else { Array.prototype.forEach.call(document.querySelectorAll('[data-onglet]'), function (x) { x.style.display = 'none'; }); }
+      return admis;
+    });
+  }
+  var ongletCourant = 'planifier';
+
   // ----- Onglets
   function allerOnglet(nom) {
+    ongletCourant = nom;
     Array.prototype.forEach.call(document.querySelectorAll('#lg-onglets button'), function (b) { b.className = b.getAttribute('data-o') === nom ? 'on' : ''; });
     Array.prototype.forEach.call(document.querySelectorAll('[data-onglet]'), function (p) { p.style.display = p.getAttribute('data-onglet') === nom ? (nom === 'planifier' ? 'flex' : 'flex') : 'none'; });
     if (nom === 'planifier' && carte) { setTimeout(function () { carte.invalidateSize(); }, 100); }
@@ -2914,7 +2932,7 @@ geotab.addin.logistique = function () {
       setTimeout(function () { carte.invalidateSize(); }, 300);
       setTimeout(function () { carte.invalidateSize(); }, 1500);
       apiGeotab = api;
-      chargerStockage().then(function () { return chargerUtilisateurs(); }).then(function () { afficherListeVoyages(); afficherAssignation(); }).catch(function () {});
+      chargerStockage().then(verifierAcces).then(function (ok) { if (!ok) { return; } return chargerUtilisateurs().then(function () { afficherListeVoyages(); afficherAssignation(); }); }).catch(function () {});
       chargerActifs(api);
       rafraichirRadar();
       chargerEntraves(false);
@@ -3037,9 +3055,13 @@ geotab.addin.logistique = function () {
       <button type="button" data-o="restrictions">Restrictions</button>
       <button type="button" data-o="parametres">Paramètres</button>
     </nav>
-    <span id="lg-etat" title="Cliquer pour voir l’état des sources"><span>version 2.1.1</span><span id="it511-statut">Démarrage...</span><span id="it511-sources"></span></span>
+    <span id="lg-etat" title="Cliquer pour voir l’état des sources"><span>version 2.2.0</span><span id="it511-statut">Démarrage...</span><span id="it511-sources"></span></span>
   </div>
 
+  <div id="lg-refus" style="display:none;margin:80px auto;max-width:560px;background:#fff;border:3px solid #b42318;border-radius:16px;padding:28px;flex-direction:column;gap:12px;text-align:center;">
+    <div style="font-size:28px;font-weight:800;color:#b42318;">Accès réservé</div>
+    <div style="font-size:18px;line-height:1.45;">Bonneville - Logistique est réservée au profil <b>Administrateur</b>. Demande à un administrateur de te le donner dans Bonneville - Employés.</div>
+  </div>
   <div id="lg-planifier" data-onglet="planifier">
     <div id="lg-gauche">
       <section class="lg-carte"><h3>Trajet</h3>
