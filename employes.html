@@ -69,6 +69,11 @@
   #be .modale { width: min(560px, 100%); background: var(--surface); border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.3); }
   #be .modale h2 { margin: 0; font-size: 20px; }
   #be .modale textarea { width: 100%; min-height: 180px; border: 1px solid var(--ligne); border-radius: 10px; padding: 10px; font-size: 14px; font-family: inherit; resize: vertical; }
+  #be td select.be-profil { max-width: 190px; }
+  #be .actions-sel { position: sticky; bottom: 12px; z-index: 15; align-items: center; gap: 12px; background: var(--encre); color: #fff; border-radius: 12px; padding: 12px 16px; box-shadow: 0 6px 20px rgba(0,0,0,.25); flex-wrap: wrap; }
+  #be .actions-sel .btn { border-color: #2c343c; background: #2c343c; color: #fff; }
+  #be .actions-sel .btn.jaune { background: var(--accent); border-color: var(--accent); color: var(--encre); }
+  #be .actions-sel select { height: 38px; }
   #be .profils { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
 </style>
 
@@ -92,10 +97,10 @@
 geotab.addin.employes = function () {
   'use strict';
   var B = window.Bonneville;
-  var VERSION = '1.1.0';
+  var VERSION = '1.1.2';
   var G = null, moi = '', onglet = 'employes';
   var users = [], employes = {}, profils = [], paies = {}, param = null, groupesGeotab = [];
-  var modifies = {}, filtre = { texte: '', profil: '', inactifs: false, masques: false }, message = null, notes = {};
+  var modifies = {}, filtre = { texte: '', profil: '', inactifs: false, masques: false }, message = null, notes = {}, selection = {};
 
   function $(id) { return document.getElementById(id); }
   function h(t) { return String(t === undefined || t === null ? '' : t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -129,9 +134,9 @@ geotab.addin.employes = function () {
       groupesGeotab = (r[3] || []).filter(function (g) { return g.name && g.id; }).map(function (g) { return { id: g.id, nom: g.name }; })
         .sort(function (a, b) { return a.nom.localeCompare(b.nom, 'fr'); });
       if (!profils.length) { return creerProfilsDefaut().then(charger); }
-      var ancienAdmin = profils.filter(function (p) { return p.d.pid === 'administrateur' && (p.d.nom === 'Administrateur' || p.d.nom === 'Administrateur Tempo'); })[0];
+      var ancienAdmin = profils.filter(function (p) { return /Tempo/.test(p.d.nom || '') || (p.d.pid === 'administrateur' && p.d.nom === 'Administrateur'); })[0];
       if (ancienAdmin) {
-        var na = JSON.parse(JSON.stringify(ancienAdmin.d)); na.nom = 'Administrateur Heures & Dépenses';
+        var na = JSON.parse(JSON.stringify(ancienAdmin.d)); na.nom = /Tempo/.test(na.nom || '') ? na.nom.replace(/Tempo/g, 'Heures & Dépenses') : 'Administrateur Heures & Dépenses';
         return G.modifier(ancienAdmin.id, na).then(charger);
       }
       if (!profils.some(function (p) { return p.d.pid === 'administrateur' || p.d.role === 'administrateur'; })) {
@@ -185,24 +190,21 @@ geotab.addin.employes = function () {
       + '<label class="champ">Profil<select id="be-f-profil"><option value="">Tous</option><option value="-"' + (filtre.profil === '-' ? ' selected' : '') + '>Sans profil</option>' + optionsProfils(filtre.profil) + '</select></label>'
       + '<label class="ligne-case" style="height:38px"><input type="checkbox" id="be-f-inactifs"' + (filtre.inactifs ? ' checked' : '') + '> Comptes inactifs</label>'
       + '<label class="ligne-case" style="height:38px"><input type="checkbox" id="be-f-masques"' + (filtre.masques ? ' checked' : '') + '> Personnes masquées (' + Object.keys(employes).filter(function (k) { return employes[k].d.masque; }).length + ')</label>'
-      + '<button type="button" class="btn" id="be-masquer-lot" style="align-self:flex-end">Masquer la sélection</button>'
       + '<span style="margin-left:auto"></span>'
-      + '<label class="champ">Appliquer un profil à la sélection<span style="display:flex;gap:6px"><select id="be-profil-lot">' + optionsProfils('', 'Choisir…') + '</select><button type="button" class="btn" id="be-appliquer">Appliquer</button></span></label>'
       + '<button type="button" class="btn jaune" id="be-sauver"' + (nbMod ? '' : ' disabled') + '>Enregistrer les changements' + (nbMod ? ' (' + nbMod + ')' : '') + '</button></div>';
     html += '<div class="tableau"><table><thead><tr><th class="c"><input type="checkbox" id="be-tout" aria-label="Tout sélectionner"></th><th>Employé</th><th>Profil</th>'
       + B.DROITS.map(function (d) { return '<th class="c" style="min-width:70px">' + h(d.nom.replace(/ \(.*\)$/, '')) + '</th>'; }).join('') + '<th></th></tr></thead><tbody>';
     usersFiltres().forEach(function (u) {
       var e = empD(u.user), dr = droits(u.user), perso = e && e.droits;
       html += '<tr data-u="' + h(u.user) + '"' + (modifies[u.user] ? ' class="modifie"' : '') + '>'
-        + '<td class="c"><input type="checkbox" class="be-sel" aria-label="Sélectionner ' + h(u.nom) + '"></td>'
+        + '<td class="c"><input type="checkbox" class="be-sel" aria-label="Sélectionner ' + h(u.nom) + '"' + (selection[u.user] ? ' checked' : '') + '></td>'
         + '<td><b>' + h(u.nom) + '</b>' + (e && e.masque ? ' <span class="puce gris">Masqué</span>' : '') + '<div class="aide">' + h(u.user) + '</div></td>'
         + '<td><select class="be-profil">' + optionsProfils(e ? e.profil : '', 'Aucun') + '</select>' + (perso ? ' <span class="puce orange" title="Droits modifiés par rapport au profil">Personnalisé</span>' : '') + '</td>'
         + B.DROITS.map(function (d) { return '<td class="c"><input type="checkbox" class="be-droit" data-d="' + d.cle + '" aria-label="' + h(d.nom) + ' : ' + h(u.nom) + '"' + (dr[d.cle] ? ' checked' : '') + '></td>'; }).join('')
         + '<td style="white-space:nowrap"><button type="button" class="btn be-fiche">Fiche</button> '
-        + '<button type="button" class="btn be-note' + (notes[u.user] && notes[u.user].d.texte ? ' pleine' : '') + '" title="' + (notes[u.user] && notes[u.user].d.texte ? 'Une note est inscrite' : 'Aucune note') + '">Notes</button> '
-        + '<br><button type="button" class="btn be-masquer" style="height:auto;border:none;background:none;color:var(--bleu);text-decoration:underline;padding:4px 0 0;font-size:12px">' + (e && e.masque ? 'Afficher' : 'Masquer') + '</button></td></tr>';
+        + '<button type="button" class="btn be-note' + (notes[u.user] && notes[u.user].d.texte ? ' pleine' : '') + '" title="' + (notes[u.user] && notes[u.user].d.texte ? 'Une note est inscrite' : 'Aucune note') + '">Notes</button></td></tr>';
     });
-    html += '</tbody></table></div><div class="aide">Ces accès sont lus par Bonneville - Logistique, Bonneville Transport Drive et Heures &amp; Dépenses. Un droit modifié à la main rend l’employé « Personnalisé » : il ne suit plus les changements de son profil.</div>';
+    html += '</tbody></table></div><div class="actions-sel" id="be-actions" style="display:none"></div><div class="aide">Ces accès sont lus par Bonneville - Logistique, Bonneville Transport Drive et Heures &amp; Dépenses. Un droit modifié à la main rend l’employé « Personnalisé » : il ne suit plus les changements de son profil.</div>';
     return html;
   }
   function modifierEmploye(u, f) {
@@ -408,6 +410,27 @@ geotab.addin.employes = function () {
       .catch(function (er) { alert('Enregistrement impossible : ' + (er && er.message ? er.message : er)); });
   }
 
+  // ---------- Barre d'actions de la sélection (n'apparaît que si des employés sont cochés)
+  function choisis() { return Object.keys(selection).filter(function (u) { return selection[u]; }); }
+  function majActionsSel() {
+    var z = $('be-actions'); if (!z) { return; }
+    var l = choisis();
+    if (!l.length) { z.style.display = 'none'; z.innerHTML = ''; return; }
+    var tousMasques = l.every(function (u) { var e = empD(u); return e && e.masque; });
+    z.style.display = 'flex';
+    z.innerHTML = '<b>' + l.length + ' employé' + (l.length > 1 ? 's' : '') + ' sélectionné' + (l.length > 1 ? 's' : '') + '</b><span style="margin-left:auto"></span>'
+      + '<select id="be-profil-lot" aria-label="Profil à appliquer">' + optionsProfils('', 'Appliquer un profil…') + '</select><button type="button" class="btn" id="be-appliquer">Appliquer</button>'
+      + '<button type="button" class="btn jaune" id="be-masquer-lot">' + (tousMasques ? 'Afficher de nouveau' : 'Masquer de la liste') + '</button>'
+      + '<button type="button" class="btn" id="be-desel">Annuler la sélection</button>';
+    $('be-desel').onclick = function () { selection = {}; rendre(); };
+    $('be-masquer-lot').onclick = function () { var l2 = choisis(); selection = {}; masquer(l2, !tousMasques); };
+    $('be-appliquer').onclick = function () {
+      var pid = $('be-profil-lot').value; if (!pid) { alert('Choisis d’abord le profil.'); return; }
+      choisis().forEach(function (u) { modifierEmploye(u, function (e) { e.profil = pid; delete e.droits; }); });
+      selection = {}; rendre();
+    };
+  }
+
   // ---------- Masquer des personnes de la liste
   function masquer(liste, valeur) {
     var c = Promise.resolve();
@@ -511,6 +534,7 @@ geotab.addin.employes = function () {
       'Pour les employés qui livrent, cette allocation remplace la saisie des repas dans Heures & Dépenses. « Plus de 6 h » s’écrit 6:01.');
     var E = r.eloigne || {};
     var c6 = carteR(6, 'Région éloignée et zone du chantier', '<div class="aide">La région éloignée se coche sur le voyage, dans Logistique.</div>'
+      + '<div class="aide">L’affichage de la case dans Logistique se règle dans l’onglet Paramètres.</div>'
       + caseR('eloigne.distanceActive', E.distanceActive, 'Aussi automatiquement si le chantier est à plus de ' + champR('eloigne.distanceKm', E.distanceKm, 70, 'km de l’usine'))
       + '<div class="barre" style="align-items:center">Zone du chantier (détection d’arrivée et de départ dans Drive) : ' + champR('zoneChantierM', r.zoneChantierM, 70, 'm') + '</div>');
     var vers = versionsRegles().slice().sort(function (a, b) { return String(b.depuis).localeCompare(String(a.depuis)); });
@@ -632,7 +656,12 @@ geotab.addin.employes = function () {
   // ---------- Paramètres
   function vueParametres() {
     var pg = param ? param.d.paieGroupe : '';
-    var html = '<section class="carte" style="max-width:720px"><h3>Protection renforcée des taux et des notes (facultatif)</h3>'
+    var affElo = !param || param.d.afficherEloigne !== false;
+    var html = '<section class="carte" style="max-width:720px"><h3>Options de Logistique</h3>'
+      + '<label class="ligne-case"><input type="checkbox" id="bs-eloigne"' + (affElo ? ' checked' : '') + '> Afficher la case « Région éloignée » sur les voyages dans Logistique</label>'
+      + '<div class="aide">Décochée : la case disparaît de la page Logistique. Les voyages déjà marqués « région éloignée » le restent.</div>'
+      + '<div class="barre"><button type="button" class="btn jaune" id="bs-sauver-options">Enregistrer</button></div></section>'
+      + '<section class="carte" style="max-width:720px"><h3>Protection renforcée des taux et des notes (facultatif)</h3>'
       + '<div class="aide">Sans groupe : les applications n’affichent le taux horaire qu’à l’employé lui-même et à l’Administrateur Heures &amp; Dépenses, et les notes seulement dans Bonneville - Employés. Avec un groupe Geotab réservé au bureau : ces données deviennent illisibles même par une lecture directe de la base. Laisser vide si ce n’est pas nécessaire.</div>'
       + '<label class="champ">Groupe<select id="bs-groupe"><option value="">Aucun (protection par l’application)</option>' + groupesGeotab.filter(function (g) { return g.id !== 'GroupCompanyId'; }).map(function (g) { return '<option value="' + h(g.id) + '"' + (g.id === pg ? ' selected' : '') + '>' + h(g.nom) + '</option>'; }).join('') + '</select></label>'
       + '<div class="barre"><button type="button" class="btn jaune" id="bs-sauver">Enregistrer</button></div></section>';
@@ -642,9 +671,15 @@ geotab.addin.employes = function () {
     return html;
   }
   function brancherParametres() {
+    $('bs-sauver-options').onclick = function () {
+      var d = param ? JSON.parse(JSON.stringify(param.d)) : { type: 'parametresEmployes' };
+      d.afficherEloigne = $('bs-eloigne').checked;
+      G.enregistrer(param, d).then(function (id) { param = { id: id, d: d }; dire('Option enregistrée : la case « Région éloignée » est ' + (d.afficherEloigne ? 'affichée' : 'cachée') + ' dans Logistique.'); });
+    };
     $('bs-sauver').onclick = function () {
       var d = param ? JSON.parse(JSON.stringify(param.d)) : { type: 'parametresEmployes' };
       d.paieGroupe = $('bs-groupe').value;
+      if ($('bs-eloigne')) { d.afficherEloigne = $('bs-eloigne').checked; }
       G.enregistrer(param, d).then(function (id) { param = { id: id, d: d }; dire('Paramètres enregistrés.'); });
     };
     if ($('bs-import')) {
@@ -674,19 +709,9 @@ geotab.addin.employes = function () {
     $('be-f-profil').onchange = function () { filtre.profil = this.value; rendre(); };
     $('be-f-inactifs').onchange = function () { filtre.inactifs = this.checked; rendre(); };
     $('be-f-masques').onchange = function () { filtre.masques = this.checked; rendre(); };
-    $('be-masquer-lot').onclick = function () {
-      var sel = Array.prototype.filter.call(document.querySelectorAll('.be-sel'), function (c) { return c.checked; }).map(function (c) { return c.closest('tr').getAttribute('data-u'); });
-      if (!sel.length) { alert('Coche d’abord des personnes.'); return; }
-      masquer(sel, true);
-    };
-    $('be-tout').onchange = function () { var v = this.checked; Array.prototype.forEach.call(document.querySelectorAll('.be-sel'), function (c) { c.checked = v; }); };
-    $('be-appliquer').onclick = function () {
-      var pid = $('be-profil-lot').value; if (!pid) { return; }
-      var sel = Array.prototype.filter.call(document.querySelectorAll('.be-sel'), function (c) { return c.checked; });
-      if (!sel.length) { alert('Coche d’abord des employés.'); return; }
-      sel.forEach(function (c) { var u = c.closest('tr').getAttribute('data-u'); modifierEmploye(u, function (e) { e.profil = pid; delete e.droits; }); });
-      rendre();
-    };
+    $('be-tout').onchange = function () { var v = this.checked; Array.prototype.forEach.call(document.querySelectorAll('.be-sel'), function (c) { c.checked = v; selection[c.closest('tr').getAttribute('data-u')] = v; }); majActionsSel(); };
+    Array.prototype.forEach.call(document.querySelectorAll('.be-sel'), function (c) { c.onchange = function () { selection[c.closest('tr').getAttribute('data-u')] = c.checked; majActionsSel(); }; });
+    majActionsSel();
     Array.prototype.forEach.call(document.querySelectorAll('tr[data-u]'), function (tr) {
       var u = tr.getAttribute('data-u');
       tr.querySelector('.be-profil').onchange = function () { var v = this.value; modifierEmploye(u, function (e) { e.profil = v; delete e.droits; }); rendre(); };
@@ -703,7 +728,6 @@ geotab.addin.employes = function () {
       });
       tr.querySelector('.be-fiche').onclick = function () { ouvrirFiche(u); };
       tr.querySelector('.be-note').onclick = function () { ouvrirNote(u); };
-      tr.querySelector('.be-masquer').onclick = function () { var em = empD(u); masquer([u], !(em && em.masque)); };
     });
     $('be-sauver').onclick = function () {
       var liste = Object.keys(modifies), c = Promise.resolve(), n = 0;

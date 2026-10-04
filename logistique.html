@@ -1840,7 +1840,7 @@ geotab.addin.logistique = function () {
 
   var resumesForms = {};
   function chargerStockage() {
-    return lireTypes(['parametres', 'voyage', 'restriction', 'preference', 'acces', 'formresume', 'employe', 'profil']).then(function (lignes) {
+    return lireTypes(['parametres', 'voyage', 'restriction', 'preference', 'acces', 'formresume', 'employe', 'profil', 'parametresEmployes']).then(function (lignes) {
       employesB = {}; profilsB = [];
       voyages = []; restrictions = []; preferences = []; resumesForms = {};
       (lignes || []).forEach(function (l) {
@@ -1853,6 +1853,7 @@ geotab.addin.logistique = function () {
         else if (d.type === 'acces') { accesId = l.id; acces = d; }
         else if (d.type === 'employe' && d.user) { employesB[d.user] = d; }
         else if (d.type === 'profil') { profilsB.push(d); }
+        else if (d.type === 'parametresEmployes') { var ze = trouver('lg-zone-eloigne'); if (ze) { ze.style.display = d.afficherEloigne === false ? 'none' : 'flex'; } }
         else if (d.type === 'formresume' && d.fid) { resumesForms[d.fid] = { id: l.id, d: d }; }
         else if (d.type === 'formulaire' && d.fid) {
           var fr = formulairesRecus[d.fid] = formulairesRecus[d.fid] || { fid: d.fid, code: d.code, serie: d.serie, module: d.module, auteur: d.auteur, date: d.date, total: d.total, morceaux: {}, resume: null };
@@ -3123,7 +3124,7 @@ geotab.addin.logistique = function () {
       <button type="button" data-o="restrictions">Restrictions</button>
       <button type="button" data-o="parametres">Paramètres</button>
     </nav>
-    <span id="lg-etat" title="Cliquer pour voir l’état des sources"><span>version 2.4.0</span><span id="it511-statut">Démarrage...</span><span id="it511-sources"></span></span>
+    <span id="lg-etat" title="Cliquer pour voir l’état des sources"><span>version 2.4.2</span><span id="it511-statut">Démarrage...</span><span id="it511-sources"></span></span>
   </div>
 
   <div id="lg-planifier" data-onglet="planifier">
@@ -3142,7 +3143,7 @@ geotab.addin.logistique = function () {
         <div class="lg-rang"><label class="lg-ch">Départ prévu<input id="it511-dp-date" type="date"></label><label class="lg-ch" style="flex:0 0 76px">Heure<select id="it511-dp-heure"></select></label><label class="lg-ch" style="flex:0 0 70px">Min.<select id="it511-dp-min" style="flex:0 0 auto;box-sizing:border-box;padding:6px 8px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;background:#fff;">
             <option value="00">00</option><option value="15">15</option><option value="30">30</option><option value="45">45</option>
           </select></label></div>
-        <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;"><input id="lg-eloigne" type="checkbox" style="width:16px;height:16px"> Région éloignée <span class="lg-aide" style="font-weight:400">(minimum de 6 h et allocation repas des règles de rémunération)</span></label>
+        <label id="lg-zone-eloigne" style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;"><input id="lg-eloigne" type="checkbox" style="width:16px;height:16px"> Région éloignée</label>
         <label id="it511-zone-pref" style="display:none;align-items:center;gap:6px;font-size:12px;cursor:pointer;"><input id="it511-pref-appliquer" type="checkbox" checked> <span id="it511-pref-texte"></span></label>
         <div style="display:none"><select id="it511-actif"><option value="">Aucun</option></select></div>
       </section>
