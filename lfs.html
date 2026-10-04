@@ -6,7 +6,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://ericgloutnez.github.io/LFS/regles-classe2.js?v=1.3.1"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://ericgloutnez.github.io/LFS/formulaires-bonneville.js?v=1.1"></script>
+<script src="https://ericgloutnez.github.io/LFS/formulaires-bonneville.js?v=1.3"></script>
 <script>
 geotab.addin.lfs = function () {
   var ORS = 'https://api.heigit.org';
@@ -2005,16 +2005,74 @@ geotab.addin.lfs = function () {
     boutonSerie.onclick = function () { telechargerPdf(liste, 'Serie-' + serie + '-formulaires.pdf'); };
   }
 
-  function sauverVoyage() {
+  function montantFr(m) { return Number(m).toLocaleString('fr-CA', { style: 'currency', currency: 'CAD' }); }
+
+  function montantConnu(ref) {
+    var serie = ref.split('-')[0], trouve = null;
+    if (voyageEnEdition) {
+      var v = voyages.filter(function (x) { return x.id === voyageEnEdition; })[0];
+      if (v && typeof v.d.montantDu === 'number') { return v.d.montantDu; }
+    }
+    voyages.forEach(function (x) {
+      if (String(x.d.ref || '').split('-')[0] === serie && typeof x.d.montantDu === 'number') {
+        if (!trouve || (x.d.date || '') > (trouve.d.date || '')) { trouve = x; }
+      }
+    });
+    return trouve ? trouve.d.montantDu : null;
+  }
+
+  function demanderMontant(ref, suite) {
+    var ancien = document.getElementById('it511-modale-montant');
+    if (ancien) { ancien.parentNode.removeChild(ancien); }
+    var fond = document.createElement('div');
+    fond.id = 'it511-modale-montant';
+    fond.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(10,14,18,0.55);display:flex;align-items:center;justify-content:center;padding:20px;';
+    var boite = document.createElement('div');
+    boite.setAttribute('role', 'dialog'); boite.setAttribute('aria-modal', 'true'); boite.setAttribute('aria-label', 'Montant dû par le client');
+    boite.style.cssText = 'width:100%;max-width:380px;background:#fff;border-radius:8px;padding:18px;box-shadow:0 10px 30px rgba(0,0,0,.3);font-family:inherit;display:flex;flex-direction:column;gap:10px;';
+    var titre = document.createElement('div'); titre.style.cssText = 'font-size:16px;font-weight:700;color:#1f2329;'; titre.textContent = 'Montant dû par le client - série ' + ref.split('-')[0];
+    var aide = document.createElement('div'); aide.style.cssText = 'font-size:12px;color:#5a6270;line-height:1.4;'; aide.textContent = 'Ce montant s’affichera dans le formulaire L3 (conformité du paiement) pour que le chef d’équipe le valide sur place. Inscris 0 si rien n’est dû.';
+    var label = document.createElement('label'); label.style.cssText = 'display:flex;flex-direction:column;gap:4px;font-size:12px;color:#5a6270;'; label.textContent = 'Montant ($)';
+    var champ = document.createElement('input'); champ.type = 'text'; champ.inputMode = 'decimal'; champ.placeholder = 'ex. 25 000,00';
+    champ.style.cssText = 'padding:9px 10px;border:1px solid #c9ced6;border-radius:4px;font-size:16px;';
+    var connu = montantConnu(ref);
+    if (connu !== null) { champ.value = String(connu).replace('.', ','); }
+    label.appendChild(champ);
+    var erreur = document.createElement('div'); erreur.style.cssText = 'font-size:12px;color:#8a1c1c;min-height:16px;';
+    var lignes = document.createElement('div'); lignes.style.cssText = 'display:flex;gap:8px;';
+    var annuler = document.createElement('button'); annuler.type = 'button'; annuler.textContent = 'Annuler';
+    annuler.style.cssText = 'flex:1;padding:9px;border:1px solid #c9ced6;border-radius:4px;background:#fff;font-size:14px;cursor:pointer;';
+    var ok = document.createElement('button'); ok.type = 'button'; ok.textContent = 'Enregistrer le voyage';
+    ok.style.cssText = 'flex:1;padding:9px;border:none;border-radius:4px;background:#15803d;color:#fff;font-size:14px;font-weight:600;cursor:pointer;';
+    var fermer = function () { if (fond.parentNode) { fond.parentNode.removeChild(fond); } };
+    var valider = function () {
+      var t = champ.value.replace(/\s|\u00a0|\u202f|\$/g, '').replace(',', '.');
+      var m = parseFloat(t);
+      if (t === '' || isNaN(m) || m < 0) { erreur.textContent = 'Inscris un montant valide (0 ou plus).'; champ.focus(); return; }
+      fermer();
+      suite(Math.round(m * 100) / 100);
+    };
+    annuler.addEventListener('click', fermer);
+    ok.addEventListener('click', valider);
+    champ.addEventListener('keydown', function (e) { if (e.key === 'Enter') { valider(); } if (e.key === 'Escape') { fermer(); } });
+    lignes.appendChild(annuler); lignes.appendChild(ok);
+    [titre, aide, label, erreur, lignes].forEach(function (x) { boite.appendChild(x); });
+    fond.appendChild(boite);
+    document.body.appendChild(fond);
+    setTimeout(function () { champ.focus(); champ.select(); }, 50);
+  }
+
+  function sauverVoyage(montantSaisi) {
     if (!dernierResultat) { message('Calcule d’abord un trajet.', true); return; }
     var ref = trouver('it511-ref').value.trim();
     var nbModules = parseInt(trouver('it511-nb-modules').value, 10);
     if (!nbModules || nbModules < 1 || nbModules > 30) { message('Indique le nombre de modules de la série (1 à 30).', true); return; }
     if (!referenceValide(ref)) { message('Série invalide : 5 chiffres, ou 5 chiffres, un tiret et le numéro du module (ex. 17513 ou 17513-2).', true); return; }
+    if (typeof montantSaisi !== 'number') { demanderMontant(ref, function (m) { sauverVoyage(m); }); return; }
     var sel = trouver('it511-actif');
     var etapesDirections = construireDirections(derniersSteps, dernierCalcul && dernierCalcul.geo ? dernierCalcul.geo.features[0].geometry.coordinates : null);
     var details = {
-      type: 'voyage', ref: ref, maison: ref.split('-')[0], module: ref.split('-')[1] || '', nbModules: nbModules,
+      type: 'voyage', ref: ref, maison: ref.split('-')[0], module: ref.split('-')[1] || '', nbModules: nbModules, montantDu: montantSaisi,
       date: new Date().toISOString(),
       depart: dernierResultat.depart, arrivee: dernierResultat.arrivee,
       hauteurPi: trouver('it511-hauteur').value, largeurPi: trouver('it511-largeur').value,
@@ -2048,7 +2106,7 @@ geotab.addin.lfs = function () {
         throw e;
       });
     }).then(function () {
-      message(voyageEnEdition ? 'Voyage ' + ref + ' mis à jour (directions comprises).' : 'Voyage ' + ref + ' enregistré (directions comprises).');
+      message((voyageEnEdition ? 'Voyage ' + ref + ' mis à jour' : 'Voyage ' + ref + ' enregistré') + ' (directions comprises, montant dû : ' + montantFr(montantSaisi) + ').');
       voyageEnEdition = null;
       trouver('it511-sauver-voyage').textContent = 'Enregistrer le voyage';
       return chargerStockage();
@@ -2348,7 +2406,7 @@ geotab.addin.lfs = function () {
 <div id="it511-wrap" style="padding:12px 16px;box-sizing:border-box;">
   <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px;margin-bottom:10px;">
     <span style="font-size:18px;font-weight:600;">LFS</span>
-    <span style="font-size:12px;color:#8a8f98;">version 1.4.1</span>
+    <span style="font-size:12px;color:#8a8f98;">version 1.4.2</span>
     <span id="it511-statut" style="font-size:13px;color:#5a6270;">Démarrage...</span>
     <span id="it511-sources" style="font-size:13px;color:#5a6270;"></span>
   </div>

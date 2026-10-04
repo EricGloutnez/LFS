@@ -6,7 +6,7 @@
 <title>Bonneville Transport Drive</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://ericgloutnez.github.io/LFS/regles-classe2.js?v=1.3.1"></script>
-<script src="https://ericgloutnez.github.io/LFS/formulaires-bonneville.js?v=1.1"></script>
+<script src="https://ericgloutnez.github.io/LFS/formulaires-bonneville.js?v=1.3"></script>
 </head>
 <body style="margin:0;">
 <div id="lfsd">
@@ -208,7 +208,21 @@
   #lfsd .info-etat { font-size: 13px; color: var(--doux); margin-bottom: 8px; }
   #lfsd .info-etat.horsligne { color: var(--signal); font-weight: 700; }
   #lfsd .alertes { display: none; margin: 12px 16px 0; border-radius: 12px; border: 2px solid var(--signal); background: #fdecea; padding: 12px 14px; }
-  #lfsd .alertes.visible { display: block; }
+  #lfsd .alertes.visible { display: block; cursor: pointer; }
+  #lfsd .alertes .a-aide { margin-top: 8px; font-size: 13px; font-weight: 600; color: var(--doux); }
+  #lfsd .alertes.repliee { border-width: 1px; padding: 10px 14px; }
+  #lfsd .alertes.repliee b { margin: 0; font-size: 15px; }
+  #lfsd .modale-fond { position: fixed; inset: 0; z-index: 3000; background: rgba(10, 14, 18, 0.6); display: flex; align-items: center; justify-content: center; padding: 20px; }
+  #lfsd .modale { width: 100%; max-width: 420px; background: var(--surface); color: var(--encre); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+  #lfsd .modale h2 { font-size: 21px; font-weight: 800; }
+  #lfsd .modale ul { margin: 0; padding-left: 20px; font-size: 15px; line-height: 1.4; }
+  #lfsd .modale .m-boutons { display: flex; gap: 10px; }
+  #lfsd .modale .m-boutons button { flex: 1; height: 56px !important; text-align: center !important; font-weight: 800 !important; font-size: 17px !important; }
+  #lfsd .modale .m-oui { background: var(--accent) !important; border-color: var(--accent) !important; color: #1d2329 !important; }
+  #lfsd .f-montant { border: 3px solid var(--encre); border-radius: 12px; padding: 12px 14px; background: var(--surface); display: flex; flex-direction: column; gap: 2px; }
+  #lfsd .f-montant span { font-size: 14px; font-weight: 700; color: var(--doux); }
+  #lfsd .f-montant b { font-size: 30px; font-weight: 800; }
+  #lfsd .f-appel-grand { display: flex; align-items: center; justify-content: center; gap: 10px; height: 96px; border-radius: 14px; background: #1b7f3b; color: #ffffff; font-size: 24px; font-weight: 800; text-decoration: none; }
   #lfsd .alertes b { display: block; color: var(--signal); font-size: 16px; font-weight: 800; margin-bottom: 4px; }
   #lfsd .alertes div { color: #1d2329; font-size: 15px; font-weight: 600; line-height: 1.35; margin-top: 4px; }
   #lfsd[data-theme="nuit"] .alertes { background: #3a1416; } #lfsd[data-theme="nuit"] .alertes div { color: #edf0f3; } #lfsd[data-theme="nuit"] .alertes b { color: #ff8a80; }
@@ -344,7 +358,7 @@
 <script>
 (function () {
   var ADDIN_ID = 'aXdeNEZ7tQ7eMPNywYFFKrA';
-  var VERSION = '1.9.1';
+  var VERSION = '1.11';
   var CLE_CACHE = 'lfsd-voyages', CLE_DERNIER = 'lfsd-dernier', CLE_PARAM = 'lfsd-parametres';
 
   var api = null, carte = null, coucheTrace = null, marqueurMoi = null, marqueurCamion = null;
@@ -358,7 +372,7 @@
   // Les formulaires, les règles de la classe 2 et la carte sont gardés sur le téléphone :
   // s'ils ne peuvent pas être chargés (pas de réseau), la copie gardée est utilisée.
   var BIBLIOS = [
-    { cle: 'lfsd-lib-formulaires', url: 'https://ericgloutnez.github.io/LFS/formulaires-bonneville.js?v=1.1', ok: function () { return !!window.BonnevilleFormulaires; } },
+    { cle: 'lfsd-lib-formulaires', url: 'https://ericgloutnez.github.io/LFS/formulaires-bonneville.js?v=1.3', ok: function () { return !!window.BonnevilleFormulaires; } },
     { cle: 'lfsd-lib-regles', url: 'https://ericgloutnez.github.io/LFS/regles-classe2.js?v=1.3.1', ok: function () { return !!window.LFSClasse2; } },
     { cle: 'lfsd-lib-leaflet', url: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js', ok: function () { return typeof window.L !== 'undefined'; } },
     { cle: 'lfsd-lib-leaflet-css', url: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css', css: true }
@@ -683,6 +697,51 @@
     });
   }
 
+  var alertesCourantes = [], alertesLues = lireCache('lfsd-alertes-lues') || {}, alertesOuvertes = false;
+  function cleAlertes() { return voyageActif ? voyageActif.id : ''; }
+  function empreinte(liste) { return liste.join('|'); }
+
+  function rendreAlertes() {
+    var z = $('lfsd-alertes'); if (!z) { return; }
+    z.innerHTML = '';
+    z.onclick = null; z.onkeydown = null;
+    if (!alertesCourantes.length) { z.className = 'alertes'; return; }
+    var lu = alertesLues[cleAlertes()] === empreinte(alertesCourantes) && !alertesOuvertes;
+    z.setAttribute('role', 'button'); z.setAttribute('tabindex', '0');
+    if (lu) {
+      z.className = 'alertes visible repliee';
+      z.appendChild(el('b', { texte: '✓ À surveiller (' + alertesCourantes.length + ') : lu' }));
+      z.appendChild(el('div', { classe: 'a-aide', texte: 'Toucher pour revoir' }));
+      z.onclick = function () { alertesOuvertes = true; rendreAlertes(); };
+    } else {
+      z.className = 'alertes visible';
+      z.appendChild(el('b', { texte: 'À surveiller (départ maintenant)' }));
+      alertesCourantes.forEach(function (t) { z.appendChild(el('div', { texte: t })); });
+      z.appendChild(el('div', { classe: 'a-aide', texte: 'Toucher pour confirmer la lecture' }));
+      z.onclick = ouvrirModaleLecture;
+    }
+    z.onkeydown = function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); z.onclick(); } };
+  }
+
+  function ouvrirModaleLecture() {
+    var fond = el('div', { classe: 'modale-fond' });
+    var fermer = function () { if (fond.parentNode) { fond.parentNode.removeChild(fond); } };
+    var liste = el('ul');
+    alertesCourantes.forEach(function (t) { liste.appendChild(el('li', { texte: t })); });
+    var boite = el('div', { classe: 'modale', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Confirmer la lecture' }, [
+      el('h2', { texte: 'As-tu lu les éléments à surveiller?' }), liste,
+      el('div', { classe: 'm-boutons' }, [
+        el('button', { type: 'button', texte: 'Annuler', onclick: fermer }),
+        el('button', { type: 'button', classe: 'm-oui', texte: 'Oui, j’ai lu', onclick: function () {
+          alertesLues[cleAlertes()] = empreinte(alertesCourantes); ecrireCache('lfsd-alertes-lues', alertesLues);
+          alertesOuvertes = false; fermer(); rendreAlertes();
+        } })])]);
+    fond.appendChild(boite);
+    fond.addEventListener('click', function (e) { if (e.target === fond) { fermer(); } });
+    $('lfsd').appendChild(fond);
+    var oui = boite.querySelector('.m-oui'); if (oui) { oui.focus(); }
+  }
+
   function afficherAlertes(lignes) {
     var z = $('lfsd-alertes'); if (!z) { return; }
     z.innerHTML = '';
@@ -693,10 +752,9 @@
       t = t.charAt(0).toUpperCase() + t.slice(1);
       return t.length > 120 ? t.slice(0, 117) + '…' : t;
     }).slice(0, 4);
-    if (!courts.length) { z.className = 'alertes'; return; }
-    var b = document.createElement('b'); b.textContent = 'À surveiller (départ maintenant)'; z.appendChild(b);
-    courts.forEach(function (t) { var d = document.createElement('div'); d.textContent = t; z.appendChild(d); });
-    z.className = 'alertes visible';
+    alertesCourantes = courts;
+    alertesOuvertes = false;
+    rendreAlertes();
   }
 
   function afficherRegles(d, routes) {
@@ -773,6 +831,17 @@
     return liste;
   }
 
+  function montantSerie(serie) {
+    var trouve = null;
+    voyages.forEach(function (v) {
+      if (String(v.d.ref || '').split('-')[0] === serie && typeof v.d.montantDu === 'number') {
+        if (!trouve || (v.d.date || '') > (trouve.d.date || '')) { trouve = v; }
+      }
+    });
+    return trouve ? trouve.d.montantDu : null;
+  }
+  function montantFr(m) { return Number(m).toLocaleString('fr-CA', { style: 'currency', currency: 'CAD' }); }
+
   function cleForm(code, serie, module) {
     var def = FB().defs[code];
     if (def.parModule) { return code + '|' + serie + '|' + module; }
@@ -821,6 +890,7 @@
 
   function formulaireVide(code, sm, module) {
     var def = FB().defs[code], r = {};
+    if (code === 'L3') { var mt = montantSerie(sm.serie); if (mt !== null) { r.montantDu = mt; } }
     (def.entete || []).forEach(function (c) {
       if (c.auto === 'serie') { r[c.id] = sm.serie; }
       if (c.auto === 'module') { r[c.id] = module || ''; }
@@ -1079,7 +1149,12 @@
     if (moduleChoisi) { sm.module = moduleChoisi; }
     var cle = cleForm(code, sm.serie, sm.module);
     var br = brouillons[cle];
+    if (code === 'L3') {
+      var mtActuel = montantSerie(sm.serie);
+      if (br && mtActuel !== null) { br.r.montantDu = mtActuel; }
+    }
     var r = br ? br.r : (prets[cle] ? JSON.parse(JSON.stringify(prets[cle].r)) : {});
+    if (code === 'L3' && typeof r.montantDu !== 'number') { var mt2 = montantSerie(sm.serie); if (mt2 !== null) { r.montantDu = mt2; } }
     if (!br) {
       var maintenant = new Date();
       (def.entete || []).forEach(function (c) {
@@ -1157,6 +1232,15 @@
         break;
       case 'action':
         if (!FB().actionVisible(it, r)) { return null; }
+        if (it.appel) {
+          var tel = FB().telephone;
+          var lien = el('a', { href: 'tel:' + tel.replace(/\D/g, ''), classe: grand ? 'f-appel-grand' : 'f-tel' }, [(v ? '✓ ' : '') + 'Appeler le ' + tel]);
+          lien.addEventListener('click', function () { maj(it.id, true, false); setTimeout(function () { if (formCourant) { var y = window.scrollY; rendreForm(); window.scrollTo(0, y); } }, 400); });
+          if (!grand) { bloc.appendChild(el('div', { classe: 'f-q f-action', texte: it.texte })); }
+          bloc.appendChild(lien);
+          if (v) { bloc.appendChild(el('div', { classe: 'f-confirme', texte: 'Appel fait. Touche Suivant pour continuer.' })); }
+          break;
+        }
         if (grand) { bloc.appendChild(pilule(v ? '✓ C’est fait' : 'C’est fait', !!v, 'oui', function () { maj(it.id, !v, true); if (!v) { avancerApres('Fait. Étape suivante…'); } }, true)); }
         else { bloc.appendChild(el('div', { classe: 'f-ligne' }, [el('div', { classe: 'f-q f-action', texte: it.texte }), rond(!!v, it.texte, function () { maj(it.id, !v, true); })])); }
         break;
@@ -1188,6 +1272,11 @@
         break;
       case 'paiement':
         var p = v || {};
+        if (typeof r.montantDu === 'number') {
+          bloc.appendChild(el('div', { classe: 'f-montant' }, [el('span', { texte: 'Montant dû par le client' }), el('b', { texte: montantFr(r.montantDu) })]));
+        } else {
+          bloc.appendChild(el('div', { classe: 'f-alerte', texte: 'Montant dû non inscrit dans le voyage : vérifier avec le bureau avant de débuter.' }));
+        }
         var setP = function (k, val) { var n = {}; Object.keys(p).forEach(function (x) { n[x] = p[x]; }); n[k] = val; maj(it.id, n, true); };
         bloc.appendChild(el('button', { type: 'button', classe: 'f-choix' + (p.mode === 'A' ? ' on' : ''), onclick: function () { setP('mode', 'A'); } }, [el('b', { texte: 'A – ' }), 'Chèque ou traite bancaire reçu']));
         if (p.mode === 'A') {
@@ -1379,7 +1468,7 @@
       case 'check': return v ? 'Vérifié' : '';
       case 'action': return v ? 'Fait' : '';
       case 'oui': case 'ouinon': return v === 'oui' ? 'OUI' : (v === 'non' ? 'NON' + (r[it.id + '_expl'] ? ' : ' + r[it.id + '_expl'] : '') : '');
-      case 'paiement': return v && v.mode ? (v.mode === 'A' ? 'A (chèque/traite)' : 'B (virement)') : '';
+      case 'paiement': return v && v.mode ? (v.mode === 'A' ? 'A (chèque/traite)' : 'B (virement)') + (typeof r.montantDu === 'number' ? ', ' + montantFr(r.montantDu) : '') : '';
       case 'decision': return v ? 'Cas ' + v : '';
       case 'option': return v ? 'Option ' + v : '';
       case 'signature': return v && v.length ? 'Signé' : '';
@@ -1405,7 +1494,7 @@
       (e.infos || []).forEach(function (i) { b.appendChild(el('div', { classe: 'f-info' + (i.gras ? ' gras' : ''), texte: i.texte })); });
       if (e.k === 'item') {
         var q = e.it.texte || e.it.label || '';
-        if (e.it.t === 'paiement') { q = 'Méthode de paiement'; }
+        if (e.it.t === 'paiement') { q = 'Conformité du paiement'; }
         if (e.it.t === 'decision') { q = 'Résultat de l’inspection : quel cas s’applique?'; }
         if (e.it.t === 'option') { q = 'Quelle option le client choisit-il?'; }
         if (q && e.it.t !== 'signature') { b.appendChild(el('div', { classe: 'f-grandeq', texte: q })); }

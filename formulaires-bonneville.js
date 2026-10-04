@@ -4,7 +4,7 @@
  * Les textes reprennent ceux des formulaires papier. Toute modification des formulaires se fait ici seulement.
  */
 (function () {
-  var VERSION = '1.1';
+  var VERSION = '1.3';
   var TELEPHONE = '(438) 978-2162';
 
   function ouinon(id, texte, opts) { var o = { t: 'ouinon', id: id, texte: texte }; for (var k in (opts || {})) { o[k] = opts[k]; } return o; }
@@ -107,7 +107,7 @@
           { t: 'signature', id: 'sigChef', label: 'Signature du chef d’équipe d’installation :' }] },
         { titre: 'À faire ensuite :', actions: true, items: [
           action('ac1', 'Si Option 1, prendre une photo du présent formulaire et le téléverser sur OneDrive (L3)', { option: '1' }),
-          action('ac2', 'Si Option 2, veuillez nous appeler au ' + TELEPHONE + '.', { option: '2' })] }
+          { t: 'action', id: 'ac2', texte: 'Si Option 2, veuillez nous appeler au ' + TELEPHONE + '.', si: { option: '2' }, appel: true }] }
       ]
     },
     L4: {
@@ -263,7 +263,7 @@
 
   function propre(s) {
     return String(s === undefined || s === null ? '' : s)
-      .replace(/[’‘]/g, '\'').replace(/[“”]/g, '"').replace(/[–—]/g, '-').replace(/…/g, '...').replace(/\u00a0/g, ' ');
+      .replace(/[’‘]/g, '\'').replace(/[“”]/g, '"').replace(/[–—]/g, '-').replace(/…/g, '...').replace(/[\u00a0\u202f\u2009]/g, ' ');
   }
 
   function dessinerFormulaire(doc, f, premier) {
@@ -463,6 +463,10 @@
             police('normal', 11); texte(propre(v || ''), X1 + 170, y + 19); doc.setLineWidth(0.6); doc.line(X1 + 166, y + 22, X2 - 14, y + 22); y += 30; break;
           case 'paiement':
             var p = v || {};
+            if (typeof r.montantDu === 'number') {
+              boite(30); police('bold', 11.5); texte('Montant dû par le client :', X1 + 12, y + 20);
+              police('bold', 13); texte(propre(Number(r.montantDu).toLocaleString('fr-CA', { style: 'currency', currency: 'CAD' })), X1 + 190, y + 20); y += 30;
+            }
             boite(104); police('bold', 13); texte('A -', X1 + 12, y + 30); rondCoche(X1 + 46, y + 26, p.mode === 'A', 8);
             police('normal', 12); texte('Chèque ou traite bancaire reçu', X1 + 60, y + 30);
             [['date', 'Date validée'], ['montant', 'Montant validé'], ['endossement', 'Endossement validé']].forEach(function (x, i) {
