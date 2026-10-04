@@ -94,6 +94,10 @@
   #lfsd .regles .note { color: var(--doux); font-size: 13px; }
 
   #lfsd .autre { display: block; width: calc(100% - 32px) !important; margin: 16px !important; padding: 14px !important; font-weight: 700 !important; text-align: center !important; }
+  #lfsd .autre.retirer { color: var(--signal) !important; border-color: var(--signal) !important; margin-top: 0 !important; }
+  #lfsd .f-carte.bloque { opacity: 0.55; }
+  #lfsd .remettre { grid-column: 1 / -1; margin-top: 10px; border: 1px dashed var(--ligne); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; color: var(--doux); }
+  #lfsd .remettre button { align-self: flex-start; padding: 8px 14px !important; font-weight: 700 !important; }
   #lfsd .pied { padding: 0 16px 24px; font-size: 13px; color: var(--doux); }
   #lfsd .demarrer { display: block; width: 100% !important; margin-top: 16px !important; padding: 16px !important; font-size: 20px !important; font-weight: 800 !important; text-align: center !important; background: var(--accent) !important; color: #1d2329 !important; border-color: var(--accent) !important; }
 
@@ -315,6 +319,7 @@
       <div class="contenu"><div id="lfsd-enligne" class="enligne"></div></div>
     </details>
     <button id="lfsd-autre" type="button" class="autre">Chercher un autre voyage</button>
+    <button id="lfsd-retirer" type="button" class="autre retirer">Retirer ce voyage du téléphone</button>
   </div>
 
   <div id="lfsd-forms" class="ecran-forms"></div>
@@ -358,12 +363,13 @@
 <script>
 (function () {
   var ADDIN_ID = 'aXdeNEZ7tQ7eMPNywYFFKrA';
-  var VERSION = '1.11';
+  var VERSION = '1.13';
   var CLE_CACHE = 'lfsd-voyages', CLE_DERNIER = 'lfsd-dernier', CLE_PARAM = 'lfsd-parametres';
 
   var api = null, carte = null, coucheTrace = null, marqueurMoi = null, marqueurCamion = null;
   var fondOsm = null, fondVoyager = null;
   var voyages = [], parametres = {}, voyageActif = null, directions = {};
+  var voyagesMasques = [], masques = lireCache('lfsd-masques') || [], acces = null, sessionUser = lireCache('lfsd-session') || '';
   var trace = [], cumul = [], plages = [];
   var surveillanceGps = null, minuterieCamion = null, positionMoi = null;
 
@@ -457,7 +463,8 @@
       var liste = [], parties = {};
       (lignes || []).forEach(function (l) {
         var d = l.details || {};
-        if (d.type === 'voyage') { liste.push({ id: l.id, d: d }); }
+        if (d.type === 'voyage' && !d.archive) { liste.push({ id: l.id, d: d }); }
+        else if (d.type === 'acces') { acces = d; }
         else if (d.type === 'directions' && d.ref) { (parties[d.ref] = parties[d.ref] || []).push(d); }
         else if (d.type === 'formulaire' && d.partie === 1 && d.cle) {
           if (!formsServeur[d.cle] || formsServeur[d.cle].date < d.date) { formsServeur[d.cle] = { date: d.date, resume: d.resume || {} }; }
@@ -465,7 +472,8 @@
         else if (d.type === 'parametres') { parametres = d; }
       });
       liste.sort(function (a, b) { return (b.d.date || '').localeCompare(a.d.date || ''); });
-      voyages = liste;
+      voyagesMasques = liste.filter(function (v) { return masques.indexOf(v.id) >= 0; });
+      voyages = liste.filter(function (v) { return masques.indexOf(v.id) < 0; });
       directions = {};
       Object.keys(parties).forEach(function (ref) {
         var p = parties[ref].sort(function (a, b) { return (a.partie || 0) - (b.partie || 0); });
@@ -473,10 +481,12 @@
         p.forEach(function (x) { etapes = etapes.concat(x.etapes || []); });
         directions[ref] = etapes;
       });
-      ecrireCache(CLE_CACHE, { date: new Date().toISOString(), voyages: liste, directions: directions, formulaires: formsServeur });
+      ecrireCache(CLE_CACHE, { date: new Date().toISOString(), voyages: voyages, voyagesMasques: voyagesMasques, directions: directions, formulaires: formsServeur, acces: acces });
+      purgerSeriesInactives(liste);
+      if (voyageActif && !liste.some(function (v) { return v.id === voyageActif.id; })) { fermerVoyage(); }
       ecrireCache(CLE_PARAM, { cleCarto: parametres.cleCarto || '' });
       horsReseau = false;
-      etat(liste.length + ' voyage' + (liste.length > 1 ? 's' : '') + ' - à jour à ' + new Date().toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' }));
+      etat(voyages.length + ' voyage' + (voyages.length > 1 ? 's' : '') + ' - à jour à ' + new Date().toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' }));
     }).catch(function () {
       horsReseau = true;
       var cache = lireCache(CLE_CACHE);
@@ -484,6 +494,8 @@
       if (p) { parametres = p; }
       if (cache && cache.voyages) {
         voyages = cache.voyages;
+        voyagesMasques = cache.voyagesMasques || [];
+        acces = cache.acces || null;
         directions = cache.directions || {};
         formsServeur = cache.formulaires || {};
         etat('Hors connexion - voyages du ' + new Date(cache.date).toLocaleString('fr-CA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }), true);
@@ -502,6 +514,67 @@
     });
   }
 
+  // ----- Nettoyage du téléphone
+  function serieDeCle(cle) { return String(cle).split('|')[1] || ''; }
+  function seriesEnAttente() {
+    var s = {};
+    (typeof fileEnvois !== 'undefined' ? fileEnvois : []).forEach(function (j) { s[serieDeCle(j.cle)] = true; });
+    return s;
+  }
+  function effacerDonneesSerie(serie) {
+    var attente = seriesEnAttente();
+    if (attente[serie]) { return false; }
+    [prets, brouillons, envoisLocaux].forEach(function (obj) { Object.keys(obj).forEach(function (k) { if (serieDeCle(k) === serie) { delete obj[k]; } }); });
+    ecrireCache('lfsd-prets', prets); sauverEtat();
+    return true;
+  }
+  function purgerSeriesInactives(listeComplete) {
+    var actives = {};
+    listeComplete.forEach(function (v) { if (masques.indexOf(v.id) < 0) { actives[String(v.d.ref || '').split('-')[0]] = true; } });
+    var toutes = {};
+    [prets, brouillons, envoisLocaux].forEach(function (obj) { Object.keys(obj).forEach(function (k) { toutes[serieDeCle(k)] = true; }); });
+    Object.keys(toutes).forEach(function (s) { if (s && !actives[s]) { effacerDonneesSerie(s); } });
+  }
+  function fermerVoyage() {
+    voyageActif = null;
+    if (nav.actif) { quitterNavigation(); }
+    $('lfsd').className = '';
+    $('lfsd-voyage').style.display = 'none';
+    $('lfsd-alertes').className = 'alertes';
+    $('lfsd-recherche').value = '';
+    ecrireCache(CLE_DERNIER, null);
+    var bg = $('lfsd-badge'); if (bg) { bg.className = 'badge'; }
+    majOnglets();
+    suggerer();
+  }
+  function retirerDuTelephone() {
+    if (!voyageActif) { return; }
+    var v = voyageActif, serie = String(v.d.ref || '').split('-')[0];
+    if (seriesEnAttente()[serie]) {
+      alert('Des formulaires de la série ' + serie + ' ne sont pas encore envoyés. Attends d’avoir du réseau pour qu’ils partent, puis réessaie.');
+      return;
+    }
+    var enCours = Object.keys(brouillons).filter(function (k) { return serieDeCle(k) === serie; }).length;
+    var q = 'Retirer le voyage ' + v.d.ref + ' de ce téléphone ?' + (enCours ? ' ' + enCours + ' formulaire(s) commencé(s) mais non envoyé(s) seront effacé(s).' : '') + ' Le voyage reste dans Geotab et pourra être remis.';
+    if (!window.confirm(q)) { return; }
+    masques.push(v.id); ecrireCache('lfsd-masques', masques);
+    voyages = voyages.filter(function (x) { return x.id !== v.id; });
+    voyagesMasques.push(v);
+    if (!voyages.some(function (x) { return String(x.d.ref || '').split('-')[0] === serie; })) { effacerDonneesSerie(serie); }
+    delete directions[v.d.ref];
+    var cache = lireCache(CLE_CACHE);
+    if (cache) { cache.voyages = voyages; cache.voyagesMasques = voyagesMasques; cache.directions = directions; ecrireCache(CLE_CACHE, cache); }
+    fermerVoyage();
+    etat('Voyage ' + v.d.ref + ' retiré de ce téléphone.');
+  }
+
+  // ----- Droits sur les formulaires (réglés dans LFS)
+  var FAMILLES = { L1: 'transport', L2: 'transport', L3: 'installation', L3b: 'installation', L4: 'installation', L5: 'installation', L6: 'evaluation' };
+  function aLeDroit(code) {
+    var d = ((acces && acces.droits) || {})[sessionUser] || [];
+    return d.indexOf(FAMILLES[code]) >= 0;
+  }
+
   // ----- Recherche par numéro
   function suggerer() {
     var zone = $('lfsd-suggestions');
@@ -515,6 +588,20 @@
       return;
     }
     var trouves = voyages.filter(function (v) { return String(v.d.ref || '').indexOf(texte) === 0; });
+    var retires = voyagesMasques.filter(function (v) { return String(v.d.ref || '').indexOf(texte) === 0; });
+    if (retires.length) {
+      var bloc = document.createElement('div'); bloc.className = 'remettre';
+      bloc.appendChild(document.createTextNode('Retiré de ce téléphone : ' + retires.map(function (v) { return v.d.ref; }).join(', ')));
+      var bt = document.createElement('button'); bt.type = 'button'; bt.textContent = 'Remettre sur ce téléphone';
+      bt.addEventListener('click', function () {
+        retires.forEach(function (v) { masques = masques.filter(function (m) { return m !== v.id; }); });
+        ecrireCache('lfsd-masques', masques);
+        voyages = voyages.concat(retires); voyagesMasques = voyagesMasques.filter(function (v) { return retires.indexOf(v) < 0; });
+        suggerer();
+      });
+      bloc.appendChild(bt);
+      setTimeout(function () { zone.appendChild(bloc); }, 0);
+    }
     if (!trouves.length) {
       var vide = document.createElement('div');
       vide.className = 'vide';
@@ -859,6 +946,7 @@
     try {
       api.getSession(function (s) {
         if (!s || !s.userName) { return; }
+        sessionUser = s.userName; ecrireCache('lfsd-session', sessionUser);
         appel('Get', { typeName: 'User', search: { name: s.userName } }).then(function (u) {
           var x = u && u[0];
           var nom = x ? ((x.firstName || '') + ' ' + (x.lastName || '')).trim() : '';
@@ -987,6 +1075,7 @@
     });
     z.appendChild(el('div', { classe: 'gras', texte: 'Formulaires de la série' }));
     z.appendChild(jauges);
+    if (!aLeDroit('L1')) { aFaire = 0; }
     var badge = $('lfsd-badge');
     if (badge) { badge.textContent = aFaire > 99 ? '99+' : String(aFaire); badge.className = 'badge' + (aFaire ? ' visible' : ''); }
   }
@@ -1104,11 +1193,14 @@
       FB().ordre.forEach(function (code) {
         var def = FB().defs[code];
         if (def.groupe !== g[0]) { return; }
-        var e = etatForm(code, sm);
+        var permis = aLeDroit(code);
+        var e = permis ? etatForm(code, sm) : { t: '🔒 Accès à demander au bureau', c: 'var(--doux)' };
         var st = el('span', { classe: 'f-etat', texte: e.t }); st.style.color = e.c;
-        b.appendChild(el('button', { type: 'button', classe: 'f-carte', onclick: function () { if (def.parModule) { ouvrirChoixModule(code); } else { ouvrirForm(code); } } }, [
+        var carteF = el('button', { type: 'button', classe: 'f-carte' + (permis ? '' : ' bloque'), onclick: function () { if (!permis) { return; } if (def.parModule) { ouvrirChoixModule(code); } else { ouvrirForm(code); } } }, [
           el('span', { classe: 'f-code', texte: code }),
-          el('span', { classe: 'f-txt' }, [el('span', { classe: 'f-titre', texte: def.titreCourt }), el('span', { classe: 'f-qui', texte: def.qui }), st])]));
+          el('span', { classe: 'f-txt' }, [el('span', { classe: 'f-titre', texte: def.titreCourt }), el('span', { classe: 'f-qui', texte: def.qui }), st])]);
+        if (!permis) { carteF.disabled = true; carteF.setAttribute('aria-disabled', 'true'); }
+        b.appendChild(carteF);
       });
     });
     b.appendChild(el('div', { classe: 'vide', texte: formulairesGardes() ? 'Formulaires téléchargés sur ce téléphone : ils fonctionnent aussi sans réseau. Les formulaires remplis partent dès qu’il y a du Wi-Fi ou du réseau cellulaire.' : 'Formulaires pas encore téléchargés : ouvre le voyage avec du réseau.' }));
@@ -1145,6 +1237,7 @@
   // ----- Ouverture d'un formulaire
   function ouvrirForm(code, moduleChoisi) {
     dernierMessage = '';
+    if (!aLeDroit(code)) { return; }
     var sm = serieModule(), def = FB().defs[code];
     if (moduleChoisi) { sm.module = moduleChoisi; }
     var cle = cleForm(code, sm.serie, sm.module);
@@ -1899,6 +1992,7 @@
       suggerer();
     });
     $('lfsd-telecharger').addEventListener('click', telechargerDirections);
+    $('lfsd-retirer').addEventListener('click', retirerDuTelephone);
     nav.voix = lireCache('lfsd-voix') !== false;
     $('lfsd-demarrer').addEventListener('click', demarrerNavigation);
     window.addEventListener('online', function () { viderFile(); });

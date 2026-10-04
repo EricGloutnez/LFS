@@ -360,6 +360,7 @@ geotab.addin.lfs = function () {
   var preferences = [];
   var directionsEnregistrees = [];
   var formulairesRecus = {};
+  var acces = null, accesId = null, utilisateursGeotab = null;
   var geomRestrictions = {};
   var boitesRestrictions = [];
   var coucheRestrictions = null;
@@ -777,6 +778,9 @@ geotab.addin.lfs = function () {
     });
     trouver('it511-reessayer-routes').addEventListener('click', reessayerIdentification);
     trouver('it511-forms-serie').addEventListener('input', afficherFormulairesRecus);
+    trouver('it511-acces').addEventListener('toggle', function () { if (trouver('it511-acces').open) { afficherAcces(); } });
+    trouver('it511-acces-filtre').addEventListener('input', afficherAcces);
+    trouver('it511-acces-sauver').addEventListener('click', sauverAcces);
   }
 
   function calculerAvecEvitements(arrets, h, w, bouton) {
@@ -1828,6 +1832,7 @@ geotab.addin.lfs = function () {
         else if (d.type === 'restriction') { restrictions.push({ id: l.id, d: d }); }
         else if (d.type === 'preference') { preferences.push({ id: l.id, d: d }); }
         else if (d.type === 'directions') { directionsEnregistrees.push({ id: l.id, d: d }); }
+        else if (d.type === 'acces') { accesId = l.id; acces = d; }
         else if (d.type === 'formulaire' && d.fid) {
           var fr = formulairesRecus[d.fid] = formulairesRecus[d.fid] || { fid: d.fid, code: d.code, serie: d.serie, module: d.module, auteur: d.auteur, date: d.date, total: d.total, morceaux: {}, resume: null };
           fr.morceaux[d.partie] = d.morceau;
@@ -2115,6 +2120,86 @@ geotab.addin.lfs = function () {
     });
   }
 
+  function archiverVoyage(v, archiver) {
+    var q = archiver
+      ? 'Retirer le voyage ' + v.d.ref + ' des cellulaires ? Il ne sera plus proposé dans Drive et ses formulaires vides seront effacés des téléphones à la prochaine connexion. Le voyage et les formulaires reçus restent conservés ici.'
+      : 'Remettre le voyage ' + v.d.ref + ' sur les cellulaires ?';
+    if (!window.confirm(q)) { return; }
+    var details = Object.assign({}, v.d, { archive: archiver });
+    if (!archiver) { delete details.archive; }
+    appelGeotab('Set', { typeName: 'AddInData', entity: { id: v.id, addInId: ADDIN_ID, groups: [{ id: 'GroupCompanyId' }], details: details } }).then(function () {
+      message(archiver ? 'Voyage ' + v.d.ref + ' retiré des cellulaires.' : 'Voyage ' + v.d.ref + ' remis sur les cellulaires.');
+      return chargerStockage();
+    }).catch(function (e) { message('Modification impossible : ' + (e && e.message ? e.message : e), true); });
+  }
+
+  // ----- Accès aux formulaires dans Drive
+  var DROITS = [['transport', 'Transport (L1, L2)'], ['installation', 'Installation (L3, L3b, L4, L5)'], ['evaluation', 'Auto-évaluation (L6)']];
+
+  function chargerUtilisateurs() {
+    if (utilisateursGeotab) { return Promise.resolve(utilisateursGeotab); }
+    return appelGeotab('Get', { typeName: 'User', resultsLimit: 2000 }).then(function (u) {
+      utilisateursGeotab = (u || []).map(function (x) {
+        return { nom: x.name, affichage: ((x.firstName || '') + ' ' + (x.lastName || '')).trim() || x.name };
+      }).sort(function (a, b) { return a.affichage.localeCompare(b.affichage, 'fr'); });
+      return utilisateursGeotab;
+    });
+  }
+
+  var accesEdition = null;
+  function afficherAcces() {
+    var zone = trouver('it511-acces-liste');
+    if (!zone) { return; }
+    if (!accesEdition) { accesEdition = acces ? JSON.parse(JSON.stringify(acces)) : { type: 'acces', actif: false, droits: {} }; accesEdition.droits = accesEdition.droits || {}; }
+    var a = accesEdition;
+    zone.textContent = 'Chargement des utilisateurs…';
+    chargerUtilisateurs().then(function (liste) {
+      var filtre = (trouver('it511-acces-filtre').value || '').trim().toLowerCase();
+      while (zone.firstChild) { zone.removeChild(zone.firstChild); }
+      var entete = document.createElement('div');
+      entete.style.cssText = 'display:grid;grid-template-columns:1fr repeat(3,70px);gap:4px;font-size:11px;font-weight:600;color:#5a6270;padding:4px 0;border-bottom:1px solid #e3e6eb;';
+      ['Utilisateur', 'Transport', 'Installation', 'Auto-éval.'].forEach(function (t) { var c = document.createElement('div'); c.textContent = t; if (t !== 'Utilisateur') { c.style.textAlign = 'center'; } entete.appendChild(c); });
+      zone.appendChild(entete);
+      liste.filter(function (u) { return !filtre || u.affichage.toLowerCase().indexOf(filtre) >= 0 || u.nom.toLowerCase().indexOf(filtre) >= 0; }).forEach(function (u) {
+        var ligne = document.createElement('div');
+        ligne.style.cssText = 'display:grid;grid-template-columns:1fr repeat(3,70px);gap:4px;align-items:center;font-size:12px;padding:4px 0;border-bottom:1px solid #f0f2f5;';
+        var nom = document.createElement('div'); nom.textContent = u.affichage; nom.title = u.nom;
+        ligne.appendChild(nom);
+        DROITS.forEach(function (dr) {
+          var c = document.createElement('div'); c.style.textAlign = 'center';
+          var cb = document.createElement('input'); cb.type = 'checkbox';
+          cb.setAttribute('aria-label', dr[1] + ' : ' + u.affichage);
+          cb.checked = ((a.droits || {})[u.nom] || []).indexOf(dr[0]) >= 0;
+          cb.setAttribute('data-user', u.nom); cb.setAttribute('data-droit', dr[0]);
+          cb.addEventListener('change', function () {
+            var l = (a.droits[u.nom] || []).filter(function (x) { return x !== dr[0]; });
+            if (cb.checked) { l.push(dr[0]); }
+            if (l.length) { a.droits[u.nom] = l; } else { delete a.droits[u.nom]; }
+          });
+          c.appendChild(cb); ligne.appendChild(c);
+        });
+        zone.appendChild(ligne);
+      });
+    }).catch(function (e) { zone.textContent = 'Lecture des utilisateurs impossible : ' + (e && e.message ? e.message : e); });
+  }
+
+  function sauverAcces() {
+    if (!accesEdition) { accesEdition = acces ? JSON.parse(JSON.stringify(acces)) : { type: 'acces', droits: {} }; }
+    var a = accesEdition;
+    a.type = 'acces';
+    a.actif = true;
+    a.droits = a.droits || {};
+    a.date = new Date().toISOString();
+    var entite = { addInId: ADDIN_ID, groups: [{ id: 'GroupCompanyId' }], details: a };
+    var p = accesId ? appelGeotab('Set', { typeName: 'AddInData', entity: Object.assign({ id: accesId }, entite) }) : appelGeotab('Add', { typeName: 'AddInData', entity: entite });
+    p.then(function () {
+      accesEdition = null;
+      var n = Object.keys(a.droits || {}).length;
+      message('Accès enregistrés : ' + n + ' personne' + (n > 1 ? 's' : '') + ' peu' + (n > 1 ? 'vent' : 't') + ' remplir des formulaires.');
+      return chargerStockage();
+    }).catch(function (e) { message('Enregistrement impossible : ' + (e && e.message ? e.message : e), true); });
+  }
+
   function supprimerVoyage(v) {
     if (!window.confirm('Supprimer le voyage ' + v.d.ref + ' ? Cette action est définitive.')) { return; }
     appelGeotab('Remove', { typeName: 'AddInData', entity: { id: v.id } }).then(function () {
@@ -2222,7 +2307,8 @@ geotab.addin.lfs = function () {
       item.style.cssText = 'border:1px solid #e3e6eb;border-radius:4px;padding:6px 8px;margin-bottom:6px;font-size:12px;';
       var t = document.createElement('div');
       t.style.fontWeight = '600';
-      t.textContent = d.ref + ' - ' + nombreFr(d.totalKm || 0, 1) + ' km - ' + new Date(d.date).toLocaleDateString('fr-CA');
+      t.textContent = d.ref + ' - ' + nombreFr(d.totalKm || 0, 1) + ' km - ' + new Date(d.date).toLocaleDateString('fr-CA') + (d.archive ? ' - retiré des cellulaires' : '');
+      if (d.archive) { t.style.color = '#8a8f98'; }
       var s = document.createElement('div');
       s.style.color = '#5a6270';
       s.textContent = ((d.depart && d.depart.label) || '?') + ' → ' + ((d.arrivee && d.arrivee.label) || '?') + (d.actifNom ? ' - ' + d.actifNom : '');
@@ -2230,6 +2316,7 @@ geotab.addin.lfs = function () {
       actions.style.cssText = 'display:flex;gap:6px;margin-top:4px;flex-wrap:wrap;';
       actions.appendChild(bouton('Ouvrir', function () { ouvrirVoyage(v); }));
       actions.appendChild(bouton('Modifier', function () { modifierVoyage(v); }));
+      actions.appendChild(bouton(d.archive ? 'Remettre sur les cellulaires' : 'Retirer des cellulaires', function () { archiverVoyage(v, !d.archive); }));
       actions.appendChild(bouton('Supprimer', function () { supprimerVoyage(v); }, true));
       item.appendChild(t); item.appendChild(s); item.appendChild(actions);
       boite.appendChild(item);
@@ -2406,7 +2493,7 @@ geotab.addin.lfs = function () {
 <div id="it511-wrap" style="padding:12px 16px;box-sizing:border-box;">
   <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px;margin-bottom:10px;">
     <span style="font-size:18px;font-weight:600;">LFS</span>
-    <span style="font-size:12px;color:#8a8f98;">version 1.4.2</span>
+    <span style="font-size:12px;color:#8a8f98;">version 1.4.4</span>
     <span id="it511-statut" style="font-size:13px;color:#5a6270;">Démarrage...</span>
     <span id="it511-sources" style="font-size:13px;color:#5a6270;"></span>
   </div>
@@ -2560,6 +2647,14 @@ geotab.addin.lfs = function () {
         <div id="it511-forms-liste"></div>
         <button id="it511-forms-pdf-serie" type="button" style="display:none;width:100%;margin-top:8px;padding:8px;border:none;border-radius:4px;background:#15803d;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">Télécharger la série complète (PDF)</button>
         <div style="font-size:11px;color:#8a8f98;margin-top:6px;">« PDF » : un formulaire seul. « Série complète » : tous les formulaires reçus de la série, l’un sous l’autre, en format lettre.</div>
+      </details>
+
+      <details id="it511-acces" style="margin-top:16px;border-top:1px solid #eef0f3;padding-top:10px;">
+        <summary style="font-size:13px;cursor:pointer;font-weight:600;">Donner l’accès aux formulaires (Drive)</summary>
+        <div style="font-size:11px;color:#8a8f98;margin:8px 0 6px;">Coche, pour chaque personne, les formulaires qu’elle peut remplir dans Bonneville Transport Drive. Une personne sans case cochée voit les formulaires, mais ne peut pas les remplir.</div>
+        <input id="it511-acces-filtre" type="text" autocomplete="off" placeholder="Rechercher un utilisateur" style="width:100%;box-sizing:border-box;margin-bottom:6px;padding:7px 9px;border:1px solid #c9ced6;border-radius:4px;font-size:13px;">
+        <div id="it511-acces-liste" style="max-height:320px;overflow:auto;"></div>
+        <button id="it511-acces-sauver" type="button" style="width:100%;margin-top:8px;padding:8px;border:none;border-radius:4px;background:#15803d;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">Enregistrer les accès</button>
       </details>
 
       <details style="margin-top:16px;border-top:1px solid #eef0f3;padding-top:10px;">
