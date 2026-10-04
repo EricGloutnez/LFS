@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   var ADDIN_ID = 'aXdeNEZ7tQ7eMPNywYFFKrA';
-  var VERSION = '1.0.6';
+  var VERSION = '1.1.0';
   var TELEPHONE = '(438) 978-2162';
 
   // ---------- Accès à Geotab
@@ -205,6 +205,97 @@
     return chef ? { chef: chef.user, remplacant: chef.remplacant || '' } : null;
   }
 
+
+  // ===================== Règles de rémunération (employés qui livrent) =====================
+  var REGLES_DEFAUT = {
+    roles: [
+      { cle: 'r1', nom: 'Rôle 1 : Escorte-installateur', avanceMin: 60, taux: { apprenti: 25, maitrise: 28, expert: 30 } },
+      { cle: 'r2', nom: 'Rôle 2 : Camionneur-installateur / responsable véhicule', avanceMin: 120, taux: { apprenti: 30, maitrise: 33, expert: 35 } }
+    ],
+    niveaux: [{ cle: 'apprenti', nom: 'Apprenti' }, { cle: 'maitrise', nom: 'En maîtrise' }, { cle: 'expert', nom: 'Expert' }],
+    chefPlus: 5,
+    boni: { montant: 150, mode: 'chaque', declencheur: 'L5' },
+    specialAutorise: true,
+    tempsDemi: { inclus: true, debutJour: 5, debutHeure: '16:00', finJour: 0, finHeure: '23:59' },
+    heures: { apresDepartChantier: 30, avantArriveeChantier: 30, dinerNonDeduit: true, minAnnulation: 180, minEloigne: 360 },
+    repas: { paliers: [{ min: 0, montant: 0 }, { min: 180, montant: 30 }, { min: 361, montant: 75 }], eloigne: 75 },
+    eloigne: { distanceActive: false, distanceKm: 250 },
+    zoneChantierM: 300
+  };
+  // regles : details « reglesPaie » ({ versions: [{ depuis, r }] }) ; renvoie la version en vigueur à la date
+  function reglesA(regles, date) {
+    var v = null;
+    ((regles && regles.versions) || []).slice().sort(function (a, b) { return String(a.depuis).localeCompare(String(b.depuis)); })
+      .forEach(function (x) { if (String(x.depuis) <= date) { v = x.r; } });
+    return v || ((regles && regles.versions && regles.versions[0]) ? regles.versions[0].r : REGLES_DEFAUT);
+  }
+  // Rémunération de l'employé à la date : { role, niveau, chef, domicile } (fiche : employe.remun = [{ depuis, ... }])
+  function remunA(employe, date) {
+    var v = null;
+    ((employe && employe.remun) || []).slice().sort(function (a, b) { return String(a.depuis).localeCompare(String(b.depuis)); })
+      .forEach(function (x) { if (String(x.depuis) <= date) { v = x; } });
+    return v;
+  }
+  function tauxRegles(r, rem) {
+    if (!r || !rem) { return null; }
+    var role = (r.roles || []).filter(function (x) { return x.cle === rem.role; })[0];
+    if (!role) { return null; }
+    var t = Number((role.taux || {})[rem.niveau]);
+    if (isNaN(t)) { return null; }
+    return t + (rem.chef ? Number(r.chefPlus) || 0 : 0);
+  }
+  // Type de sortie selon les événements de la journée
+  function typeSortie(j) {
+    var dep = !!j.departUsine, ret = !!j.retourUsine, arr = !!j.arriveeChantier;
+    if (!dep && !arr) { return 'un_jour'; }
+    if (j.sortie) { return j.sortie; }
+    if (dep && ret) { return 'un_jour'; }
+    if (dep && !ret) { return 'jour1'; }
+    if (!dep && arr && ret) { return 'dernier'; }
+    if (!dep && arr) { return 'jourN'; }
+    return 'un_jour';
+  }
+  // Heures payées d'une journée selon les règles. Renvoie null si l'employé n'a pas de rémunération par règles.
+  function calculerPaie(j, employe, regles) {
+    var rem = remunA(employe, j.date); if (!rem) { return null; }
+    var r = reglesA(regles, j.date), role = (r.roles || []).filter(function (x) { return x.cle === rem.role; })[0] || { avanceMin: 60 };
+    var H = r.heures || {}, sortie = typeSortie(j);
+    var depUsine = minutesDe(j.departUsine || j.debut), arr = minutesDe(j.arriveeChantier), depCh = minutesDe(j.departChantier), fin = minutesDe(j.retourUsine || j.fin);
+    var debut, finP, note = [];
+    if (sortie === 'un_jour' || sortie === 'jour1') { debut = depUsine === null ? null : depUsine - (Number(role.avanceMin) || 0); note.push('départ de l’usine − ' + duree(role.avanceMin)); }
+    else { debut = arr === null ? minutesDe(j.debut) : arr - (Number(H.avantArriveeChantier) || 0); note.push('arrivée au chantier − ' + duree(H.avantArriveeChantier)); }
+    if (sortie === 'un_jour' || sortie === 'dernier') { finP = fin; note.push((rem.domicile ? 'arrivée au domicile' : 'retour à l’usine')); }
+    else { finP = depCh === null ? fin : depCh + (Number(H.apresDepartChantier) || 0); note.push('départ du chantier + ' + duree(H.apresDepartChantier)); }
+    if (finP === null && !j.retourUsine && !j.fin) { finP = minutesDe(heureMaintenant()); note.push('en cours'); }
+    var minutes = (debut === null || finP === null) ? 0 : Math.max(0, finP - debut);
+    if (!H.dinerNonDeduit) { (j.pauses || []).forEach(function (p) { if (p.fin) { minutes -= Math.max(0, minutesDe(p.fin) - minutesDe(p.debut)); } }); }
+    if (j.dinerDeduit) { minutes -= Number(j.dinerDeduit) || 0; note.push('dîner déduit par le gestionnaire'); }
+    var eloigne = !!j.eloigne;
+    if (j.annulation) { var mn = eloigne ? Number(H.minEloigne) || 0 : Number(H.minAnnulation) || 0; if (minutes < mn) { minutes = mn; note.push('minimum ' + duree(mn) + (eloigne ? ' (région éloignée)' : ' (annulation)')); } }
+    var taux = tauxRegles(r, rem);
+    // Temps et demi : seulement si approuvé par le gestionnaire, pour les heures dans la période (ex. vendredi 16 h à dimanche)
+    var majorees = 0;
+    if (j.tempsDemiApprouve && r.tempsDemi) {
+      var jour = dateDe(j.date).getDay(), td = r.tempsDemi, dansJour = function (d) { var a = td.debutJour, b = td.finJour; return a <= b ? (d >= a && d <= b) : (d >= a || d <= b); };
+      if (dansJour(jour)) {
+        var dDeb = jour === td.debutJour ? minutesDe(td.debutHeure) : 0, dFin = jour === td.finJour ? minutesDe(td.finHeure) : 1440;
+        majorees = Math.max(0, Math.min(finP, dFin) - Math.max(debut, dDeb));
+      }
+    }
+    var salaire = taux === null ? null : (minutes / 60 * taux) + (majorees / 60 * taux * 0.5);
+    var repas = 0, paliers = ((r.repas || {}).paliers || []).slice().sort(function (a, b) { return a.min - b.min; });
+    paliers.forEach(function (p) { if (minutes >= p.min) { repas = Number(p.montant) || 0; } });
+    if (eloigne) { repas = Math.max(repas, Number((r.repas || {}).eloigne) || 0); }
+    return { sortie: sortie, debut: debut, fin: finP, minutes: minutes, majorees: majorees, taux: taux, salaire: salaire, repas: repas, role: rem.role, niveau: rem.niveau, chef: !!rem.chef, note: note.join(', ') };
+  }
+  var NOMS_SORTIE = { un_jour: 'Sortie d’un jour', jour1: 'Jour 1', jourN: 'Jour 2 et suivants', dernier: 'Dernier jour' };
+  function distanceM(a, b) {
+    var R = 6371000, la1 = a.lat * Math.PI / 180, la2 = b.lat * Math.PI / 180, dl = (b.lat - a.lat) * Math.PI / 180, dn = (b.lon - a.lon) * Math.PI / 180;
+    var x = Math.sin(dl / 2) * Math.sin(dl / 2) + Math.cos(la1) * Math.cos(la2) * Math.sin(dn / 2) * Math.sin(dn / 2);
+    return 2 * R * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+  }
+  function pointDe(p) { if (!p) { return null; } var lat = p.lat !== undefined ? p.lat : p.latitude, lon = p.lon !== undefined ? p.lon : (p.lng !== undefined ? p.lng : p.longitude); return (lat === undefined || lon === undefined) ? null : { lat: Number(lat), lon: Number(lon) }; }
+
   window.Bonneville = {
     ADDIN_ID: ADDIN_ID, VERSION: VERSION, TELEPHONE: TELEPHONE,
     creerApi: creerApi,
@@ -213,6 +304,7 @@
     jourIso: jourIso, dateDe: dateDe, ajouterJours: ajouterJours, debutSemaine: debutSemaine,
     heureMaintenant: heureMaintenant, minutesDe: minutesDe, hhmm: hhmm, duree: duree, heureFr: heureFr,
     JOURS: JOURS, JOURS_COURTS: JOURS_COURTS, MOIS: MOIS, dateCourte: dateCourte, argent: argent,
-    tauxA: tauxA, tauxHoraireA: tauxHoraireA, calculer: calculer, STATUTS: STATUTS, modifiable: modifiable, chefDe: chefDe
+    tauxA: tauxA, tauxHoraireA: tauxHoraireA, calculer: calculer, STATUTS: STATUTS, modifiable: modifiable, chefDe: chefDe,
+    REGLES_DEFAUT: REGLES_DEFAUT, reglesA: reglesA, remunA: remunA, tauxRegles: tauxRegles, calculerPaie: calculerPaie, typeSortie: typeSortie, NOMS_SORTIE: NOMS_SORTIE, distanceM: distanceM, pointDe: pointDe
   };
 })();

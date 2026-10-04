@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Bonneville - Heures &amp; Dépenses</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="https://ericgloutnez.github.io/LFS/bonneville-commun.js?v=1.0.6"></script>
+<script src="https://ericgloutnez.github.io/LFS/bonneville-commun.js?v=1.1.0"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
@@ -78,10 +78,10 @@
 <script>
 geotab.addin.tempo = function () {
   'use strict';
-  var VERSION = '1.0.9';
+  var VERSION = '1.1.0';
   var B = window.Bonneville;
   var G = null, moi = '', estAdmin = false, onglet = 'journees';
-  var users = [], employes = {}, profils = [], voyages = {}, journees = [], paies = {};
+  var users = [], employes = {}, profils = [], voyages = {}, journees = [], paies = {}, regles = null, formsRes = [];
   var filtre = null, selection = {}, message = null, multiOuvert = false;
 
   function $(id) { return document.getElementById(id); }
@@ -93,14 +93,16 @@ geotab.addin.tempo = function () {
   function charger() {
     return Promise.all([
       G.utilisateurs(),
-      G.lireTypes(['employe', 'profil', 'voyage']),
+      G.lireTypes(['employe', 'profil', 'voyage', 'reglesPaie', 'formresume']),
       G.lireType('journee'),
       G.lireType('paie').catch(function () { return []; })
     ]).then(function (r) {
-      users = r[0]; employes = {}; profils = []; voyages = {}; paies = {};
+      users = r[0]; employes = {}; profils = []; voyages = {}; paies = {}; regles = null; formsRes = [];
       r[1].forEach(function (l) {
         var d = l.details;
         if (d.type === 'employe') { employes[d.user] = d; } else if (d.type === 'profil') { profils.push(d); }
+        else if (d.type === 'reglesPaie') { regles = d; }
+        else if (d.type === 'formresume') { formsRes.push(d); }
         else if (d.type === 'voyage') { voyages[String(d.ref).split('-')[0]] = d; }
       });
       journees = r[2].map(function (l) { return { id: l.id, d: l.details }; });
@@ -133,6 +135,7 @@ geotab.addin.tempo = function () {
   }
   function puce(s) { var st = B.STATUTS[s] || { nom: s, couleur: 'gris' }; return '<span class="puce ' + st.couleur + '">' + h(st.nom) + '</span>'; }
   function tauxKm(u, date) { return employes[u] ? B.tauxA(employes[u].tauxKm, date) : null; }
+  function paieR(j) { return B.calculerPaie(j.d, employes[j.d.user], regles); }
   function montantKm(j, c) { var t = tauxKm(j.d.user, j.d.date); return t === null ? null : c.kmPerso * t; }
 
   // ---------- Vue Journées
@@ -157,17 +160,17 @@ geotab.addin.tempo = function () {
       + '<button type="button" class="btn" id="hb-actualiser">Actualiser</button><span style="margin-left:auto"></span>'
       + '<button type="button" class="btn vert" id="hb-excel">⬇ Exporter la plage en Excel</button></div>';
     var t = { m: 0, r: 0, k: 0, mk: 0, fin: 0, chef: 0 };
-    liste.forEach(function (j) { var c = B.calculer(j.d); t.m += c.total; t.r += c.repas; t.k += c.kmPerso; t.mk += montantKm(j, c) || 0; if (j.d.statut === 'attente_admin') { t.fin++; } if (j.d.statut === 'attente_chef') { t.chef++; } });
+    liste.forEach(function (j) { var c = B.calculer(j.d), pr = paieR(j); t.m += pr ? pr.minutes : c.total; t.r += pr ? pr.repas : c.repas; t.k += c.kmPerso; t.mk += montantKm(j, c) || 0; if (j.d.statut === 'attente_admin') { t.fin++; } if (j.d.statut === 'attente_chef') { t.chef++; } });
     html += '<div class="kpi"><div><b>' + B.duree(t.m) + '</b><span>heures travaillées</span></div><div><b>' + B.argent(t.r) + '</b><span>repas</span></div><div><b>' + chiffre(t.k) + ' km</b><span>kilomètres personnels</span></div><div><b>' + B.argent(t.mk) + '</b><span>remboursement km</span></div>'
       + '<div><b style="color:var(--orange)">' + t.fin + '</b><span>approuvées par le chef d’équipe, à finaliser</span></div><div><b style="color:var(--doux)">' + t.chef + '</b><span>en attente du chef d’équipe</span></div></div>';
     html += '<div class="tableau"><table><thead><tr><th><input type="checkbox" id="hb-tout" aria-label="Tout sélectionner"></th><th>Date</th><th>Employé</th><th>Chef d’équipe</th><th>Début</th><th>Fin</th><th>Pauses</th><th>Heures</th><th>Repas</th><th>Km</th><th>Voyages</th><th>Statut</th><th></th></tr></thead><tbody>';
     liste.forEach(function (j) {
-      var c = B.calculer(j.d), s = !!selection[j.id];
+      var c = B.calculer(j.d), s = !!selection[j.id], pr = paieR(j);
       var parS = Object.keys(c.parSerie).filter(function (k) { return c.parSerie[k] > 0; }).map(function (k) { return (k || 'général') + ' ' + B.duree(c.parSerie[k]); }).join(', ');
       html += '<tr data-id="' + h(j.id) + '"' + (s ? ' class="sel"' : '') + '><td><input type="checkbox" class="hb-sel"' + (s ? ' checked' : '') + ' aria-label="Sélectionner"></td>'
         + '<td>' + h(B.dateCourte(j.d.date)) + '</td><td><b>' + h(nomUser(j.d.user)) + '</b>' + (j.d.commissionnaire ? ' <span class="puce gris">Commissionnaire</span>' : '') + '</td><td>' + h(j.d.chef ? nomUser(j.d.chef) : '—') + '</td>'
         + '<td>' + h(B.heureFr(j.d.debut)) + (j.d.debutOrigine && j.d.debutOrigine !== j.d.debut ? ' <span class="puce orange" title="Enregistré ' + h(B.heureFr(j.d.debutOrigine)) + '">modifié</span>' : '') + '</td>'
-        + '<td>' + h(j.d.fin ? B.heureFr(j.d.fin) : '—') + '</td><td>' + (c.pauses ? B.duree(c.pauses) : '—') + '</td><td><b>' + B.duree(c.total) + '</b></td><td>' + (c.repas ? B.argent(c.repas) : '—') + '</td><td>' + (c.km || '—') + '</td>'
+        + '<td>' + h(j.d.fin ? B.heureFr(j.d.fin) : '—') + '</td><td>' + (c.pauses ? B.duree(c.pauses) : '—') + '</td><td><b>' + B.duree(pr ? pr.minutes : c.total) + '</b>' + (pr ? '<div style="font-size:11px;color:var(--doux)">' + h(B.NOMS_SORTIE[pr.sortie] || '') + '</div>' : '') + '</td><td>' + (pr ? B.argent(pr.repas) + '<div style="font-size:11px;color:var(--doux)">allocation</div>' : (c.repas ? B.argent(c.repas) : '—')) + '</td><td>' + (c.km || '—') + '</td>'
         + '<td style="font-size:13px">' + h(parS) + '</td><td>' + puce(j.d.statut) + '</td><td><button type="button" class="btn hb-voir">Voir</button></td></tr>';
     });
     html += '<tr class="total"><td></td><td>Total</td><td>' + liste.length + ' journée' + (liste.length > 1 ? 's' : '') + '</td><td></td><td></td><td></td><td></td><td>' + B.duree(t.m) + '</td><td>' + B.argent(t.r) + '</td><td>' + chiffre(t.k) + '</td><td></td><td></td><td></td></tr></tbody></table></div>';
@@ -225,6 +228,22 @@ geotab.addin.tempo = function () {
     html += '<div class="tl"><b>' + h(d.fin ? B.heureFr(d.fin) : '—') + '</b><span class="point ' + (d.finOrigine && d.finOrigine !== d.fin ? 'orange' : 'ok') + '"></span><span>Fin' + (d.finOrigine && d.finOrigine !== d.fin ? '<br><span class="aide">Modifiée, enregistrée ' + h(B.heureFr(d.finOrigine)) + '</span>' : '') + '</span></div>';
     var parS = Object.keys(c.parSerie).map(function (k) { return '<div class="tl"><b>' + h(k || 'Général') + '</b><span>' + B.duree(c.parSerie[k]) + '</span></div>'; }).join('');
     if (parS) { html += '<h3>Répartition par voyage</h3>' + parS; }
+    var pr = B.calculerPaie(d, employes[d.user], regles);
+    if (pr) {
+      var rg = B.reglesA(regles, d.date), td = rg.tempsDemi || {}, jd = B.dateDe(d.date).getDay();
+      var dansFenetre = td.debutJour <= td.finJour ? (jd >= td.debutJour && jd <= td.finJour) : (jd >= td.debutJour || jd <= td.finJour);
+      html += '<h3>Selon les règles de rémunération</h3>'
+        + '<div class="tl"><b>Sortie</b><span>' + h(B.NOMS_SORTIE[pr.sortie] || pr.sortie) + ' · ' + h(pr.note) + '</span></div>'
+        + '<div class="tl"><b>Événements</b><span>' + h([d.departUsine ? 'départ usine ' + B.heureFr(d.departUsine) : '', d.arriveeChantier ? 'arrivée chantier ' + B.heureFr(d.arriveeChantier) : '', d.departChantier ? 'départ chantier ' + B.heureFr(d.departChantier) : '', d.retourUsine ? 'retour ' + B.heureFr(d.retourUsine) : ''].filter(Boolean).join(' · ') || '—') + '</span></div>'
+        + '<div class="tl"><b>Payé</b><span>' + (pr.debut !== null ? h(B.heureFr(B.hhmm(pr.debut))) + ' à ' + h(B.heureFr(B.hhmm(pr.fin))) + ' = ' : '') + '<b>' + B.duree(pr.minutes) + '</b>' + (pr.taux !== null ? ' × ' + B.argent(pr.taux) + '/h = <b>' + B.argent(pr.salaire) + '</b>' : '') + (pr.majorees ? ' (dont ' + B.duree(pr.majorees) + ' à temps et demi)' : '') + '</span></div>'
+        + '<div class="tl"><b>Repas</b><span>Allocation ' + B.argent(pr.repas) + (d.eloigne ? ' (région éloignée)' : '') + '</span></div>'
+        + (peutApprouver() ? '<div class="barre">'
+          + (dansFenetre ? '<label class="champ" style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="hb-r-td"' + (d.tempsDemiApprouve ? ' checked' : '') + '> Temps et demi approuvé</label>' : '')
+          + '<label class="champ" style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="hb-r-elo"' + (d.eloigne ? ' checked' : '') + '> Région éloignée</label>'
+          + '<label class="champ" style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="hb-r-ann"' + (d.annulation ? ' checked' : '') + '> Annulation / interruption</label>'
+          + '<label class="champ">Dîner déduit (min, en cas d’abus)<input type="text" id="hb-r-din" value="' + h(d.dinerDeduit || '') + '" style="width:90px"></label>'
+          + '<button type="button" class="btn" id="hb-r-sauver">Appliquer</button></div>' : '');
+    }
     html += '<h3>Repas</h3>' + ((d.repas || []).length ? d.repas.map(function (r) { return '<div class="tl"><b>' + h(r.type) + '</b><span>' + B.argent(r.montant) + (r.serie ? ' · série ' + h(r.serie) : '') + '</span></div>'; }).join('') : '<div class="aide">Aucun</div>');
     html += '<h3>Kilomètres</h3>' + ((d.km || []).length ? d.km.map(function (k) { return '<div class="tl"><b>' + h(k.serie || 'Général') + '</b><span>' + k.km + ' km</span></div>'; }).join('') : '<div class="aide">Aucun</div>')
       + '<div class="aide">Véhicule ' + (d.vehicule === 'compagnie' ? 'de la compagnie (non remboursé)' : 'personnel') + (tk !== null && d.vehicule !== 'compagnie' ? ' : ' + c.kmPerso + ' km × ' + chiffre(tk, 2) + ' $/km = ' + B.argent(c.kmPerso * tk) : '') + '</div>';
@@ -239,6 +258,16 @@ geotab.addin.tempo = function () {
     $('hb').appendChild(f);
     function fermer() { if (f.parentNode) { f.parentNode.removeChild(f); } }
     $('hb-d-fermer').onclick = fermer;
+    if ($('hb-r-sauver')) {
+      $('hb-r-sauver').onclick = function () {
+        var d2 = JSON.parse(JSON.stringify(j.d));
+        if ($('hb-r-td')) { d2.tempsDemiApprouve = $('hb-r-td').checked; }
+        d2.eloigne = $('hb-r-elo').checked; d2.annulation = $('hb-r-ann').checked;
+        var din = parseInt($('hb-r-din').value, 10); if (din > 0) { d2.dinerDeduit = din; } else { delete d2.dinerDeduit; }
+        d2.historique = d2.historique || []; d2.historique.push({ quand: new Date().toISOString(), qui: moi, action: 'ajustement_regles' });
+        G.modifier(j.id, d2).then(function () { j.d = d2; fermer(); ouvrirDetail(j.id); rendre(); });
+      };
+    }
     if ($('hb-d-ok')) {
       $('hb-d-ok').onclick = function () { fermer(); decider([id], true); };
       $('hb-d-retour').onclick = function () { var t = $('hb-com').value.trim(); if (!t) { alert('Écris un commentaire pour l’employé.'); return; } fermer(); decider([id], false, t); };
@@ -253,11 +282,13 @@ geotab.addin.tempo = function () {
       var tk = d.tauxKmApplique !== undefined ? d.tauxKmApplique : tauxKm(d.user, d.date);
       var th = d.tauxHoraireApplique !== undefined ? d.tauxHoraireApplique : B.tauxHoraireA(paies[d.user], d.date);
       var mk = tk === null ? null : Math.round(c.kmPerso * tk * 100) / 100, sal = th === null ? null : Math.round(c.total / 60 * th * 100) / 100;
-      detail.push({ 'Date': d.date, 'Employé': nom, 'Chef d’équipe': d.chef ? nomUser(d.chef) : '', 'Début': d.debut, 'Fin': d.fin || '', 'Pauses (min)': c.pauses, 'Heures': Math.round(c.total / 60 * 100) / 100,
+      var pr = B.calculerPaie(d, employes[d.user], regles);
+      if (pr) { sal = pr.salaire === null ? null : Math.round(pr.salaire * 100) / 100; th = pr.taux; }
+      detail.push({ 'Date': d.date, 'Type de sortie': pr ? (B.NOMS_SORTIE[pr.sortie] || '') : '', 'Heures payées (règles)': pr ? Math.round(pr.minutes / 60 * 100) / 100 : '', 'Allocation repas ($)': pr ? pr.repas : '', 'Employé': nom, 'Chef d’équipe': d.chef ? nomUser(d.chef) : '', 'Début': d.debut, 'Fin': d.fin || '', 'Pauses (min)': c.pauses, 'Heures': Math.round(c.total / 60 * 100) / 100,
         'Repas ($)': c.repas, 'Km perso': c.kmPerso, 'Taux ($/km)': tk === null ? '' : tk, 'Remb. km ($)': mk === null ? '' : mk, 'Taux horaire ($/h)': th === null ? '' : th, 'Salaire ($)': sal === null ? '' : sal,
         'Statut': (B.STATUTS[d.statut] || {}).nom || d.statut, 'Approuvé par': d.approuvePar ? nomUser(d.approuvePar) : '', 'Approuvé par le chef': d.approuveChefPar ? nomUser(d.approuveChefPar) : '' });
       var e = parEmp[d.user] = parEmp[d.user] || { 'Employé': nom, 'Journées': 0, 'Heures': 0, 'Repas ($)': 0, 'Km perso': 0, 'Remb. km ($)': 0, 'Salaire ($)': 0 };
-      e['Journées']++; e['Heures'] += c.total / 60; e['Repas ($)'] += c.repas; e['Km perso'] += c.kmPerso; e['Remb. km ($)'] += mk || 0; e['Salaire ($)'] += sal || 0;
+      e['Journées']++; e['Heures'] += (pr ? pr.minutes : c.total) / 60; e['Repas ($)'] += pr ? pr.repas : c.repas; e['Km perso'] += c.kmPerso; e['Remb. km ($)'] += mk || 0; e['Salaire ($)'] += sal || 0;
       Object.keys(c.parSerie).forEach(function (s) {
         var v = parVoyage[s || 'Sans voyage'] = parVoyage[s || 'Sans voyage'] || { 'Série': s || 'Sans voyage', 'Heures': 0, 'Repas ($)': 0, 'Km': 0 };
         v['Heures'] += c.parSerie[s] / 60;
@@ -276,6 +307,22 @@ geotab.addin.tempo = function () {
     var arr = function (o) { return Object.keys(o).map(function (k) { var x = o[k]; Object.keys(x).forEach(function (c) { if (typeof x[c] === 'number') { x[c] = Math.round(x[c] * 100) / 100; } }); return x; }); };
     return { detail: detail, sommaire: arr(parEmp), voyages: arr(parVoyage), repas: repas, km: km, modif: modif };
   }
+  // Boni à l'installation : modules dont le formulaire déclencheur est approuvé, pour les voyages de la période
+  function boniExcel(liste) {
+    var rg = B.reglesA(regles, filtre ? filtre.au : B.jourIso()), b = rg.boni || {}, lignes = [];
+    var series = {};
+    liste.forEach(function (j) { var c = B.calculer(j.d); Object.keys(c.parSerie).forEach(function (s) { if (s) { series[s] = true; } }); if (j.d.voyage) { series[j.d.voyage] = true; } });
+    Object.keys(series).forEach(function (s) {
+      var mods = {}; formsRes.forEach(function (f) { if (String(f.serie) === s && f.code === (b.declencheur || 'L5') && f.approuve) { mods[f.module || ('?' + f.fid)] = true; } });
+      var n = Object.keys(mods).length; if (!n) { return; }
+      var v = voyages[s], equipe = (v && v.assignes) || [];
+      var total = n * (Number(b.montant) || 0);
+      (equipe.length ? equipe : ['(équipe non assignée)']).forEach(function (u) {
+        lignes.push({ 'Série': s, 'Modules installés': n, 'Employé': u.indexOf('@') > 0 ? nomUser(u) : u, 'Mode': b.mode === 'partage' ? 'Partagé' : 'À chaque membre', 'Boni ($)': Math.round((b.mode === 'partage' && equipe.length ? total / equipe.length : total) * 100) / 100 });
+      });
+    });
+    return lignes;
+  }
   function exporter(liste, nom) {
     if (!window.XLSX) { dire('La bibliothèque Excel n’a pas été chargée. Fais Ctrl + F5 et réessaie.', true); return false; }
     if (!liste.length) { dire('Aucune journée à exporter.', true); return false; }
@@ -283,6 +330,7 @@ geotab.addin.tempo = function () {
     function feuille(rows, titre) { var ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{ 'Aucune donnée': '' }]); XLSX.utils.book_append_sheet(wb, ws, titre); }
     feuille(l.detail, 'Détail des journées'); feuille(l.sommaire, 'Sommaire par employé'); feuille(l.voyages, 'Par voyage');
     feuille(l.repas, 'Repas'); feuille(l.km, 'Kilomètres'); feuille(l.modif, 'Modifications d’heures');
+    feuille(boniExcel(liste), 'Boni installation');
     XLSX.writeFile(wb, nom);
     return true;
   }

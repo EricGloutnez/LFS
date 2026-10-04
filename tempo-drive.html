@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Bonneville - Heures &amp; Dépenses</title>
-<script src="https://ericgloutnez.github.io/LFS/bonneville-commun.js?v=1.0.6"></script>
+<script src="https://ericgloutnez.github.io/LFS/bonneville-commun.js?v=1.1.0"></script>
 </head>
 <body>
 <div id="bh" data-theme="jour">
@@ -88,10 +88,10 @@
 <script>
 (function () {
   'use strict';
-  var VERSION = '1.1.1';
+  var VERSION = '1.2.0';
   var B = window.Bonneville;
   var G = null, api = null, moi = '', monNom = '';
-  var employes = {}, profils = [], monEmp = null, droits = {}, voyages = [], journees = {}, equipeJ = [], maPaie = lire('bh-paie') || null;
+  var employes = {}, profils = [], monEmp = null, droits = {}, voyages = [], journees = {}, equipeJ = [], maPaie = lire('bh-paie') || null, regles = lire('bh-regles') || null;
   var ecran = 'journee', dateSel = null, semaineSel = null, feuille = null, horsReseau = false, pret = false, branche = false;
   var CLE_CACHE = 'bh-cache', CLE_THEME = 'bh-theme';
   var minuterie = null;
@@ -157,7 +157,7 @@
   // ---------- Chargement
   function charger() {
     var lu = Promise.all([
-      G.lireTypes(['employe', 'profil', 'voyage']),
+      G.lireTypes(['employe', 'profil', 'voyage', 'reglesPaie']),
       G.lireChamp('journee', 'user', moi)
     ]).then(function (r) {
       employes = {}; profils = []; voyages = [];
@@ -166,6 +166,7 @@
         if (d.type === 'employe' && d.user) { employes[d.user] = d; }
         else if (d.type === 'profil') { profils.push(d); }
         else if (d.type === 'voyage' && !d.archive) { voyages.push({ id: l.id, d: d }); }
+        else if (d.type === 'reglesPaie') { regles = d; ecrire('bh-regles', d); }
       });
       var serveur = {};
       r[1].forEach(function (l) { serveur[l.details.date] = { id: l.id, d: l.details }; });
@@ -186,7 +187,7 @@
       voyages.sort(function (a, b) { return String(a.d.departDate || a.d.date || '').localeCompare(String(b.d.departDate || b.d.date || '')); });
       garderCache();
       return chargerMaPaie().then(function () { if (droits.chef) { return chargerEquipe(); } });
-    }).then(function () { pret = true; viderFile(); rendre(); });
+    }).then(function () { pret = true; viderFile(); rendre(); var jj = jour(aujour()); if (jj && jj.d.statut === 'ouverte' && !jj.d.fin && estLivreur()) { demarrerSuivi(); } });
   }
   // Mon taux horaire : on ne lit QUE mon enregistrement (jamais ceux des autres).
   function chargerMaPaie() {
@@ -196,6 +197,7 @@
     }).catch(function () {});
   }
   function payeBrute(j) {
+    var pr = paieRegles(j); if (pr && pr.salaire !== null) { return pr.salaire; }
     if (!maPaie || !j) { return null; }
     var t = j.d.tauxHoraireApplique !== undefined ? j.d.tauxHoraireApplique : B.tauxHoraireA(maPaie, j.d.date);
     if (t === null || isNaN(t)) { return null; }
@@ -210,6 +212,60 @@
 
   // ---------- Journée : actions
   function jour(date) { return journees[date || dateSel]; }
+
+  // ===================== Employés qui livrent : règles de rémunération =====================
+  function estLivreur(date) { return !!(monEmp && B.remunA(monEmp, date || aujour())); }
+  function paieRegles(j) { return j && estLivreur(j.d.date) ? B.calculerPaie(j.d, monEmp, regles) : null; }
+  function voyageEloigne(serie) { var v = voyageDe(serie); return !!(v && v.d.eloigne); }
+  function marquer(cle, heure) {
+    var j = jour(); if (!j) { return; }
+    j.d[cle] = heure || B.heureMaintenant();
+    j.d.historique.push({ quand: new Date().toISOString(), qui: moi, action: cle, valeur: j.d[cle] });
+    sauver(dateSel); rendre();
+  }
+  // ----- Détection de l'arrivée et du départ du chantier (selon la destination du voyage)
+  var suivi = null, dansZone = false, entreeZone = null, sortieProposee = false, arriveeProposee = false;
+  function destinationDuJour() {
+    var j = jour(aujour()); if (!j) { return null; }
+    var serie = (j.d.segments && j.d.segments.length ? j.d.segments[j.d.segments.length - 1].serie : '') || j.d.voyage;
+    var v = voyageDe(serie); return v ? B.pointDe(v.d.arrivee) : null;
+  }
+  function demarrerSuivi() {
+    if (suivi !== null || !navigator.geolocation) { return; }
+    try {
+      suivi = navigator.geolocation.watchPosition(function (pos) {
+        var j = jour(aujour()); if (!j || j.d.statut !== 'ouverte' || j.d.fin || !estLivreur()) { return; }
+        var dest = destinationDuJour(); if (!dest) { return; }
+        var rayon = Number((B.reglesA(regles, aujour()) || {}).zoneChantierM) || 300;
+        var d = B.distanceM({ lat: pos.coords.latitude, lon: pos.coords.longitude }, dest);
+        if (d <= rayon) {
+          if (!dansZone) { dansZone = true; entreeZone = B.heureMaintenant(); }
+          if (!j.d.arriveeChantier && !arriveeProposee && !feuille) { arriveeProposee = true; feuille = { type: 'arrivee', heure: entreeZone }; ecran = 'journee'; dateSel = aujour(); rendre(); }
+        } else if (d > rayon + 100) {
+          if (dansZone && j.d.arriveeChantier && !j.d.departChantier && !sortieProposee && !feuille) { sortieProposee = true; feuille = { type: 'departChantier', heure: B.heureMaintenant() }; ecran = 'journee'; dateSel = aujour(); rendre(); }
+          dansZone = false;
+        }
+      }, function () {}, { enableHighAccuracy: true, maximumAge: 30000, timeout: 60000 });
+    } catch (e) { suivi = null; }
+  }
+  function carteRegles(j) {
+    var p = paieRegles(j); if (!p) { return ''; }
+    var lignes = [['Type de sortie', B.NOMS_SORTIE[p.sortie] || p.sortie], ['Heures payées', B.duree(p.minutes) + (p.debut !== null && p.fin !== null ? ' (' + B.heureFr(B.hhmm(p.debut)) + ' à ' + B.heureFr(B.hhmm(p.fin)) + ')' : '')]];
+    if (p.taux !== null) { lignes.push(['Taux', B.argent(p.taux) + '/h']); lignes.push(['Paye brute estimée', B.argent(p.salaire)]); }
+    lignes.push(['Allocation repas', B.argent(p.repas)]);
+    return '<div class="carte"><h2>Selon les règles <span class="puce gris">visible par toi</span></h2>' + lignes.map(function (x) { return '<div class="ligne"><span style="flex:1">' + h(x[0]) + '</span><b>' + h(x[1]) + '</b></div>'; }).join('')
+      + '<div class="aide">Calcul : ' + h(p.note) + '.' + (j.d.annulation ? ' Livraison annulée ou interrompue : minimum payé appliqué.' : '') + '</div></div>';
+  }
+  function boutonsChantier(j) {
+    if (!estLivreur(j.d.date)) { return ''; }
+    var b = '';
+    if (!j.d.arriveeChantier) { b += '<button type="button" class="btn jaune" data-a="feuille" data-v="arrivee">Arrivé au chantier</button>'; }
+    else if (!j.d.departChantier) { b += '<button type="button" class="btn jaune" data-a="feuille" data-v="departChantier">Départ du chantier</button>'; }
+    var etat = (j.d.departUsine ? 'Départ usine ' + B.heureFr(j.d.departUsine) : '') + (j.d.arriveeChantier ? ' · arrivée chantier ' + B.heureFr(j.d.arriveeChantier) : '') + (j.d.departChantier ? ' · départ chantier ' + B.heureFr(j.d.departChantier) : '');
+    return (b ? '<div class="rangee">' + b + '</div>' : '') + (etat ? '<span class="sous">' + h(etat.replace(/^ · /, '')) + '</span>' : '')
+      + (!j.d.annulation ? '<button type="button" class="btn lien" style="align-self:flex-start" data-a="annulation">Livraison annulée ou interrompue</button>' : '<span class="sous">Livraison annulée ou interrompue (minimum payé)</span>');
+  }
+
   function nouvelleJournee(date, voyage, debut, fin) {
     var d = {
       type: 'journee', user: moi, nom: monNom, date: date, debut: debut, fin: fin || null, debutOrigine: debut,
@@ -220,10 +276,17 @@
     journees[date] = { id: null, d: d };
     return sauver(date);
   }
-  function commencer(serie) {
+  function commencer(serie, auChantier) {
     var hm = B.heureMaintenant();
     nouvelleJournee(aujour(), serie, hm, null);
-    if (serie) { var j = jour(aujour()); j.d.checkin = { serie: serie, heure: hm }; sauver(aujour()); }
+    var j = jour(aujour());
+    if (serie) { j.d.checkin = { serie: serie, heure: hm }; }
+    if (estLivreur()) {
+      if (auChantier) { j.d.arriveeChantier = hm; } else { j.d.departUsine = hm; }
+      if (serie && voyageEloigne(serie)) { j.d.eloigne = true; }
+      demarrerSuivi();
+    }
+    sauver(aujour());
     rendre();
   }
   function enPause(j) { var p = (j.d.pauses || [])[j.d.pauses.length - 1]; return p && !p.fin; }
@@ -232,8 +295,9 @@
     if (enPause(j)) { j.d.pauses[j.d.pauses.length - 1].fin = hm; } else { j.d.pauses.push({ debut: hm, fin: null }); }
     sauver(dateSel); rendre();
   }
-  function terminer() {
-    if (!confirm('Terminer la journée maintenant ?')) { return; }
+  function terminer(force) {
+    if (!force && estLivreur()) { feuille = { type: 'finLivreur' }; rendre(); return; }
+    if (!force && !confirm('Terminer la journée maintenant ?')) { return; }
     var j = jour(); var hm = B.heureMaintenant();
     if (enPause(j)) { j.d.pauses[j.d.pauses.length - 1].fin = hm; }
     var s = j.d.segments || []; if (s.length && !s[s.length - 1].fin) { s[s.length - 1].fin = hm; }
@@ -315,8 +379,9 @@
         var duJour = voyages.filter(function (v) { return v.d.departDate === aujour(); });
         if (duJour.length) {
           duJour.forEach(function (v) {
-            html += '<div class="carte"><div class="s" style="font-weight:700">Voyage prévu aujourd’hui</div><div class="t" style="font-size:20px">Série ' + h(v.d.ref) + '</div><div class="s">' + h(libelleVoyage(String(v.d.ref).split('-')[0])) + (v.d.departHeure ? ', départ prévu ' + h(B.heureFr(v.d.departHeure)) : '') + '</div>'
-              + '<button type="button" class="btn jaune" data-a="commencer" data-v="' + h(String(v.d.ref).split('-')[0]) + '">Commencer avec le check-in du voyage</button></div>';
+            html += '<div class="carte"><div class="s" style="font-weight:700">' + (v.d.departDate === aujour() ? 'Voyage prévu aujourd’hui' : 'Voyage en cours') + '</div><div class="t" style="font-size:20px">Série ' + h(v.d.ref) + '</div><div class="s">' + h(libelleVoyage(String(v.d.ref).split('-')[0])) + (v.d.departHeure ? ', départ prévu ' + h(B.heureFr(v.d.departHeure)) : '') + '</div>'
+              + '<button type="button" class="btn jaune" data-a="commencer" data-v="' + h(String(v.d.ref).split('-')[0]) + '">' + (estLivreur() ? 'Départ de l’usine (check-in du voyage)' : 'Commencer avec le check-in du voyage') + '</button>'
+              + (estLivreur() ? '<button type="button" class="btn" data-a="commencer-chantier" data-v="' + h(String(v.d.ref).split('-')[0]) + '">Je commence au chantier (jour 2 et suivants)</button>' : '') + '</div>';
           });
         } else {
           html += '<div class="carte"><h2>Aucun voyage ne t’est assigné aujourd’hui</h2>' + (voyages.length ? '<div class="aide">Tes autres voyages assignés :</div>' + voyages.slice(0, 6).map(function (v) {
@@ -342,14 +407,16 @@
         html += '<span class="grand" id="bh-minuterie">' + B.duree(c.total) + '</span>';
       }
       html += '<div class="rangee" style="justify-content:space-between"><span class="sous">Depuis ' + h(B.heureFr(j.d.debut)) + (c.pauses ? ', pause de ' + B.duree(c.pauses) + ' déduite' : '') + (estCommissionnaire() ? ' · total ' + B.duree(c.total) : '') + '</span><button type="button" class="btn lien" data-a="feuille" data-v="debut">Modifier l’heure</button></div>'
-        + '<div class="rangee"><button type="button" class="btn sombre" data-a="pause">' + (enPause(j) ? 'Reprendre' : 'Pause') + '</button><button type="button" class="btn ' + (estCommissionnaire() ? 'sombre' : 'jaune') + '" data-a="terminer">Terminer la journée</button></div></section>';
+        + boutonsChantier(j)
+        + '<div class="rangee"><button type="button" class="btn sombre" data-a="pause">' + (enPause(j) ? 'Reprendre' : 'Pause') + '</button><button type="button" class="btn ' + (estCommissionnaire() || estLivreur() ? 'sombre' : 'jaune') + '" data-a="terminer">Terminer la journée</button></div></section>'
+        + carteRegles(j);
     } else {
       var pbj = payeBrute(j);
       html += '<div class="carte"><h2>Journée : ' + B.duree(c.total) + ' ' + puceStatut(j.d.statut) + '</h2>' + (pbj !== null ? '<div class="aide">Paye brute estimée du jour : <b>' + B.argent(pbj) + '</b> (visible seulement par toi)</div>' : '')
         + '<div class="ligne"><span style="flex:1"><span class="t">Début</span><br><span class="s">' + h(B.heureFr(j.d.debut)) + (j.d.debutOrigine && j.d.debutOrigine !== j.d.debut ? ' (enregistré ' + h(B.heureFr(j.d.debutOrigine)) + ')' : '') + '</span></span>' + (B.modifiable(j.d) ? '<button type="button" class="btn lien" data-a="feuille" data-v="debut">Modifier</button>' : '') + '</div>'
         + '<div class="ligne"><span style="flex:1"><span class="t">Fin</span><br><span class="s">' + h(j.d.fin ? B.heureFr(j.d.fin) : 'pas encore terminée') + (j.d.finOrigine && j.d.finOrigine !== j.d.fin ? ' (enregistré ' + h(B.heureFr(j.d.finOrigine)) + ')' : '') + '</span></span>' + (B.modifiable(j.d) && j.d.fin ? '<button type="button" class="btn lien" data-a="feuille" data-v="fin">Modifier</button>' : '') + '</div>'
         + (j.d.fin && dateSel === aujour() && j.d.statut === 'terminee' ? '<button type="button" class="btn" data-a="reprendre">Reprendre la journée</button>' : '')
-        + '</div>';
+        + '</div>' + carteRegles(j);
     }
     // Blocs de temps et ajouts
     if (estCommissionnaire() || (j.d.ajouts || []).length) {
@@ -400,6 +467,10 @@
   }
   function vueRepas() {
     var j = jour(), html = '<div class="ecran">' + enteteJour();
+    if (estLivreur(dateSel)) {
+      var p = j ? paieRegles(j) : null;
+      return html + '<div class="carte"><h2>Allocation pour repas</h2><div style="font-size:30px;font-weight:800">' + (p ? B.argent(p.repas) : '—') + '</div><div class="aide">Calculée automatiquement selon les règles de rémunération (selon les heures payées de la journée, ou région éloignée). Tu n’as pas à inscrire tes repas.</div></div></div>';
+    }
     if (!j) { return html + '<div class="carte"><div class="aide">Commence ou ajoute d’abord la journée dans l’onglet Journée.</div><button type="button" class="btn" data-a="onglet" data-v="journee">Aller à la journée</button></div></div>'; }
     html += '<div class="carte"><h2>Repas du jour</h2>' + ((j.d.repas || []).length ? j.d.repas.map(function (r, i) {
       return '<div class="ligne"><span style="flex:1"><span class="t">' + h(r.type) + ' : ' + B.argent(r.montant) + '</span><br><span class="s">' + h(r.serie ? 'Série ' + r.serie : 'Sans série') + '</span></span>' + (B.modifiable(j.d) ? '<button type="button" class="btn lien rouge" data-a="retirer-repas" data-v="' + i + '">Retirer</button>' : '') + '</div>';
@@ -533,7 +604,14 @@
     if (!feuille) { return; }
     var j = jour(), html = '<div class="poignee"></div>', k = feuille.type;
     function cases(hm) { var m = B.minutesDe(hm || B.heureMaintenant()); return '<div class="rangee" style="justify-content:center"><label class="s" style="display:flex;flex-direction:column;align-items:center;gap:4px;font-weight:700"><input class="case-h" id="bh-hh" inputmode="numeric" maxlength="2" value="' + B.hhmm(m).slice(0, 2) + '">Heure</label><span style="font-size:40px;font-weight:800;margin-bottom:22px">:</span><label class="s" style="display:flex;flex-direction:column;align-items:center;gap:4px;font-weight:700"><input class="case-h" id="bh-mm" inputmode="numeric" maxlength="2" value="' + B.hhmm(m).slice(3) + '">Minutes</label></div><div class="aide" style="text-align:center">Format 24 h.</div>'; }
-    if (k === 'debut' || k === 'fin') {
+    if (k === 'arrivee' || k === 'departChantier') {
+      html += '<h1>' + (k === 'arrivee' ? 'Arrivé à destination' : 'Départ du chantier') + '</h1>'
+        + '<div class="s">' + h(libelleVoyage(j && j.d.voyage) || '') + '</div><div style="font-weight:600">Heure proposée' + (feuille.heure ? ' (détectée)' : '') + ' :</div>' + cases(feuille.heure || B.heureMaintenant());
+    } else if (k === 'finLivreur') {
+      html += '<h1>Où se termine ta journée ?</h1>'
+        + '<button type="button" class="voyage-btn" data-a="fin-retour"><span class="t">Retour à l’usine</span><span class="s">ou au domicile si une entente le prévoit · sortie d’un jour ou dernier jour</span></button>'
+        + '<button type="button" class="voyage-btn" data-a="fin-region"><span class="t">Je reste dans la région du chantier</span><span class="s">sortie de plusieurs jours (je reprends demain au chantier)</span></button>';
+    } else if (k === 'debut' || k === 'fin') {
       html += '<h1>Modifier l’heure de ' + (k === 'debut' ? 'début' : 'fin') + '</h1><div class="s">Enregistrée : ' + h(B.heureFr(j.d[k + 'Origine'] || j.d[k])) + '</div>' + cases(j.d[k]);
     } else if (k === 'nouvelle') {
       html += '<h1>Ajouter cette journée</h1><div class="s" style="font-weight:700">Début</div>' + cases('07:00').replace(/bh-hh/g, 'bh-dh').replace(/bh-mm/g, 'bh-dm') + '<div class="s" style="font-weight:700">Fin</div>' + cases('16:00').replace(/bh-hh/g, 'bh-fh').replace(/bh-mm/g, 'bh-fm');
@@ -554,10 +632,15 @@
       if (k !== 'km-voyage') { html += '<button type="button" class="voyage-btn' + (feuille.serie === '' ? ' on' : '') + '" style="border-style:dashed;align-items:center" data-a="choisir-serie" data-v=""><span class="t">Sans voyage (temps général)</span></button>'; }
       if (estCommissionnaire()) { html += '<div class="aide">Commissionnaire : tous les voyages sont proposés.</div>'; }
     }
-    var libelleOk = 'Enregistrer';
+    var libelleOk = k === 'arrivee' ? 'Confirmer l’arrivée' : (k === 'departChantier' ? 'Confirmer le départ' : 'Enregistrer');
+    if (k === 'finLivreur') { html += '<div class="rangee"><button type="button" class="btn" data-a="fermer">Annuler</button></div>'; finFeuille(html, k); return; }
     if (k === 'ajout' && feuille.serie !== undefined) { libelleOk = 'Ajouter à ' + (feuille.serie || 'temps général'); }
     if (k === 'voyage' && estCommissionnaire()) { libelleOk = feuille.serie !== undefined ? 'Passer à ' + (feuille.serie || 'temps général') : 'Choisir un voyage'; }
     html += '<div class="rangee"><button type="button" class="btn" style="flex:0 0 120px" data-a="fermer">Annuler</button><button type="button" class="btn jaune" data-a="valider"' + ((k === 'voyage' || k === 'ajout' || k === 'km-voyage') && feuille.serie === undefined ? ' disabled' : '') + '>' + h(libelleOk) + '</button></div>';
+    finFeuille(html, k);
+    return;
+  }
+  function finFeuille(html, k) {
     var fond = document.createElement('div');
     fond.className = 'fond-feuille'; fond.id = 'bh-feuille';
     fond.innerHTML = '<section class="feuille" role="dialog" aria-label="' + h(k) + '">' + html + '</section>';
@@ -572,6 +655,12 @@
   }
   function validerFeuille() {
     var j = jour(), k = feuille.type;
+    if (k === 'arrivee' || k === 'departChantier') {
+      var hv = lireHeure('bh-hh', 'bh-mm'); if (!hv) { alert('Heure invalide.'); return; }
+      j.d[k === 'arrivee' ? 'arriveeChantier' : 'departChantier'] = hv;
+      j.d.historique.push({ quand: new Date().toISOString(), qui: moi, action: k, valeur: hv });
+      sauver(dateSel); feuille = null; rendre(); return;
+    }
     if (k === 'debut' || k === 'fin') {
       var v = lireHeure('bh-hh', 'bh-mm'); if (!v) { alert('Heure invalide.'); return; }
       if (k === 'fin' && B.minutesDe(v) <= B.minutesDe(j.d.debut)) { alert('La fin doit être après le début.'); return; }
@@ -614,6 +703,10 @@
     if (a === 'onglet') { ecran = v; if (v === 'semaine') { semaineSel = B.debutSemaine(dateSel); } if (v === 'equipe') { chargerEquipe().then(rendre); } rendre(); window.scrollTo(0, 0); }
     else if (a === 'aujourdhui') { dateSel = aujour(); rendre(); }
     else if (a === 'commencer') { commencer(v); }
+    else if (a === 'commencer-chantier') { commencer(v, true); }
+    else if (a === 'annulation') { if (confirm('Indiquer que la livraison ou l’installation a été annulée ou interrompue (météo…) ? Le minimum d’heures sera payé.')) { var ja = jour(); ja.d.annulation = true; ja.d.historique.push({ quand: new Date().toISOString(), qui: moi, action: 'annulation' }); sauver(dateSel); rendre(); } }
+    else if (a === 'fin-retour') { var jf = jour(); feuille = null; jf.d.retourUsine = B.heureMaintenant(); terminer(true); }
+    else if (a === 'fin-region') { var jr = jour(); feuille = null; if (!jr.d.departChantier) { jr.d.departChantier = B.heureMaintenant(); } terminer(true); }
     else if (a === 'pause') { basculerPause(); }
     else if (a === 'terminer') { terminer(); }
     else if (a === 'reprendre') { reprendre(); }

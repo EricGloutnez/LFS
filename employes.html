@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Bonneville - Employés</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="https://ericgloutnez.github.io/LFS/bonneville-commun.js?v=1.0.6"></script>
+<script src="https://ericgloutnez.github.io/LFS/bonneville-commun.js?v=1.1.0"></script>
 </head>
 <body>
 <div id="be">
@@ -79,6 +79,7 @@
   <nav class="onglets" id="be-onglets">
     <button type="button" data-o="employes" class="on">Employés</button>
     <button type="button" data-o="profils">Profils</button>
+    <button type="button" data-o="regles">Règles de rémunération</button>
     <button type="button" data-o="parametres">Paramètres</button>
   </nav>
   <span class="version" style="margin-left:auto;margin-right:12px;">Réservé au rôle Administrateur de MyGeotab</span>
@@ -91,7 +92,7 @@
 geotab.addin.employes = function () {
   'use strict';
   var B = window.Bonneville;
-  var VERSION = '1.0.8';
+  var VERSION = '1.1.0';
   var G = null, moi = '', onglet = 'employes';
   var users = [], employes = {}, profils = [], paies = {}, param = null, groupesGeotab = [];
   var modifies = {}, filtre = { texte: '', profil: '', inactifs: false, masques: false }, message = null, notes = {};
@@ -109,7 +110,7 @@ geotab.addin.employes = function () {
   function charger() {
     return Promise.all([
       G.utilisateurs(),
-      G.lireTypes(['employe', 'profil', 'parametresEmployes', 'acces']),
+      G.lireTypes(['employe', 'profil', 'parametresEmployes', 'acces', 'reglesPaie']),
       G.lireType('paie').catch(function () { return []; }),
       G.appel('Get', { typeName: 'Group' }).catch(function () { return []; }),
       G.lireType('noteEmploye').catch(function () { return []; })
@@ -122,6 +123,7 @@ geotab.addin.employes = function () {
         else if (d.type === 'profil') { profils.push({ id: l.id, d: d }); }
         else if (d.type === 'parametresEmployes') { param = { id: l.id, d: d }; }
         else if (d.type === 'acces') { ancienAcces = { id: l.id, d: d }; }
+        else if (d.type === 'reglesPaie') { reglesRec = { id: l.id, d: d }; }
       });
       r[2].forEach(function (l) { if (l.details.user) { paies[l.details.user] = { id: l.id, d: l.details, groups: l.groups }; } });
       groupesGeotab = (r[3] || []).filter(function (g) { return g.name && g.id; }).map(function (g) { return { id: g.id, nom: g.name }; })
@@ -140,7 +142,7 @@ geotab.addin.employes = function () {
       rendre();
     });
   }
-  var ancienAcces = null;
+  var ancienAcces = null, reglesRec = null, reglesEdition = null, reglesDepuis = '';
   function creerProfilsDefaut() {
     var c = Promise.resolve();
     B.PROFILS_DEFAUT.forEach(function (p) {
@@ -155,6 +157,7 @@ geotab.addin.employes = function () {
     var html = '<main>' + (message ? '<div class="message' + (message.e ? ' erreur' : '') + '">' + h(message.t) + '</div>' : '');
     if (onglet === 'employes') { html += vueEmployes(); }
     else if (onglet === 'profils') { html += vueProfils(); }
+    else if (onglet === 'regles') { html += vueRegles(); }
     else { html += vueParametres(); }
     $('be-contenu').innerHTML = html + '</main>';
     brancherVue();
@@ -243,7 +246,7 @@ geotab.addin.employes = function () {
     html += '<section class="carte"><h3>Taux kilométrage ($/km)</h3>' + tableTaux(ficheEmp.tauxKm, 'km')
       + '<div class="barre"><label class="champ">Taux ($/km)<input type="number" step="0.01" min="0" id="bf-km-taux" style="width:120px"></label><label class="champ">En vigueur à partir du<input type="date" id="bf-km-depuis" value="' + aujour + '"></label><button type="button" class="btn noir" id="bf-km-ajouter">Ajouter ce taux</button></div>'
       + '<div class="aide">Visible par l’employé dans Drive pour calculer son remboursement. Chaque journée utilise le taux en vigueur à sa date.</div></section>';
-    html += '</div><div style="display:flex;flex-direction:column;gap:14px">' + carteConfidentielle() + '</div></div></div>';
+    html += '</div><div style="display:flex;flex-direction:column;gap:14px">' + carteRemun() + carteConfidentielle() + '</div></div></div>';
     var fond = document.createElement('div');
     fond.className = 'fond-panneau'; fond.id = 'be-fiche'; fond.innerHTML = html;
     $('be').appendChild(fond);
@@ -301,6 +304,16 @@ geotab.addin.employes = function () {
     var r = $('bf-remplacant'); if (r) { ficheEmp.remplacant = r.value; }
   }
   function brancherFiche() {
+    if ($('bf-r-ajouter')) {
+      $('bf-r-ajouter').onclick = function () {
+        captureFiche();
+        var d = $('bf-r-depuis').value; if (!d) { alert('Choisis la date.'); return; }
+        var e = { depuis: d, role: $('bf-r-role').value, niveau: $('bf-r-niveau').value, chef: $('bf-r-chef').checked, domicile: $('bf-r-dom').checked };
+        ficheEmp.remun = (ficheEmp.remun || []).filter(function (x) { return x.depuis !== d; }).concat([e]);
+        rendreFiche();
+      };
+    }
+    Array.prototype.forEach.call(document.querySelectorAll('.bf-r-suppr'), function (b) { b.onclick = function () { captureFiche(); var d = b.getAttribute('data-depuis'); ficheEmp.remun = (ficheEmp.remun || []).filter(function (x) { return x.depuis !== d; }); rendreFiche(); }; });
     $('bf-fermer').onclick = fermerFicheDom;
     $('bf-profil').onchange = function () { captureFiche(); delete ficheEmp.droits; rendreFiche(); };
     Array.prototype.forEach.call(document.querySelectorAll('.bf-droit'), function (c) { c.onchange = function () { captureFiche(); rendreFiche(); }; });
@@ -438,6 +451,149 @@ geotab.addin.employes = function () {
     }
   }
 
+
+  // ===================== Règles de rémunération =====================
+  function hm(min) { min = Math.round(Number(min) || 0); return Math.floor(min / 60) + ':' + ('0' + (min % 60)).slice(-2); }
+  function lireHm(t) { var p = String(t || '').replace(',', ':').split(':'); var hh = parseInt(p[0], 10) || 0, mm = parseInt(p[1], 10) || 0; return hh * 60 + mm; }
+  function nb(t) { var v = parseFloat(String(t).replace(',', '.')); return isNaN(v) ? 0 : v; }
+  function versionsRegles() { return (reglesRec && reglesRec.d.versions) || []; }
+  function reglesCourantes() {
+    if (!reglesEdition) {
+      var v = versionsRegles().length ? B.reglesA(reglesRec.d, B.jourIso()) : B.REGLES_DEFAUT;
+      reglesEdition = JSON.parse(JSON.stringify(v));
+      reglesDepuis = B.jourIso();
+    }
+    return reglesEdition;
+  }
+  var JOURS_SEL = B.JOURS;
+  function selJour(k, v) { return '<select data-k="' + k + '">' + JOURS_SEL.map(function (j, i) { return '<option value="' + i + '"' + (Number(v) === i ? ' selected' : '') + '>' + j + '</option>'; }).join('') + '</select>'; }
+  function champR(k, v, w, suf) { return '<span style="display:inline-flex;align-items:center;gap:4px"><input type="text" data-k="' + k + '" value="' + h(v) + '" style="width:' + (w || 80) + 'px;text-align:right">' + (suf ? '<span class="aide">' + suf + '</span>' : '') + '</span>'; }
+  function caseR(k, v, lab) { return '<label class="ligne-case"><input type="checkbox" data-k="' + k + '"' + (v ? ' checked' : '') + '>' + lab + '</label>'; }
+  function carteR(n, titre, corps, note) {
+    return '<section class="carte"><h3><span style="display:flex;align-items:center;gap:8px"><span class="puce noir">' + n + '</span>' + titre + '</span></h3>' + corps + (note ? '<div class="aide">' + note + '</div>' : '') + '</section>';
+  }
+  function vueRegles() {
+    var r = reglesCourantes(), niv = r.niveaux || [];
+    var t = '<table class="mini"><thead><tr><th>Rôle</th><th>Avance au départ</th>' + niv.map(function (x, i) { return '<th><input type="text" data-k="niveaux.' + i + '.nom" value="' + h(x.nom) + '" style="width:110px"></th>'; }).join('') + '<th></th></tr></thead><tbody>'
+      + (r.roles || []).map(function (ro, i) {
+        return '<tr><td><input type="text" data-k="roles.' + i + '.nom" value="' + h(ro.nom) + '" style="width:260px"></td><td>' + champR('roles.' + i + '.avanceMin', hm(ro.avanceMin), 60, 'h') + '</td>'
+          + niv.map(function (x) { return '<td>' + champR('roles.' + i + '.taux.' + x.cle, String((ro.taux || {})[x.cle] === undefined ? '' : ro.taux[x.cle]).replace('.', ','), 70, '$/h') + '</td>'; }).join('')
+          + '<td><button type="button" class="btn rouge br-suppr-role" data-i="' + i + '">Retirer</button></td></tr>';
+      }).join('') + '</tbody></table>';
+    var c1 = carteR(1, 'Taux horaires par rôle et niveau', t
+      + '<div class="barre"><button type="button" class="btn" id="br-plus-role">+ Ajouter un rôle</button><button type="button" class="btn" id="br-plus-niveau">+ Ajouter un niveau</button></div>'
+      + '<div class="barre" style="align-items:center">Chef d’équipe et/ou formateur : + ' + champR('chefPlus', String(r.chefPlus).replace('.', ','), 70, '$/h, ajouté au taux du rôle') + '</div>',
+      'Le taux inclut 0,50 $/h pour les équipements de protection fournis par l’employé. L’« avance au départ » est le temps payé avant le départ de l’usine (rôle 1 : 1 h, rôle 2 : 2 h).');
+    var b = r.boni || {};
+    var c2 = carteR(2, 'Boni à l’installation', '<div class="barre" style="align-items:center">Montant par module installé : ' + champR('boni.montant', String(b.montant).replace('.', ','), 80, '$') + '</div>'
+      + '<label class="champ">Versé<select data-k="boni.mode"><option value="chaque"' + (b.mode !== 'partage' ? ' selected' : '') + '>à chaque membre de l’équipe</option><option value="partage"' + (b.mode === 'partage' ? ' selected' : '') + '>partagé entre les membres de l’équipe</option></select></label>'
+      + '<label class="champ">Module compté comme installé quand<select data-k="boni.declencheur">' + ['L5', 'L4', 'L3'].map(function (x) { return '<option value="' + x + '"' + (b.declencheur === x ? ' selected' : '') + '>le formulaire ' + x + ' du module est approuvé</option>'; }).join('') + '</select></label>'
+      + '<div class="message" style="background:#fff3dc;color:var(--orange)">Aucun autre montant n’est accepté (pointe de murs, déchargement, pancarte, beams…). Une entente spéciale exige l’approbation du gestionnaire.</div>'
+      + caseR('specialAutorise', r.specialAutorise, 'Permettre un montant spécial approuvé par le gestionnaire (commentaire obligatoire)'));
+    var td = r.tempsDemi || {};
+    var c3 = carteR(3, 'Temps supplémentaire', caseR('tempsDemi.inclus', td.inclus, 'Le taux horaire et le boni incluent déjà le temps et demi (pas de majoration automatique)')
+      + '<div class="barre" style="align-items:center">Temps et demi possible, sur approbation du gestionnaire, du ' + selJour('tempsDemi.debutJour', td.debutJour) + champR('tempsDemi.debutHeure', td.debutHeure, 70) + ' au ' + selJour('tempsDemi.finJour', td.finJour) + champR('tempsDemi.finHeure', td.finHeure, 70) + '</div>');
+    var H = r.heures || {};
+    var c4 = carteR(4, 'Calcul des heures travaillées',
+      '<table class="mini"><thead><tr><th>Sortie</th><th>Début des heures payées</th><th>Fin des heures payées</th></tr></thead><tbody>'
+      + '<tr><td><b>Sortie d’un jour</b></td><td>Départ de l’usine − avance du rôle</td><td>Retour à l’usine (ou domicile si entente)</td></tr>'
+      + '<tr><td><b>Jour 1</b></td><td>Départ de l’usine − avance du rôle</td><td>Départ du chantier + ' + champR('heures.apresDepartChantier', hm(H.apresDepartChantier), 60, 'h') + '</td></tr>'
+      + '<tr><td><b>Jours 2 et suivants</b></td><td>Arrivée au chantier − ' + champR('heures.avantArriveeChantier', hm(H.avantArriveeChantier), 60, 'h') + '</td><td>Départ du chantier + même délai</td></tr>'
+      + '<tr><td><b>Dernier jour</b></td><td>Arrivée au chantier − même délai</td><td>Arrivée à l’usine (ou domicile si entente)</td></tr></tbody></table>'
+      + caseR('heures.dinerNonDeduit', H.dinerNonDeduit, 'Ne pas déduire le dîner (le gestionnaire peut le déduire en cas d’abus)')
+      + '<div class="barre" style="align-items:center">Minimum payé en cas d’annulation ou d’interruption : ' + champR('heures.minAnnulation', hm(H.minAnnulation), 60, 'h') + ' · en région éloignée : ' + champR('heures.minEloigne', hm(H.minEloigne), 60, 'h') + '</div>'
+      + '<div id="br-exemple" class="message" style="background:var(--bande);color:var(--encre)"></div>');
+    var R = r.repas || {};
+    var c5 = carteR(5, 'Allocation pour repas', '<table class="mini"><thead><tr><th>À partir de (heures payées)</th><th>Allocation par jour</th><th></th></tr></thead><tbody>'
+      + (R.paliers || []).map(function (p, i) { return '<tr><td>' + champR('repas.paliers.' + i + '.min', hm(p.min), 60, 'h') + '</td><td>' + champR('repas.paliers.' + i + '.montant', String(p.montant).replace('.', ','), 80, '$') + '</td><td><button type="button" class="btn rouge br-suppr-palier" data-i="' + i + '">Retirer</button></td></tr>'; }).join('')
+      + '</tbody></table><div class="barre"><button type="button" class="btn" id="br-plus-palier">+ Ajouter un palier</button></div>'
+      + '<div class="barre" style="align-items:center">En région éloignée (peu importe le nombre d’heures) : ' + champR('repas.eloigne', String(R.eloigne).replace('.', ','), 80, '$') + '</div>',
+      'Pour les employés qui livrent, cette allocation remplace la saisie des repas dans Heures & Dépenses. « Plus de 6 h » s’écrit 6:01.');
+    var E = r.eloigne || {};
+    var c6 = carteR(6, 'Région éloignée et zone du chantier', '<div class="aide">La région éloignée se coche sur le voyage, dans Logistique.</div>'
+      + caseR('eloigne.distanceActive', E.distanceActive, 'Aussi automatiquement si le chantier est à plus de ' + champR('eloigne.distanceKm', E.distanceKm, 70, 'km de l’usine'))
+      + '<div class="barre" style="align-items:center">Zone du chantier (détection d’arrivée et de départ dans Drive) : ' + champR('zoneChantierM', r.zoneChantierM, 70, 'm') + '</div>');
+    var vers = versionsRegles().slice().sort(function (a, b) { return String(b.depuis).localeCompare(String(a.depuis)); });
+    var histo = '<section class="carte"><h3>Historique des versions</h3>' + (vers.length ? vers.map(function (v, i) {
+      return '<div class="barre" style="align-items:center;justify-content:space-between;border-top:1px solid var(--ligne);padding-top:6px"><span>En vigueur depuis le <b>' + h(v.depuis) + '</b>' + (v.majPar ? ' · ' + h(nomUser(v.majPar)) : '') + '</span><button type="button" class="btn br-charger" data-depuis="' + h(v.depuis) + '">Ouvrir</button></div>';
+    }).join('') : '<div class="aide">Aucune version enregistrée : les valeurs affichées sont celles du programme de rémunération.</div>') + '</section>';
+    return '<div class="barre" style="align-items:center"><div><div style="font-size:22px;font-weight:800">Règles de rémunération</div><div class="aide">Programme de rémunération pour équipes d’installation · employés qui livrent</div></div><span style="margin-left:auto"></span>'
+      + '<label class="champ">En vigueur à partir du<input type="date" id="br-depuis" value="' + h(reglesDepuis) + '"></label><button type="button" class="btn jaune" id="br-sauver">✓ Enregistrer les règles</button></div>'
+      + '<div class="grille2"><div style="display:flex;flex-direction:column;gap:14px">' + c1 + c2 + c3 + '</div><div style="display:flex;flex-direction:column;gap:14px">' + c4 + c5 + c6 + histo + '</div></div>';
+  }
+  function poser(obj, chemin, valeur) {
+    var p = chemin.split('.'), o = obj;
+    for (var i = 0; i < p.length - 1; i++) { var k = /^\d+$/.test(p[i]) ? +p[i] : p[i]; if (o[k] === undefined) { o[k] = {}; } o = o[k]; }
+    o[/^\d+$/.test(p[p.length - 1]) ? +p[p.length - 1] : p[p.length - 1]] = valeur;
+  }
+  var CHAMPS_HM = /avanceMin$|apresDepartChantier$|avantArriveeChantier$|minAnnulation$|minEloigne$|paliers\.\d+\.min$/;
+  var CHAMPS_TEXTE = /\.nom$|debutHeure$|finHeure$|boni\.mode$|boni\.declencheur$/;
+  function lireRegles() {
+    var r = reglesEdition;
+    Array.prototype.forEach.call(document.querySelectorAll('[data-k]'), function (c) {
+      var k = c.getAttribute('data-k'), v;
+      if (c.type === 'checkbox') { v = c.checked; }
+      else if (/debutJour$|finJour$/.test(k)) { v = Number(c.value); }
+      else if (CHAMPS_HM.test(k)) { v = lireHm(c.value); }
+      else if (CHAMPS_TEXTE.test(k)) { v = c.value; }
+      else { v = nb(c.value); }
+      poser(r, k, v);
+    });
+    reglesDepuis = ($('br-depuis') || {}).value || reglesDepuis;
+    return r;
+  }
+  function majExemple() {
+    var z = $('br-exemple'); if (!z) { return; }
+    var r = lireRegles(), rg = { versions: [{ depuis: '2000-01-01', r: r }] };
+    var e1 = { remun: [{ depuis: '2000-01-01', role: (r.roles[0] || {}).cle, niveau: (r.niveaux[1] || r.niveaux[0] || {}).cle }] }, e2 = { remun: [{ depuis: '2000-01-01', role: (r.roles[1] || r.roles[0] || {}).cle, niveau: (r.niveaux[1] || r.niveaux[0] || {}).cle }] };
+    var jours = [['Lundi (jour 1)', { date: '2026-10-05', departUsine: '08:00', departChantier: '15:00', arriveeChantier: '15:00' }], ['Mardi (jour 2)', { date: '2026-10-06', arriveeChantier: '07:00', departChantier: '16:00' }], ['Mercredi (dernier)', { date: '2026-10-07', arriveeChantier: '06:30', retourUsine: '14:00' }]];
+    var attendu = [[510, 570], [600, 600], [480, 480]], ok = true;
+    z.innerHTML = '<b>Vérification avec l’exemple du programme</b>' + jours.map(function (x, i) {
+      var a = B.calculerPaie(x[1], e1, rg), b = B.calculerPaie(x[1], e2, rg);
+      if (!a || !b || a.minutes !== attendu[i][0] || b.minutes !== attendu[i][1]) { ok = false; }
+      return '<div style="display:grid;grid-template-columns:140px 1fr 1fr;gap:8px;font-weight:500"><b>' + x[0] + '</b><span>' + h((r.roles[0] || {}).nom || 'Rôle 1').split(':')[0] + ' : ' + B.duree(a ? a.minutes : 0) + '</span><span>' + h((r.roles[1] || {}).nom || 'Rôle 2').split(':')[0] + ' : ' + B.duree(b ? b.minutes : 0) + '</span></div>';
+    }).join('') + '<div style="color:' + (ok ? 'var(--ok)' : 'var(--orange)') + ';font-weight:700;margin-top:4px">' + (ok ? '✓ Les règles donnent les résultats de l’exemple du programme (8 h 30 / 9 h 30, 10 h, 8 h).' : 'Les règles modifiées ne donnent plus les résultats de l’exemple du programme : vérifie que c’est voulu.') + '</div>';
+  }
+  function brancherRegles() {
+    var rerendre = function () { lireRegles(); rendre(); };
+    Array.prototype.forEach.call(document.querySelectorAll('[data-k]'), function (c) { c.addEventListener('change', majExemple); });
+    majExemple();
+    $('br-plus-role').onclick = function () { var r = lireRegles(); var n = r.roles.length + 1; var t = {}; r.niveaux.forEach(function (x) { t[x.cle] = 0; }); r.roles.push({ cle: 'r' + Date.now().toString(36), nom: 'Rôle ' + n, avanceMin: 60, taux: t }); rendre(); };
+    $('br-plus-niveau').onclick = function () { var r = lireRegles(); var cle = 'n' + Date.now().toString(36); r.niveaux.push({ cle: cle, nom: 'Nouveau niveau' }); r.roles.forEach(function (ro) { ro.taux[cle] = 0; }); rendre(); };
+    $('br-plus-palier').onclick = function () { var r = lireRegles(); r.repas.paliers.push({ min: 480, montant: 0 }); rendre(); };
+    Array.prototype.forEach.call(document.querySelectorAll('.br-suppr-role'), function (b) { b.onclick = function () { var r = lireRegles(); var i = +b.getAttribute('data-i'); var cle = r.roles[i].cle; var utilise = Object.keys(employes).some(function (k) { return (employes[k].d.remun || []).some(function (x) { return x.role === cle; }); }); if (utilise && !confirm('Des employés ont ce rôle dans leur fiche. Le retirer quand même ?')) { return; } r.roles.splice(i, 1); rendre(); }; });
+    Array.prototype.forEach.call(document.querySelectorAll('.br-suppr-palier'), function (b) { b.onclick = function () { var r = lireRegles(); r.repas.paliers.splice(+b.getAttribute('data-i'), 1); rendre(); }; });
+    Array.prototype.forEach.call(document.querySelectorAll('.br-charger'), function (b) { b.onclick = function () { var v = versionsRegles().filter(function (x) { return x.depuis === b.getAttribute('data-depuis'); })[0]; if (v) { reglesEdition = JSON.parse(JSON.stringify(v.r)); reglesDepuis = v.depuis; message = { t: 'Version du ' + v.depuis + ' ouverte : enregistre pour la modifier, ou change la date pour créer une nouvelle version.', e: false }; rendre(); } }; });
+    $('br-sauver').onclick = function () {
+      var r = lireRegles(); if (!reglesDepuis) { alert('Choisis la date d’entrée en vigueur.'); return; }
+      r.repas.paliers.sort(function (a, b) { return a.min - b.min; });
+      var d = reglesRec ? JSON.parse(JSON.stringify(reglesRec.d)) : { type: 'reglesPaie', versions: [] };
+      d.versions = (d.versions || []).filter(function (v) { return v.depuis !== reglesDepuis; });
+      d.versions.push({ depuis: reglesDepuis, r: JSON.parse(JSON.stringify(r)), maj: new Date().toISOString(), majPar: moi });
+      G.enregistrer(reglesRec, d).then(function (id) { reglesRec = { id: id, d: d }; dire('Règles de rémunération enregistrées, en vigueur à partir du ' + reglesDepuis + '. Les journées déjà approuvées gardent leur calcul.'); })
+        .catch(function (e) { dire('Enregistrement impossible : ' + (e && e.message ? e.message : e), true); });
+    };
+  }
+
+  // ----- Fiche : rémunération selon les règles
+  function carteRemun() {
+    var r = B.reglesA(reglesRec ? reglesRec.d : null, B.jourIso()), rem = B.remunA(ficheEmp, B.jourIso()) || {};
+    var liste = (ficheEmp.remun || []).slice().sort(function (a, b) { return String(b.depuis).localeCompare(String(a.depuis)); });
+    var taux = B.tauxRegles(r, rem);
+    return '<section class="carte" style="border:2px solid var(--orange)"><h3>Rémunération (programme des employés qui livrent)</h3>'
+      + '<div class="grille2"><label class="champ">Rôle<select id="bf-r-role"><option value="">— Pas dans le programme —</option>' + (r.roles || []).map(function (x) { return '<option value="' + h(x.cle) + '"' + (rem.role === x.cle ? ' selected' : '') + '>' + h(x.nom) + '</option>'; }).join('') + '</select></label>'
+      + '<label class="champ">Niveau<select id="bf-r-niveau">' + (r.niveaux || []).map(function (x) { return '<option value="' + h(x.cle) + '"' + (rem.niveau === x.cle ? ' selected' : '') + '>' + h(x.nom) + '</option>'; }).join('') + '</select></label></div>'
+      + '<label class="ligne-case"><input type="checkbox" id="bf-r-chef"' + (rem.chef ? ' checked' : '') + '>Chef d’équipe et/ou formateur (+' + h(String(r.chefPlus).replace('.', ',')) + ' $/h)</label>'
+      + '<label class="ligne-case"><input type="checkbox" id="bf-r-dom"' + (rem.domicile ? ' checked' : '') + '>Entente : heures calculées jusqu’au domicile (au lieu de l’usine)</label>'
+      + '<div class="barre"><label class="champ">En vigueur à partir du<input type="date" id="bf-r-depuis" value="' + B.jourIso() + '"></label><button type="button" class="btn noir" id="bf-r-ajouter">Appliquer ce changement</button></div>'
+      + (taux !== null ? '<div class="message" style="background:var(--bande);color:var(--encre);display:flex;justify-content:space-between"><span>Taux horaire appliqué aujourd’hui</span><b>' + h(B.argent(taux)) + '/h</b></div>' : '')
+      + (liste.length ? '<table class="mini"><thead><tr><th>Depuis</th><th>Rôle</th><th>Niveau</th><th>Chef</th><th></th></tr></thead><tbody>' + liste.map(function (x) {
+        var ro = (r.roles || []).filter(function (y) { return y.cle === x.role; })[0], nv = (r.niveaux || []).filter(function (y) { return y.cle === x.niveau; })[0];
+        return '<tr><td>' + h(x.depuis) + '</td><td>' + h(ro ? ro.nom.split(':')[0] : (x.role || '—')) + '</td><td>' + h(nv ? nv.nom : x.niveau || '') + '</td><td>' + (x.chef ? 'oui' : '') + '</td><td><button type="button" class="btn rouge bf-r-suppr" data-depuis="' + h(x.depuis) + '">Retirer</button></td></tr>';
+      }).join('') + '</tbody></table>' : '')
+      + '<div class="aide">Pour les employés du programme, le taux vient des règles de rémunération (pas du taux horaire de l’encadré confidentiel), les heures sont calculées selon les règles et l’allocation repas remplace la saisie des repas.</div></section>';
+  }
+
   // ---------- Profils
   function vueProfils() {
     var html = '<div class="barre"><span class="aide">Un profil est un ensemble de droits déjà prévus. En choisissant un profil pour un employé, il reçoit ces droits. Modifier un profil met à jour tous les employés qui le suivent (sauf ceux « Personnalisé »).</span><span style="margin-left:auto"></span><button type="button" class="btn noir" id="bp-nouveau">+ Nouveau profil</button></div><div class="profils">';
@@ -511,6 +667,7 @@ geotab.addin.employes = function () {
   // ---------- Branchements
   function brancherVue() {
     if (onglet === 'profils') { brancherProfils(); return; }
+    if (onglet === 'regles') { brancherRegles(); return; }
     if (onglet === 'parametres') { brancherParametres(); return; }
     var garderFocus = function (id, f) { var el = $(id); el.oninput = el.onchange = function () { f(el); rendre(); var n = $(id); if (n && n.type === 'text') { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }; };
     garderFocus('be-f-texte', function (el) { filtre.texte = el.value; });
@@ -560,7 +717,7 @@ geotab.addin.employes = function () {
     };
   }
 
-  window.BonnevilleModule = { aller: function (nom, valeur) { onglet = nom || 'employes'; if (valeur === 'sansProfil') { filtre.profil = '-'; } message = null; if (users.length) { rendre(); } } };
+  window.BonnevilleModule = { aller: function (nom, valeur) { onglet = nom || 'employes'; if (onglet === 'regles') { reglesEdition = null; } if (valeur === 'sansProfil') { filtre.profil = '-'; } message = null; if (users.length) { rendre(); } } };
   function refuser() {
     $('be-onglets').style.display = 'none';
     $('be-contenu').innerHTML = '<div class="refus"><div style="font-size:40px">🔒</div><h2>Accès réservé aux administrateurs MyGeotab</h2><p class="aide">Bonneville - Employés demande le rôle de sécurité <b>Administrateur dans MyGeotab</b> (Utilisateurs → Autorisation de sécurité). Le profil « Administrateur Heures &amp; Dépenses » ne suffit pas. Adresse-toi à un administrateur Geotab de Bonneville.</p></div>';
