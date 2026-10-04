@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Bonneville - Tempo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://ericgloutnez.github.io/LFS/bonneville-commun.js?v=1.0.1"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+<div id="hb">
+<style>
+  #hb { --encre: #14191e; --doux: #4f5963; --ligne: #d3d8dd; --fond: #eef0f2; --surface: #ffffff; --bande: #e3e6e9; --accent: #f2a900; --ok: #1b7f3b; --non: #b42318; --orange: #9a5b00; --bleu: #1f4f8a;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; color: var(--encre); background: var(--fond); min-height: 100vh; }
+  #hb * { box-sizing: border-box; }
+  #hb button, #hb input, #hb select { font-family: inherit; }
+  #hb .entete { height: 60px; display: flex; align-items: center; gap: 16px; padding: 0 24px; background: var(--surface); border-bottom: 1px solid var(--ligne); position: sticky; top: 0; z-index: 20; }
+  #hb .entete img { height: 18px; } #hb .sep { width: 1px; height: 26px; background: var(--ligne); }
+  #hb .titre { font-size: 19px; font-weight: 800; }
+  #hb .onglets { display: flex; gap: 4px; margin-left: 16px; }
+  #hb .onglets button { height: 38px; padding: 0 14px; border: none; border-radius: 8px; background: transparent; color: var(--doux); font-size: 14px; font-weight: 700; cursor: pointer; }
+  #hb .onglets button.on { background: var(--bande); color: var(--encre); }
+  #hb .version { margin-left: auto; font-size: 12px; color: var(--doux); }
+  #hb main { padding: 20px 24px 90px; display: flex; flex-direction: column; gap: 14px; }
+  #hb .barre { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+  #hb label.champ { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: var(--doux); position: relative; }
+  #hb input[type=text], #hb input[type=date], #hb select, #hb textarea { height: 38px; border: 1px solid var(--ligne); border-radius: 8px; padding: 0 10px; font-size: 14px; color: var(--encre); background: var(--surface); }
+  #hb textarea { height: 70px; padding: 8px; resize: vertical; width: 100%; }
+  #hb .btn { height: 38px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--ligne); background: var(--surface); color: var(--encre); font-size: 14px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+  #hb .btn.noir { background: var(--encre); color: #fff; border-color: var(--encre); }
+  #hb .btn.jaune { background: var(--accent); border-color: var(--accent); color: var(--encre); }
+  #hb .btn.vert { color: var(--ok); border-color: var(--ok); }
+  #hb .btn.rouge { color: var(--non); border-color: var(--non); }
+  #hb .btn.sombre { background: #2c343c; color: #fff; border-color: #2c343c; }
+  #hb .btn:disabled { opacity: .5; cursor: default; }
+  #hb .multi-btn { width: 240px; justify-content: space-between; font-weight: 600; }
+  #hb .multi-liste { position: absolute; top: 64px; left: 0; z-index: 30; width: 280px; background: var(--surface); border: 1px solid var(--ligne); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.15); padding: 8px; display: flex; flex-direction: column; gap: 2px; max-height: 360px; overflow: auto; color: var(--encre); }
+  #hb .multi-liste label { display: flex; align-items: center; gap: 8px; padding: 5px; font-size: 14px; font-weight: 500; }
+  #hb .multi-liste label.tous { font-weight: 700; border-bottom: 1px solid var(--ligne); }
+  #hb .kpi { display: flex; gap: 12px; flex-wrap: wrap; }
+  #hb .kpi div { flex: 1; min-width: 150px; background: var(--surface); border: 1px solid var(--ligne); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; }
+  #hb .kpi b { font-size: 24px; } #hb .kpi span { font-size: 13px; color: var(--doux); font-weight: 600; }
+  #hb .tableau { background: var(--surface); border: 1px solid var(--ligne); border-radius: 12px; overflow: auto; }
+  #hb table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  #hb th { background: var(--bande); color: var(--doux); font-size: 12px; font-weight: 700; text-align: left; padding: 9px 10px; white-space: nowrap; }
+  #hb td { border-top: 1px solid var(--ligne); padding: 8px 10px; vertical-align: middle; }
+  #hb tr.sel td { background: #fffaf0; }
+  #hb tr.total td { border-top: 2px solid var(--encre); font-weight: 800; }
+  #hb td input[type=checkbox], #hb th input[type=checkbox] { width: 17px; height: 17px; }
+  #hb .puce { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 11px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+  #hb .puce.gris { background: var(--bande); } #hb .puce.orange { background: #fff3dc; color: var(--orange); }
+  #hb .puce.vert { background: #e6f2ea; color: var(--ok); } #hb .puce.rouge { background: #fdecea; color: var(--non); }
+  #hb .aide { font-size: 13px; color: var(--doux); }
+  #hb .message { padding: 10px 14px; border-radius: 10px; background: #e6f2ea; color: var(--ok); font-weight: 600; font-size: 14px; }
+  #hb .message.erreur { background: #fdecea; color: var(--non); }
+  #hb .actions { position: fixed; left: 24px; right: 24px; bottom: 16px; z-index: 25; display: flex; align-items: center; gap: 12px; background: var(--encre); color: #fff; border-radius: 12px; padding: 12px 16px; box-shadow: 0 6px 20px rgba(0,0,0,.25); }
+  #hb .actions .aide { color: #c9d1d8; }
+  #hb .fond-panneau { position: fixed; inset: 0; background: rgba(10,14,18,.45); z-index: 50; display: flex; justify-content: flex-end; }
+  #hb .panneau { width: min(500px, 100%); height: 100%; overflow: auto; background: var(--surface); padding: 22px; display: flex; flex-direction: column; gap: 12px; box-shadow: -8px 0 24px rgba(0,0,0,.12); }
+  #hb .panneau h2 { margin: 0; font-size: 22px; }
+  #hb .panneau h3 { margin: 6px 0 0; font-size: 15px; }
+  #hb .tl { display: flex; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--ligne); font-size: 14px; }
+  #hb .tl b { flex: 0 0 64px; }
+  #hb .point { width: 10px; height: 10px; border-radius: 5px; margin-top: 5px; flex: 0 0 auto; background: var(--doux); }
+  #hb .point.ok { background: var(--ok); } #hb .point.orange { background: #c77700; } #hb .point.bleu { background: var(--bleu); }
+  #hb .refus { margin: 80px auto; max-width: 520px; background: var(--surface); border: 1px solid var(--ligne); border-radius: 16px; padding: 28px; text-align: center; }
+  #hb .carte { background: var(--surface); border: 1px solid var(--ligne); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 10px; max-width: 760px; }
+</style>
+<div class="entete">
+  <img alt="Bonneville" src="https://ericgloutnez.github.io/LFS/logo-bonneville.png"><span class="sep"></span>
+  <span class="titre">Tempo</span>
+  <nav class="onglets" id="hb-onglets"><button type="button" data-o="journees" class="on">Journées</button><button type="button" data-o="archivage">Archivage</button></nav>
+  <span class="version" id="hb-version"></span>
+</div>
+<div id="hb-contenu"><main><div class="aide">Chargement…</div></main></div>
+</div>
+
+<script>
+geotab.addin.tempo = function () {
+  'use strict';
+  var VERSION = '1.0.2';
+  var B = window.Bonneville;
+  var G = null, moi = '', estAdmin = false, onglet = 'journees';
+  var users = [], employes = {}, profils = [], voyages = {}, journees = [], paies = {};
+  var filtre = null, selection = {}, message = null, multiOuvert = false;
+
+  function $(id) { return document.getElementById(id); }
+  function h(t) { return String(t === undefined || t === null ? '' : t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function nomUser(u) { var x = users.filter(function (y) { return y.user === u; })[0]; return x ? x.nom : (u || ''); }
+  function dire(t, e) { message = { t: t, e: !!e }; rendre(); }
+  function chiffre(n, d) { return Number(n || 0).toLocaleString('fr-CA', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 }); }
+
+  function charger() {
+    return Promise.all([
+      G.utilisateurs(),
+      G.lireTypes(['employe', 'profil', 'voyage']),
+      G.lireType('journee'),
+      G.lireType('paie').catch(function () { return []; })
+    ]).then(function (r) {
+      users = r[0]; employes = {}; profils = []; voyages = {}; paies = {};
+      r[1].forEach(function (l) {
+        var d = l.details;
+        if (d.type === 'employe') { employes[d.user] = d; } else if (d.type === 'profil') { profils.push(d); }
+        else if (d.type === 'voyage') { voyages[String(d.ref).split('-')[0]] = d; }
+      });
+      journees = r[2].map(function (l) { return { id: l.id, d: l.details }; });
+      r[3].forEach(function (l) { paies[l.details.user] = l.details; });
+      if (!filtre) {
+        var deb = B.debutSemaine(B.jourIso());
+        filtre = { du: B.ajouterJours(deb, -7), au: B.ajouterJours(deb, 6), employes: [], statut: '' };
+      }
+      rendre();
+    });
+  }
+  function peutApprouver() {
+    if (estAdmin) { return true; }
+    return !!B.droitsEffectifs(employes[moi], profils).approbateur;
+  }
+  function employesAvecHeures() {
+    var s = {};
+    journees.forEach(function (j) { s[j.d.user] = true; });
+    Object.keys(employes).forEach(function (u) { if (B.droitsEffectifs(employes[u], profils).heures) { s[u] = true; } });
+    return Object.keys(s).sort(function (a, b) { return nomUser(a).localeCompare(nomUser(b), 'fr'); });
+  }
+  function filtrees() {
+    return journees.filter(function (j) {
+      var d = j.d;
+      if (d.date < filtre.du || d.date > filtre.au) { return false; }
+      if (filtre.employes.length && filtre.employes.indexOf(d.user) < 0) { return false; }
+      if (filtre.statut && d.statut !== filtre.statut) { return false; }
+      return true;
+    }).sort(function (a, b) { return a.d.date.localeCompare(b.d.date) || nomUser(a.d.user).localeCompare(nomUser(b.d.user)); });
+  }
+  function puce(s) { var st = B.STATUTS[s] || { nom: s, couleur: 'gris' }; return '<span class="puce ' + st.couleur + '">' + h(st.nom) + '</span>'; }
+  function tauxKm(u, date) { return employes[u] ? B.tauxA(employes[u].tauxKm, date) : null; }
+  function montantKm(j, c) { var t = tauxKm(j.d.user, j.d.date); return t === null ? null : c.kmPerso * t; }
+
+  // ---------- Vue Journées
+  function rendre() {
+    Array.prototype.forEach.call(document.querySelectorAll('#hb-onglets button'), function (b) { b.className = b.getAttribute('data-o') === onglet ? 'on' : ''; });
+    var html = '<main>' + (message ? '<div class="message' + (message.e ? ' erreur' : '') + '">' + h(message.t) + '</div>' : '');
+    html += onglet === 'archivage' ? vueArchivage() : vueJournees();
+    $('hb-contenu').innerHTML = html + '</main>';
+    brancher();
+  }
+  function vueJournees() {
+    var liste = filtrees(), emps = employesAvecHeures();
+    var choisis = filtre.employes.length ? filtre.employes.length + ' employé' + (filtre.employes.length > 1 ? 's' : '') + ' sélectionné' + (filtre.employes.length > 1 ? 's' : '') : 'Tous les employés';
+    var html = '<div class="barre">'
+      + '<label class="champ">Du<input type="date" id="hb-du" value="' + filtre.du + '"></label>'
+      + '<label class="champ">Au<input type="date" id="hb-au" value="' + filtre.au + '"></label>'
+      + '<label class="champ">Employés<button type="button" class="btn multi-btn" id="hb-multi" aria-expanded="' + multiOuvert + '">' + h(choisis) + '<span>▾</span></button>'
+      + (multiOuvert ? '<div class="multi-liste"><input type="text" id="hb-multi-r" placeholder="Rechercher un employé"><label class="tous"><input type="checkbox" id="hb-multi-tous"' + (!filtre.employes.length ? ' checked' : '') + '>Tous les employés</label>'
+        + emps.map(function (u) { return '<label data-nom="' + h(nomUser(u).toLowerCase()) + '"><input type="checkbox" class="hb-multi-c" value="' + h(u) + '"' + (filtre.employes.indexOf(u) >= 0 ? ' checked' : '') + '>' + h(nomUser(u)) + '</label>'; }).join('') + '</div>' : '')
+      + '</label>'
+      + '<label class="champ">Statut<select id="hb-statut"><option value="">Tous</option>' + Object.keys(B.STATUTS).map(function (k) { return '<option value="' + k + '"' + (filtre.statut === k ? ' selected' : '') + '>' + h(B.STATUTS[k].nom) + '</option>'; }).join('') + '</select></label>'
+      + '<button type="button" class="btn" id="hb-actualiser">Actualiser</button><span style="margin-left:auto"></span>'
+      + '<button type="button" class="btn vert" id="hb-excel">⬇ Exporter la plage en Excel</button></div>';
+    var t = { m: 0, r: 0, k: 0, mk: 0, fin: 0, chef: 0 };
+    liste.forEach(function (j) { var c = B.calculer(j.d); t.m += c.total; t.r += c.repas; t.k += c.kmPerso; t.mk += montantKm(j, c) || 0; if (j.d.statut === 'attente_admin') { t.fin++; } if (j.d.statut === 'attente_chef') { t.chef++; } });
+    html += '<div class="kpi"><div><b>' + B.duree(t.m) + '</b><span>heures travaillées</span></div><div><b>' + B.argent(t.r) + '</b><span>repas</span></div><div><b>' + chiffre(t.k) + ' km</b><span>kilomètres personnels</span></div><div><b>' + B.argent(t.mk) + '</b><span>remboursement km</span></div>'
+      + '<div><b style="color:var(--orange)">' + t.fin + '</b><span>approuvées par le chef, à finaliser</span></div><div><b style="color:var(--doux)">' + t.chef + '</b><span>en attente du chef</span></div></div>';
+    html += '<div class="tableau"><table><thead><tr><th><input type="checkbox" id="hb-tout" aria-label="Tout sélectionner"></th><th>Date</th><th>Employé</th><th>Chef d’équipe</th><th>Début</th><th>Fin</th><th>Pauses</th><th>Heures</th><th>Repas</th><th>Km</th><th>Voyages</th><th>Statut</th><th></th></tr></thead><tbody>';
+    liste.forEach(function (j) {
+      var c = B.calculer(j.d), s = !!selection[j.id];
+      var parS = Object.keys(c.parSerie).filter(function (k) { return c.parSerie[k] > 0; }).map(function (k) { return (k || 'général') + ' ' + B.duree(c.parSerie[k]); }).join(', ');
+      html += '<tr data-id="' + h(j.id) + '"' + (s ? ' class="sel"' : '') + '><td><input type="checkbox" class="hb-sel"' + (s ? ' checked' : '') + ' aria-label="Sélectionner"></td>'
+        + '<td>' + h(B.dateCourte(j.d.date)) + '</td><td><b>' + h(nomUser(j.d.user)) + '</b>' + (j.d.commissionnaire ? ' <span class="puce gris">Commissionnaire</span>' : '') + '</td><td>' + h(j.d.chef ? nomUser(j.d.chef) : '—') + '</td>'
+        + '<td>' + h(B.heureFr(j.d.debut)) + (j.d.debutOrigine && j.d.debutOrigine !== j.d.debut ? ' <span class="puce orange" title="Enregistré ' + h(B.heureFr(j.d.debutOrigine)) + '">modifié</span>' : '') + '</td>'
+        + '<td>' + h(j.d.fin ? B.heureFr(j.d.fin) : '—') + '</td><td>' + (c.pauses ? B.duree(c.pauses) : '—') + '</td><td><b>' + B.duree(c.total) + '</b></td><td>' + (c.repas ? B.argent(c.repas) : '—') + '</td><td>' + (c.km || '—') + '</td>'
+        + '<td style="font-size:13px">' + h(parS) + '</td><td>' + puce(j.d.statut) + '</td><td><button type="button" class="btn hb-voir">Voir</button></td></tr>';
+    });
+    html += '<tr class="total"><td></td><td>Total</td><td>' + liste.length + ' journée' + (liste.length > 1 ? 's' : '') + '</td><td></td><td></td><td></td><td></td><td>' + B.duree(t.m) + '</td><td>' + B.argent(t.r) + '</td><td>' + chiffre(t.k) + '</td><td></td><td></td><td></td></tr></tbody></table></div>';
+    if (!liste.length) { html += '<div class="aide">Aucune journée dans cette plage.</div>'; }
+    var n = Object.keys(selection).filter(function (k) { return selection[k]; }).length;
+    if (n && peutApprouver()) {
+      html += '<div class="actions"><b>' + n + ' journée' + (n > 1 ? 's' : '') + ' sélectionnée' + (n > 1 ? 's' : '') + '</b><span class="aide">L’approbation finale suit celle du chef. Une journée encore chez le chef peut être approuvée à sa place (mention dans l’historique).</span><span style="margin-left:auto"></span>'
+        + '<button type="button" class="btn sombre" id="hb-retour">Retourner pour correction</button><button type="button" class="btn jaune" id="hb-final">✓ Approbation finale</button></div>';
+    }
+    return html;
+  }
+
+  // ---------- Décisions
+  function decider(ids, approuver, commentaire) {
+    var c = Promise.resolve(), ok = 0, ignores = 0, remplace = 0;
+    ids.forEach(function (id) {
+      var j = journees.filter(function (x) { return x.id === id; })[0]; if (!j) { return; }
+      if (approuver && ['attente_admin', 'attente_chef'].indexOf(j.d.statut) < 0) { ignores++; return; }
+      if (!approuver && ['attente_admin', 'attente_chef', 'approuvee'].indexOf(j.d.statut) < 0) { ignores++; return; }
+      var d = JSON.parse(JSON.stringify(j.d)), q = new Date().toISOString();
+      d.historique = d.historique || [];
+      if (approuver) {
+        if (d.statut === 'attente_chef') { d.historique.push({ quand: q, qui: moi, action: 'approuvee_a_la_place_du_chef' }); remplace++; }
+        d.statut = 'approuvee'; d.approuveLe = q; d.approuvePar = moi;
+        var tk = tauxKm(d.user, d.date); if (tk !== null) { d.tauxKmApplique = tk; }
+        var th = B.tauxHoraireA(paies[d.user], d.date); if (th !== null) { d.tauxHoraireApplique = th; }
+        d.historique.push({ quand: q, qui: moi, action: 'approbation_finale' });
+      } else {
+        d.statut = 'a_corriger'; d.commentaire = commentaire; d.historique.push({ quand: q, qui: moi, action: 'retournee', commentaire: commentaire });
+      }
+      c = c.then(function () { return G.modifier(j.id, d).then(function () { j.d = d; ok++; }); });
+    });
+    return c.then(function () {
+      selection = {};
+      dire(ok + ' journée(s) ' + (approuver ? 'approuvée(s)' : 'retournée(s)') + (remplace ? ', dont ' + remplace + ' à la place du chef' : '') + (ignores ? '. ' + ignores + ' ignorée(s) (statut ne le permet pas).' : '.'));
+    }).catch(function (e) { dire('Enregistrement interrompu : ' + (e && e.message ? e.message : e), true); });
+  }
+  function demanderRetour(ids) {
+    var t = window.prompt('Commentaire pour l’employé (obligatoire) :');
+    if (!t || !t.trim()) { return; }
+    decider(ids, false, t.trim());
+  }
+
+  // ---------- Détail
+  function ouvrirDetail(id) {
+    var j = journees.filter(function (x) { return x.id === id; })[0]; if (!j) { return; }
+    var d = j.d, c = B.calculer(d), tk = d.tauxKmApplique !== undefined ? d.tauxKmApplique : tauxKm(d.user, d.date);
+    var html = '<div class="panneau" role="dialog" aria-label="Détail de la journée"><div class="barre" style="justify-content:space-between;align-items:flex-start"><div><h2>' + h(nomUser(d.user)) + '</h2><div class="aide">' + h(B.JOURS[B.dateDe(d.date).getDay()]) + ' ' + h(d.date) + '</div></div>' + puce(d.statut) + '</div>'
+      + '<div class="kpi"><div><b>' + B.duree(c.total) + '</b><span>heures</span></div><div><b>' + B.argent(c.repas) + '</b><span>repas</span></div><div><b>' + c.km + ' km</b><span>kilomètres</span></div></div>'
+      + '<h3>Heures</h3>'
+      + '<div class="tl"><b>' + h(B.heureFr(d.debut)) + '</b><span class="point ' + (d.debutOrigine && d.debutOrigine !== d.debut ? 'orange' : 'ok') + '"></span><span>Début' + (d.checkin ? ' (check-in du voyage ' + h(d.checkin.serie) + ')' : '') + (d.debutOrigine && d.debutOrigine !== d.debut ? '<br><span class="aide">Modifié par l’employé, enregistré ' + h(B.heureFr(d.debutOrigine)) + '</span>' : '') + '</span></div>';
+    (d.segments || []).forEach(function (s) { html += '<div class="tl"><b>' + h(B.heureFr(s.debut)) + '</b><span class="point bleu"></span><span>' + h(s.serie ? 'Voyage ' + s.serie : 'Temps général') + ' jusqu’à ' + h(s.fin ? B.heureFr(s.fin) : '—') + '</span></div>'; });
+    (d.pauses || []).forEach(function (p) { html += '<div class="tl"><b>' + h(B.heureFr(p.debut)) + '</b><span class="point"></span><span>Pause jusqu’à ' + h(p.fin ? B.heureFr(p.fin) : '—') + '</span></div>'; });
+    (d.ajouts || []).forEach(function (a) { html += '<div class="tl"><b>+' + h(B.duree(a.minutes)) + '</b><span class="point orange"></span><span>Ajoutées à la main sur ' + h(a.serie || 'temps général') + '</span></div>'; });
+    html += '<div class="tl"><b>' + h(d.fin ? B.heureFr(d.fin) : '—') + '</b><span class="point ' + (d.finOrigine && d.finOrigine !== d.fin ? 'orange' : 'ok') + '"></span><span>Fin' + (d.finOrigine && d.finOrigine !== d.fin ? '<br><span class="aide">Modifiée, enregistrée ' + h(B.heureFr(d.finOrigine)) + '</span>' : '') + '</span></div>';
+    var parS = Object.keys(c.parSerie).map(function (k) { return '<div class="tl"><b>' + h(k || 'Général') + '</b><span>' + B.duree(c.parSerie[k]) + '</span></div>'; }).join('');
+    if (parS) { html += '<h3>Répartition par voyage</h3>' + parS; }
+    html += '<h3>Repas</h3>' + ((d.repas || []).length ? d.repas.map(function (r) { return '<div class="tl"><b>' + h(r.type) + '</b><span>' + B.argent(r.montant) + (r.serie ? ' · série ' + h(r.serie) : '') + '</span></div>'; }).join('') : '<div class="aide">Aucun</div>');
+    html += '<h3>Kilomètres</h3>' + ((d.km || []).length ? d.km.map(function (k) { return '<div class="tl"><b>' + h(k.serie || 'Général') + '</b><span>' + k.km + ' km</span></div>'; }).join('') : '<div class="aide">Aucun</div>')
+      + '<div class="aide">Véhicule ' + (d.vehicule === 'compagnie' ? 'de la compagnie (non remboursé)' : 'personnel') + (tk !== null && d.vehicule !== 'compagnie' ? ' : ' + c.kmPerso + ' km × ' + chiffre(tk, 2) + ' $/km = ' + B.argent(c.kmPerso * tk) : '') + '</div>';
+    if (d.commentaire) { html += '<div class="message erreur">Dernier commentaire : ' + h(d.commentaire) + '</div>'; }
+    if (peutApprouver()) {
+      html += '<label class="champ">Commentaire pour l’employé (obligatoire si retournée)<textarea id="hb-com"></textarea></label><div class="barre"><button type="button" class="btn rouge" id="hb-d-retour">Retourner pour correction</button><span style="margin-left:auto"></span><button type="button" class="btn jaune" id="hb-d-ok">✓ Approbation finale</button></div>';
+    }
+    html += '<h3>Historique</h3>' + (d.historique || []).map(function (x) { return '<div class="aide">' + h(new Date(x.quand).toLocaleString('fr-CA')) + ' · ' + h(nomUser(x.qui)) + ' · ' + h(String(x.action).replace(/_/g, ' ')) + (x.commentaire ? ' : « ' + h(x.commentaire) + ' »' : '') + '</div>'; }).join('')
+      + '<button type="button" class="btn" id="hb-d-fermer">Fermer</button></div>';
+    var f = document.createElement('div'); f.className = 'fond-panneau'; f.id = 'hb-detail'; f.innerHTML = html;
+    f.addEventListener('click', function (e) { if (e.target === f) { fermer(); } });
+    $('hb').appendChild(f);
+    function fermer() { if (f.parentNode) { f.parentNode.removeChild(f); } }
+    $('hb-d-fermer').onclick = fermer;
+    if ($('hb-d-ok')) {
+      $('hb-d-ok').onclick = function () { fermer(); decider([id], true); };
+      $('hb-d-retour').onclick = function () { var t = $('hb-com').value.trim(); if (!t) { alert('Écris un commentaire pour l’employé.'); return; } fermer(); decider([id], false, t); };
+    }
+  }
+
+  // ---------- Excel
+  function lignesExcel(liste) {
+    var detail = [], repas = [], km = [], modif = [], parEmp = {}, parVoyage = {};
+    liste.forEach(function (j) {
+      var d = j.d, c = B.calculer(d), nom = nomUser(d.user);
+      var tk = d.tauxKmApplique !== undefined ? d.tauxKmApplique : tauxKm(d.user, d.date);
+      var th = d.tauxHoraireApplique !== undefined ? d.tauxHoraireApplique : B.tauxHoraireA(paies[d.user], d.date);
+      var mk = tk === null ? null : Math.round(c.kmPerso * tk * 100) / 100, sal = th === null ? null : Math.round(c.total / 60 * th * 100) / 100;
+      detail.push({ 'Date': d.date, 'Employé': nom, 'Chef d’équipe': d.chef ? nomUser(d.chef) : '', 'Début': d.debut, 'Fin': d.fin || '', 'Pauses (min)': c.pauses, 'Heures': Math.round(c.total / 60 * 100) / 100,
+        'Repas ($)': c.repas, 'Km perso': c.kmPerso, 'Taux ($/km)': tk === null ? '' : tk, 'Remb. km ($)': mk === null ? '' : mk, 'Taux horaire ($/h)': th === null ? '' : th, 'Salaire ($)': sal === null ? '' : sal,
+        'Statut': (B.STATUTS[d.statut] || {}).nom || d.statut, 'Approuvé par': d.approuvePar ? nomUser(d.approuvePar) : '', 'Approuvé par le chef': d.approuveChefPar ? nomUser(d.approuveChefPar) : '' });
+      var e = parEmp[d.user] = parEmp[d.user] || { 'Employé': nom, 'Journées': 0, 'Heures': 0, 'Repas ($)': 0, 'Km perso': 0, 'Remb. km ($)': 0, 'Salaire ($)': 0 };
+      e['Journées']++; e['Heures'] += c.total / 60; e['Repas ($)'] += c.repas; e['Km perso'] += c.kmPerso; e['Remb. km ($)'] += mk || 0; e['Salaire ($)'] += sal || 0;
+      Object.keys(c.parSerie).forEach(function (s) {
+        var v = parVoyage[s || 'Sans voyage'] = parVoyage[s || 'Sans voyage'] || { 'Série': s || 'Sans voyage', 'Heures': 0, 'Repas ($)': 0, 'Km': 0 };
+        v['Heures'] += c.parSerie[s] / 60;
+      });
+      (d.repas || []).forEach(function (r) {
+        repas.push({ 'Date': d.date, 'Employé': nom, 'Repas': r.type, 'Montant ($)': r.montant, 'Série': r.serie || '' });
+        if (r.serie) { var v = parVoyage[r.serie] = parVoyage[r.serie] || { 'Série': r.serie, 'Heures': 0, 'Repas ($)': 0, 'Km': 0 }; v['Repas ($)'] += r.montant; }
+      });
+      (d.km || []).forEach(function (k) {
+        km.push({ 'Date': d.date, 'Employé': nom, 'Série': k.serie || 'Sans voyage', 'Km': k.km, 'Véhicule': d.vehicule === 'compagnie' ? 'Compagnie' : 'Personnel', 'Taux ($/km)': tk === null ? '' : tk, 'Montant ($)': d.vehicule === 'compagnie' || tk === null ? 0 : Math.round(k.km * tk * 100) / 100 });
+        var v = parVoyage[k.serie || 'Sans voyage'] = parVoyage[k.serie || 'Sans voyage'] || { 'Série': k.serie || 'Sans voyage', 'Heures': 0, 'Repas ($)': 0, 'Km': 0 }; v['Km'] += k.km;
+      });
+      if (d.debutOrigine && d.debutOrigine !== d.debut) { modif.push({ 'Date': d.date, 'Employé': nom, 'Heure': 'Début', 'Enregistrée': d.debutOrigine, 'Nouvelle': d.debut }); }
+      if (d.finOrigine && d.finOrigine !== d.fin) { modif.push({ 'Date': d.date, 'Employé': nom, 'Heure': 'Fin', 'Enregistrée': d.finOrigine, 'Nouvelle': d.fin }); }
+    });
+    var arr = function (o) { return Object.keys(o).map(function (k) { var x = o[k]; Object.keys(x).forEach(function (c) { if (typeof x[c] === 'number') { x[c] = Math.round(x[c] * 100) / 100; } }); return x; }); };
+    return { detail: detail, sommaire: arr(parEmp), voyages: arr(parVoyage), repas: repas, km: km, modif: modif };
+  }
+  function exporter(liste, nom) {
+    if (!window.XLSX) { dire('La bibliothèque Excel n’a pas été chargée. Fais Ctrl + F5 et réessaie.', true); return false; }
+    if (!liste.length) { dire('Aucune journée à exporter.', true); return false; }
+    var l = lignesExcel(liste), wb = XLSX.utils.book_new();
+    function feuille(rows, titre) { var ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{ 'Aucune donnée': '' }]); XLSX.utils.book_append_sheet(wb, ws, titre); }
+    feuille(l.detail, 'Détail des journées'); feuille(l.sommaire, 'Sommaire par employé'); feuille(l.voyages, 'Par voyage');
+    feuille(l.repas, 'Repas'); feuille(l.km, 'Kilomètres'); feuille(l.modif, 'Modifications d’heures');
+    XLSX.writeFile(wb, nom);
+    return true;
+  }
+
+  // ---------- Archivage (12 mois)
+  var dernierExportArchive = null;
+  function aArchiver() {
+    var limite = B.ajouterJours(B.jourIso(), -365);
+    return journees.filter(function (j) { return j.d.statut === 'approuvee' && j.d.date < limite; });
+  }
+  function vueArchivage() {
+    var l = aArchiver();
+    return '<section class="carte"><h3 style="margin:0">Journées de plus de 12 mois</h3>'
+      + '<div style="font-size:28px;font-weight:800">' + l.length + ' journée' + (l.length > 1 ? 's' : '') + ' prête' + (l.length > 1 ? 's' : '') + ' à archiver</div>'
+      + '<div class="aide">1) Exporte le fichier Excel complet, 2) classe-le dans OneDrive (copie officielle conservée 6 ans), 3) retire les journées de Geotab. Un résumé par employé et par semaine reste dans Geotab.</div>'
+      + '<div class="barre"><button type="button" class="btn vert" id="hb-a-excel"' + (l.length ? '' : ' disabled') + '>⬇ 1. Exporter en Excel</button>'
+      + '<button type="button" class="btn rouge" id="hb-a-retirer"' + (dernierExportArchive && l.length ? '' : ' disabled') + '>3. Retirer de Geotab</button></div></section>';
+  }
+  function retirerArchive() {
+    var l = dernierExportArchive || [];
+    if (!confirm('As-tu bien classé le fichier Excel dans OneDrive ?\n\n' + l.length + ' journée(s) seront retirées de Geotab. Un résumé par semaine sera conservé. Cette action est définitive.')) { return; }
+    var resumes = {};
+    l.forEach(function (j) {
+      var c = B.calculer(j.d), sem = B.debutSemaine(j.d.date), k = j.d.user + '|' + sem;
+      var r = resumes[k] = resumes[k] || { type: 'semaineHeures', user: j.d.user, semaine: sem, minutes: 0, repas: 0, kmPerso: 0, journees: 0, archiveLe: new Date().toISOString() };
+      r.minutes += c.total; r.repas += c.repas; r.kmPerso += c.kmPerso; r.journees++;
+    });
+    var c = Promise.resolve(), n = 0;
+    Object.keys(resumes).forEach(function (k) { c = c.then(function () { return G.ajouter(resumes[k]); }); });
+    l.forEach(function (j) { c = c.then(function () { return G.retirer(j.id).then(function () { n++; }); }); });
+    c.then(function () { dernierExportArchive = null; return charger(); }).then(function () { dire(n + ' journée(s) archivée(s) et retirée(s) de Geotab.'); })
+      .catch(function (e) { dire('Archivage interrompu après ' + n + ' journée(s) : ' + (e && e.message ? e.message : e), true); });
+  }
+
+  // ---------- Branchements
+  function brancher() {
+    if (onglet === 'archivage') {
+      if ($('hb-a-excel')) {
+        $('hb-a-excel').onclick = function () { var l = aArchiver(); if (exporter(l, 'Archive-heures-' + B.jourIso() + '.xlsx')) { dernierExportArchive = l; dire('Fichier exporté. Classe-le dans OneDrive, puis clique sur « Retirer de Geotab ».'); } };
+        $('hb-a-retirer').onclick = retirerArchive;
+      }
+      return;
+    }
+    $('hb-du').onchange = function () { filtre.du = this.value; selection = {}; rendre(); };
+    $('hb-au').onchange = function () { filtre.au = this.value; selection = {}; rendre(); };
+    $('hb-statut').onchange = function () { filtre.statut = this.value; selection = {}; rendre(); };
+    $('hb-multi').onclick = function (e) { e.stopPropagation(); multiOuvert = !multiOuvert; rendre(); };
+    if (multiOuvert) {
+      var liste = document.querySelector('.multi-liste');
+      liste.addEventListener('click', function (e) { e.stopPropagation(); });
+      $('hb-multi-r').oninput = function () { var t = this.value.toLowerCase(); Array.prototype.forEach.call(liste.querySelectorAll('label[data-nom]'), function (l) { l.style.display = !t || l.getAttribute('data-nom').indexOf(t) >= 0 ? '' : 'none'; }); };
+      $('hb-multi-tous').onchange = function () { filtre.employes = []; rendre(); };
+      Array.prototype.forEach.call(liste.querySelectorAll('.hb-multi-c'), function (c) {
+        c.onchange = function () {
+          var u = c.value;
+          filtre.employes = filtre.employes.filter(function (x) { return x !== u; });
+          if (c.checked) { filtre.employes.push(u); }
+          selection = {}; rendre(); var r = $('hb-multi-r'); if (r) { r.focus(); }
+        };
+      });
+    }
+    $('hb-actualiser').onclick = function () { message = null; charger(); };
+    $('hb-excel').onclick = function () { exporter(filtrees(), 'Heures-et-depenses-' + filtre.du + '-au-' + filtre.au + '.xlsx'); };
+    $('hb-tout').onchange = function () { var v = this.checked; filtrees().forEach(function (j) { selection[j.id] = v; }); rendre(); };
+    Array.prototype.forEach.call(document.querySelectorAll('tr[data-id]'), function (tr) {
+      var id = tr.getAttribute('data-id');
+      tr.querySelector('.hb-sel').onchange = function () { selection[id] = this.checked; rendre(); };
+      tr.querySelector('.hb-voir').onclick = function () { ouvrirDetail(id); };
+    });
+    var ids = function () { return Object.keys(selection).filter(function (k) { return selection[k]; }); };
+    if ($('hb-final')) {
+      $('hb-final').onclick = function () {
+        var l = ids(), chez = l.filter(function (id) { var j = journees.filter(function (x) { return x.id === id; })[0]; return j && j.d.statut === 'attente_chef'; }).length;
+        if (chez && !confirm(chez + ' journée(s) attendent encore l’approbation du chef. Les approuver à sa place ?')) { return; }
+        decider(l, true);
+      };
+      $('hb-retour').onclick = function () { demanderRetour(ids()); };
+    }
+  }
+  document.addEventListener('click', function () { if (multiOuvert) { multiOuvert = false; rendre(); } });
+
+  return {
+    initialize: function (api, state, callback) {
+      try {
+        $('hb-version').textContent = 'version ' + VERSION;
+        Array.prototype.forEach.call(document.querySelectorAll('#hb-onglets button'), function (b) { b.onclick = function () { onglet = b.getAttribute('data-o'); message = null; rendre(); }; });
+      } catch (e) { console.warn(e); }
+      callback();
+    },
+    focus: function (api) {
+      G = B.creerApi(api);
+      G.session().then(function (s) { moi = s.userName || ''; return G.estAdministrateur(moi); })
+        .then(function (a) { estAdmin = a; return charger(); })
+        .then(function () {
+          if (!peutApprouver()) {
+            $('hb-contenu').innerHTML = '<div class="refus"><h2>Accès réservé</h2><p class="aide">Cette page est réservée aux administrateurs et aux approbateurs des heures. L’accès se donne dans Bonneville - Employés.</p></div>';
+          }
+        })
+        .catch(function (e) { $('hb-contenu').innerHTML = '<main><div class="message erreur">Lecture impossible : ' + h(e && e.message ? e.message : e) + '</div></main>'; });
+    },
+    blur: function () {}
+  };
+};
+</script>
+</body>
+</html>

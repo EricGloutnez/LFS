@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bonneville - Tempo</title>
+<script src="https://ericgloutnez.github.io/LFS/bonneville-commun.js?v=1.0.1"></script>
+</head>
+<body>
+<div id="bh" data-theme="jour">
+<style>
+  #bh { --encre: #14191e; --doux: #4f5963; --ligne: #d3d8dd; --fond: #eef0f2; --surface: #ffffff; --bande: #e3e6e9; --accent: #f2a900; --ok: #1b7f3b; --non: #b42318; --orange: #9a5b00; --bleu: #1f4f8a; --carte-noire: #14191e;
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; color: var(--encre); background: var(--fond); min-height: 100vh; padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); -webkit-text-size-adjust: 100%; }
+  #bh[data-theme="nuit"] { --encre: #edf0f3; --doux: #a3adb7; --fond: #12161a; --surface: #1d2329; --ligne: #2f3842; --bande: #2a323a; --carte-noire: #000000; }
+  #bh * { box-sizing: border-box; }
+  #bh button, #bh input, #bh select { font-family: inherit; color: inherit; }
+  #bh .entete { position: sticky; top: 0; z-index: 20; height: 64px; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: var(--surface); border-bottom: 1px solid var(--ligne); }
+  #bh .entete img { height: 20px; }
+  #bh[data-theme="nuit"] .entete img { filter: invert(1); }
+  #bh .pastille { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 14px; background: var(--ok); color: #fff; font-size: 12px; font-weight: 700; white-space: nowrap; }
+  #bh .pastille.hors { background: var(--non); } #bh .pastille.attente { background: #b26b00; }
+  #bh .rond { width: 46px; height: 46px; border-radius: 23px; border: 2px solid var(--ligne); background: var(--surface); display: flex; align-items: center; justify-content: center; padding: 0; text-decoration: none; color: var(--encre); }
+  #bh .rond.tel { background: var(--ok); border-color: var(--ok); color: #fff; }
+  #bh .ecran { padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+  #bh .carte { background: var(--surface); border: 1px solid var(--ligne); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  #bh .carte h2 { margin: 0; font-size: 17px; font-weight: 800; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  #bh .noire { background: var(--carte-noire); color: #fff; border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+  #bh .noire .sous { color: #c9d1d8; font-size: 15px; }
+  #bh .grand { font-size: 52px; font-weight: 800; line-height: 1; }
+  #bh .moyen { font-size: 32px; font-weight: 800; line-height: 1.05; }
+  #bh .rangee { display: flex; gap: 10px; align-items: center; }
+  #bh .btn { flex: 1; min-height: 54px; border-radius: 12px; border: 2px solid var(--ligne); background: var(--surface); font-size: 17px; font-weight: 800; cursor: pointer; padding: 6px 12px; }
+  #bh .btn.jaune { background: var(--accent); border-color: var(--accent); color: #14191e; }
+  #bh .btn.sombre { background: #2c343c; border-color: #2c343c; color: #fff; }
+  #bh .btn.noir { background: var(--encre); border-color: var(--encre); color: var(--fond); }
+  #bh .btn.rouge { color: var(--non); border-color: var(--non); }
+  #bh .btn.lien { flex: 0 0 auto; min-height: 40px; font-size: 14px; border-width: 1px; }
+  #bh .btn:disabled { opacity: .45; }
+  #bh .noire .btn.lien { background: transparent; border-color: #5b6672; color: #fff; }
+  #bh .puce { display: inline-flex; align-items: center; height: 24px; padding: 0 9px; border-radius: 12px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+  #bh .puce.gris { background: var(--bande); color: var(--encre); } #bh .puce.orange { background: #fff3dc; color: var(--orange); }
+  #bh .puce.vert { background: #e6f2ea; color: var(--ok); } #bh .puce.rouge { background: #fdecea; color: var(--non); }
+  #bh .puce.ok { background: var(--ok); color: #fff; } #bh .puce.sombre { background: #2c343c; color: #fff; }
+  #bh .aide { font-size: 13px; color: var(--doux); line-height: 1.35; }
+  #bh .ligne { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--ligne); align-items: center; }
+  #bh .ligne:last-child { border-bottom: none; }
+  #bh .barre-couleur { width: 6px; align-self: stretch; border-radius: 3px; background: var(--bleu); flex: 0 0 auto; }
+  #bh .barre-couleur.ok { background: var(--ok); } #bh .barre-couleur.gris { background: var(--doux); }
+  #bh .t { font-weight: 800; font-size: 17px; } #bh .s { font-size: 13px; color: var(--doux); }
+  #bh .lien-a { color: var(--bleu); font-weight: 700; font-size: 13px; background: none; border: none; padding: 0; cursor: pointer; text-align: left; }
+  #bh[data-theme="nuit"] .lien-a { color: #8fb8ea; }
+  #bh .alerte { border-radius: 12px; background: #fdecea; color: var(--non); padding: 12px; font-weight: 700; font-size: 14px; line-height: 1.35; }
+  #bh .ok-msg { border-radius: 12px; background: #e6f2ea; color: var(--ok); padding: 12px; font-weight: 700; font-size: 14px; }
+  #bh .chiffres { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  #bh .chiffre { padding-left: 8px; box-shadow: inset 4px 0 0 var(--accent); display: flex; flex-direction: column; }
+  #bh .chiffre b { font-size: 20px; } #bh .chiffre span { font-size: 12px; color: var(--doux); }
+  #bh input.champ { height: 52px; border: 2px solid var(--ligne); border-radius: 10px; padding: 0 12px; font-size: 18px; font-weight: 700; background: var(--surface); width: 100%; }
+  #bh input.gros { height: 72px; border: 2px solid var(--encre); border-radius: 12px; padding: 0 16px; font-size: 32px; font-weight: 800; background: var(--surface); width: 100%; }
+  #bh .case-h { width: 96px; height: 76px; border: 3px solid var(--encre); border-radius: 14px; text-align: center; font-size: 40px; font-weight: 800; background: var(--surface); }
+  #bh .choix { flex: 1; min-height: 52px; border-radius: 12px; border: 2px solid var(--ligne); background: var(--surface); font-size: 16px; font-weight: 700; cursor: pointer; }
+  #bh .choix.on { border: 3px solid var(--encre); background: #fff7df; color: #14191e; }
+  #bh .voyage-btn { width: 100%; min-height: 54px; border-radius: 12px; border: 1px solid var(--ligne); background: var(--surface); text-align: left; padding: 8px 14px; display: flex; flex-direction: column; justify-content: center; cursor: pointer; }
+  #bh .voyage-btn.on { border: 3px solid var(--encre); background: #fff7df; color: #14191e; }
+  #bh .onglets { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: flex; background: var(--surface); border-top: 1px solid var(--ligne); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  #bh .onglets button { flex: 1; height: 70px; border: none; background: var(--surface); color: var(--doux); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 12px; font-weight: 600; cursor: pointer; position: relative; }
+  #bh .onglets button.on { color: var(--encre); font-weight: 800; box-shadow: inset 0 4px 0 var(--accent); }
+  #bh .onglets .badge { position: absolute; top: 6px; right: calc(50% - 26px); min-width: 20px; height: 20px; border-radius: 10px; background: var(--non); color: #fff; font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center; padding: 0 5px; }
+  #bh .fond-feuille { position: fixed; inset: 0; z-index: 60; background: rgba(10,14,18,.55); display: flex; align-items: flex-end; }
+  #bh .feuille { width: 100%; max-height: 92vh; overflow: auto; background: var(--surface); border-radius: 18px 18px 0 0; padding: 18px 16px calc(20px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 12px; }
+  #bh .feuille h1 { margin: 0; font-size: 22px; }
+  #bh .poignee { width: 44px; height: 5px; border-radius: 3px; background: var(--ligne); align-self: center; }
+  #bh .semaine-l { display: grid; grid-template-columns: 70px 1fr 1fr 0.8fr auto; gap: 6px; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--ligne); font-size: 15px; font-weight: 600; width: 100%; background: none; border-left: none; border-right: none; border-top: none; text-align: left; cursor: pointer; }
+  #bh .semaine-l.titre { font-size: 12px; color: var(--doux); font-weight: 700; cursor: default; }
+  #bh .bas-fixe { position: sticky; bottom: 70px; background: var(--surface); border-top: 1px solid var(--ligne); padding: 12px 14px; display: flex; gap: 10px; margin: 0 -14px -14px; }
+  @media (min-width: 700px) { #bh .ecran, #bh .entete { max-width: 720px; margin-left: auto; margin-right: auto; } }
+</style>
+
+<div class="entete">
+  <img id="bh-logo" alt="Bonneville" src="https://ericgloutnez.github.io/LFS/logo-bonneville.png">
+  <span id="bh-pastille" class="pastille">En ligne</span>
+  <button type="button" class="rond" id="bh-theme" aria-label="Mode nuit"><svg width="21" height="21" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path></svg></button>
+  <a class="rond tel" href="tel:4389782162" aria-label="Appeler Bonneville au (438) 978-2162"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"></path></svg></a>
+</div>
+<div id="bh-contenu"><div class="ecran"><div class="aide">Chargement…</div></div></div>
+<nav class="onglets" id="bh-onglets"></nav>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var VERSION = '1.0.2';
+  var B = window.Bonneville;
+  var G = null, api = null, moi = '', monNom = '';
+  var employes = {}, profils = [], monEmp = null, droits = {}, voyages = [], journees = {}, equipeJ = [];
+  var ecran = 'journee', dateSel = null, semaineSel = null, feuille = null, horsReseau = false, pret = false, branche = false;
+  var CLE_CACHE = 'bh-cache', CLE_THEME = 'bh-theme';
+  var minuterie = null;
+
+  function $(id) { return document.getElementById(id); }
+  function h(t) { return String(t === undefined || t === null ? '' : t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function lire(c) { try { var v = localStorage.getItem(c); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+  function ecrire(c, v) { try { localStorage.setItem(c, JSON.stringify(v)); } catch (e) {} }
+  function aujour() { return B.jourIso(); }
+  function nomUser(u) { var e = employes[u]; return (e && e.nom) || u; }
+  function estCommissionnaire() { return !!droits.tousVoyages; }
+  function voyageDe(serie) { return voyages.filter(function (v) { return String(v.d.ref).split('-')[0] === serie || v.d.ref === serie; })[0]; }
+  function libelleVoyage(serie) {
+    if (!serie) { return 'Sans voyage (temps général)'; }
+    var v = voyageDe(serie);
+    return v ? ((v.d.depart && v.d.depart.label ? String(v.d.depart.label).split(',')[0] : '?') + ' vers ' + (v.d.arrivee && v.d.arrivee.label ? String(v.d.arrivee.label).split(',')[0] : '?')) : '';
+  }
+
+  // ---------- Thème
+  function appliquerTheme(t) { var r = $('bh'); if (r) { r.setAttribute('data-theme', t); } }
+  function themeInitial() {
+    var t = lire(CLE_THEME);
+    if (t !== 'jour' && t !== 'nuit') { t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'nuit' : 'jour'; }
+    appliquerTheme(t);
+  }
+
+  // ---------- Pastille et file d'envoi
+  function enAttente() { return Object.keys(journees).filter(function (k) { return journees[k]._attente; }).length; }
+  function majPastille() {
+    var p = $('bh-pastille'); if (!p) { return; }
+    var n = enAttente();
+    if (n) { p.className = 'pastille attente'; p.textContent = n + ' envoi' + (n > 1 ? 's' : '') + ' en attente'; }
+    else if (horsReseau || navigator.onLine === false) { p.className = 'pastille hors'; p.textContent = 'Hors réseau'; }
+    else { p.className = 'pastille'; p.textContent = 'En ligne'; }
+  }
+  function garderCache() {
+    var limite = B.ajouterJours(aujour(), -30), garde = {};
+    Object.keys(journees).forEach(function (k) {
+      var j = journees[k];
+      if (j.d.statut === 'approuvee' && String(j.d.approuveLe || k).slice(0, 10) < limite) { return; }
+      garde[k] = j;
+    });
+    ecrire(CLE_CACHE, { date: new Date().toISOString(), employes: employes, profils: profils, voyages: voyages, journees: garde, moi: moi });
+  }
+  var enCours = {};
+  function sauver(date) {
+    var j = journees[date]; if (!j) { return Promise.resolve(); }
+    j.d.maj = new Date().toISOString();
+    j._attente = true; garderCache(); majPastille();
+    if (enCours[date]) { enCours[date].encore = true; return enCours[date].p; }
+    var etat = { encore: false };
+    etat.p = G.enregistrer(j.id ? { id: j.id } : null, j.d).then(function (id) {
+      j.id = id; j._attente = false; horsReseau = false;
+    }).catch(function () { horsReseau = true; }).then(function () {
+      delete enCours[date]; garderCache(); majPastille();
+      if (etat.encore) { return sauver(date); }
+    });
+    enCours[date] = etat;
+    return etat.p;
+  }
+  function viderFile() { Object.keys(journees).forEach(function (k) { if (journees[k]._attente && !enCours[k]) { sauver(k); } }); }
+
+  // ---------- Chargement
+  function charger() {
+    var lu = Promise.all([
+      G.lireTypes(['employe', 'profil', 'voyage']),
+      G.lireChamp('journee', 'user', moi)
+    ]).then(function (r) {
+      employes = {}; profils = []; voyages = [];
+      r[0].forEach(function (l) {
+        var d = l.details;
+        if (d.type === 'employe' && d.user) { employes[d.user] = d; }
+        else if (d.type === 'profil') { profils.push(d); }
+        else if (d.type === 'voyage' && !d.archive) { voyages.push({ id: l.id, d: d }); }
+      });
+      var serveur = {};
+      r[1].forEach(function (l) { serveur[l.details.date] = { id: l.id, d: l.details }; });
+      // Les journées locales en attente d'envoi gardent la priorité
+      Object.keys(journees).forEach(function (k) { if (journees[k]._attente) { serveur[k] = journees[k]; } });
+      journees = serveur;
+      horsReseau = false;
+    }).catch(function () {
+      horsReseau = true;
+      var c = lire(CLE_CACHE);
+      if (c && c.moi === moi) { employes = c.employes || {}; profils = c.profils || []; voyages = c.voyages || []; journees = c.journees || {}; }
+    });
+    return lu.then(function () {
+      monEmp = employes[moi] || null;
+      droits = B.droitsEffectifs(monEmp, profils);
+      var tous = voyages;
+      voyages = droits.tousVoyages ? tous : tous.filter(function (v) { return (v.d.assignes || []).indexOf(moi) >= 0; });
+      voyages.sort(function (a, b) { return String(a.d.departDate || a.d.date || '').localeCompare(String(b.d.departDate || b.d.date || '')); });
+      garderCache();
+      if (droits.chef) { return chargerEquipe(); }
+    }).then(function () { pret = true; viderFile(); rendre(); });
+  }
+  function chargerEquipe() {
+    return G.lireChamp('journee', 'statut', 'attente_chef').then(function (l) {
+      equipeJ = l.filter(function (x) { return (x.details.approbateursChef || []).indexOf(moi) >= 0; }).map(function (x) { return { id: x.id, d: x.details }; });
+    }).catch(function () { equipeJ = []; });
+  }
+
+  // ---------- Journée : actions
+  function jour(date) { return journees[date || dateSel]; }
+  function nouvelleJournee(date, voyage, debut, fin) {
+    var d = {
+      type: 'journee', user: moi, nom: monNom, date: date, debut: debut, fin: fin || null, debutOrigine: debut,
+      voyage: voyage || '', pauses: [], segments: [], ajouts: [], repas: [], km: [], vehicule: 'personnel',
+      statut: fin ? 'terminee' : 'ouverte', historique: [{ quand: new Date().toISOString(), qui: moi, action: 'creee' }]
+    };
+    if (estCommissionnaire()) { d.segments = [{ serie: voyage || '', debut: debut, fin: fin || null }]; d.commissionnaire = true; }
+    journees[date] = { id: null, d: d };
+    return sauver(date);
+  }
+  function commencer(serie) {
+    var hm = B.heureMaintenant();
+    nouvelleJournee(aujour(), serie, hm, null);
+    if (serie) { var j = jour(aujour()); j.d.checkin = { serie: serie, heure: hm }; sauver(aujour()); }
+    rendre();
+  }
+  function enPause(j) { var p = (j.d.pauses || [])[j.d.pauses.length - 1]; return p && !p.fin; }
+  function basculerPause() {
+    var j = jour(); var hm = B.heureMaintenant();
+    if (enPause(j)) { j.d.pauses[j.d.pauses.length - 1].fin = hm; } else { j.d.pauses.push({ debut: hm, fin: null }); }
+    sauver(dateSel); rendre();
+  }
+  function terminer() {
+    if (!confirm('Terminer la journée maintenant ?')) { return; }
+    var j = jour(); var hm = B.heureMaintenant();
+    if (enPause(j)) { j.d.pauses[j.d.pauses.length - 1].fin = hm; }
+    var s = j.d.segments || []; if (s.length && !s[s.length - 1].fin) { s[s.length - 1].fin = hm; }
+    j.d.fin = hm; if (j.d.statut === 'ouverte') { j.d.statut = 'terminee'; }
+    j.d.historique.push({ quand: new Date().toISOString(), qui: moi, action: 'terminee' });
+    sauver(dateSel); rendre();
+  }
+  function reprendre() {
+    var j = jour(); j.d.fin = null; j.d.statut = 'ouverte';
+    var s = j.d.segments || []; if (s.length) { s[s.length - 1].fin = null; }
+    sauver(dateSel); rendre();
+  }
+  function changerVoyage(serie) {
+    var j = jour(); var hm = B.heureMaintenant();
+    if (estCommissionnaire()) {
+      var s = j.d.segments; var der = s[s.length - 1];
+      if (der && !der.fin) {
+        if (der.debut === hm) { der.serie = serie; } else { der.fin = hm; s.push({ serie: serie, debut: hm, fin: null }); }
+      } else { s.push({ serie: serie, debut: hm, fin: j.d.fin ? j.d.fin : null }); }
+    } else { j.d.voyage = serie; }
+    sauver(dateSel);
+  }
+
+  // ---------- Rendu
+  function svg(d, t) { return '<svg width="' + (t || 24) + '" height="' + (t || 24) + '" viewBox="0 0 24 24" aria-hidden="true">' + d + '</svg>'; }
+  var IC = {
+    jour: '<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"></circle><path d="M12 7v5l3 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>',
+    repas: '<path d="M7 3v8 M5 3v5a2 2 0 0 0 4 0V3 M7 11v10 M16 3c-2 1-3 4-3 7h3v11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>',
+    km: '<path d="M4 17l4-10h8l4 10 M8 13h8 M6 17v3 M18 17v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>',
+    semaine: '<path d="M4 6h16v14H4z M4 10h16 M8 3v5 M16 3v5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path>',
+    equipe: '<path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path>',
+    swap: '<path d="M4 8h13l-3-3 M20 16H7l3 3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path>'
+  };
+  function rendreOnglets() {
+    var items = [['journee', 'Journée', 'jour'], ['repas', 'Repas', 'repas'], ['km', 'Kilomètres', 'km'], ['semaine', 'Semaine', 'semaine']];
+    if (droits.chef) { items.push(['equipe', 'Mon équipe', 'equipe']); }
+    $('bh-onglets').innerHTML = items.map(function (x) {
+      var badge = x[0] === 'equipe' && equipeJ.length ? '<span class="badge">' + equipeJ.length + '</span>' : '';
+      return '<button type="button" data-a="onglet" data-v="' + x[0] + '" class="' + (ecran === x[0] ? 'on' : '') + '">' + svg(IC[x[2]], 23) + x[1] + badge + '</button>';
+    }).join('');
+  }
+  function puceStatut(s) {
+    var st = B.STATUTS[s] || { nom: s, couleur: 'gris' };
+    return '<span class="puce ' + st.couleur + '">' + h(st.nom) + '</span>';
+  }
+  function rendre() {
+    if (!pret) { return; }
+    rendreOnglets(); majPastille();
+    var html;
+    if (!monEmp || !droits.heures) {
+      html = '<div class="ecran"><div class="carte"><h2>Accès à demander au bureau</h2><div class="aide">Ton compte n’a pas encore accès à Bonneville - Tempo. Le bureau doit te donner l’accès dans Bonneville - Employés.</div></div></div>';
+      $('bh-onglets').innerHTML = '';
+    } else if (ecran === 'repas') { html = vueRepas(); }
+    else if (ecran === 'km') { html = vueKm(); }
+    else if (ecran === 'semaine') { html = vueSemaine(); }
+    else if (ecran === 'equipe') { html = vueEquipe(); }
+    else { html = vueJournee(); }
+    $('bh-contenu').innerHTML = html;
+    rendreFeuille();
+  }
+  function enteteJour() {
+    var d = B.dateDe(dateSel);
+    var titre = dateSel === aujour() ? 'Aujourd’hui' : B.JOURS[d.getDay()] + ' ' + d.getDate() + ' ' + B.MOIS[d.getMonth()];
+    return '<div class="rangee" style="justify-content:space-between"><div><div style="font-size:22px;font-weight:800">' + h(titre) + '</div><div class="s">' + (dateSel === aujour() ? h(B.JOURS[d.getDay()] + ' ' + d.getDate() + ' ' + B.MOIS[d.getMonth()]) : '') + '</div></div>'
+      + (dateSel !== aujour() ? '<button type="button" class="btn lien" data-a="aujourdhui">Revenir à aujourd’hui</button>' : '') + '</div>';
+  }
+
+  function vueJournee() {
+    var j = jour(), html = '<div class="ecran">' + enteteJour();
+    if (!j) {
+      if (dateSel !== aujour()) {
+        html += '<div class="carte"><h2>Aucune journée inscrite</h2><div class="aide">Tu peux ajouter cette journée avec ses heures de début et de fin.</div><button type="button" class="btn jaune" data-a="feuille" data-v="nouvelle">Ajouter cette journée</button></div>';
+        return html + '</div>';
+      }
+      if (estCommissionnaire()) {
+        html += '<div class="carte"><h2>Commissionnaire <span class="puce sombre">Tous les voyages</span></h2><div class="aide">Commence ta journée, puis indique sur quel voyage tu travailles avec « Changer de voyage ». Tes heures se répartissent toutes seules.</div>'
+          + '<button type="button" class="btn jaune" data-a="commencer" data-v="">Commencer ma journée</button></div>';
+      } else {
+        var duJour = voyages.filter(function (v) { return v.d.departDate === aujour(); });
+        if (duJour.length) {
+          duJour.forEach(function (v) {
+            html += '<div class="carte"><div class="s" style="font-weight:700">Voyage prévu aujourd’hui</div><div class="t" style="font-size:20px">Série ' + h(v.d.ref) + '</div><div class="s">' + h(libelleVoyage(String(v.d.ref).split('-')[0])) + (v.d.departHeure ? ', départ prévu ' + h(B.heureFr(v.d.departHeure)) : '') + '</div>'
+              + '<button type="button" class="btn jaune" data-a="commencer" data-v="' + h(String(v.d.ref).split('-')[0]) + '">Commencer avec le check-in du voyage</button></div>';
+          });
+        } else {
+          html += '<div class="carte"><h2>Aucun voyage ne t’est assigné aujourd’hui</h2>' + (voyages.length ? '<div class="aide">Tes autres voyages assignés :</div>' + voyages.slice(0, 6).map(function (v) {
+            var s = String(v.d.ref).split('-')[0];
+            return '<button type="button" class="voyage-btn" data-a="commencer" data-v="' + h(s) + '"><span class="t">' + h(v.d.ref) + '</span><span class="s">' + h(libelleVoyage(s)) + (v.d.departDate ? ', départ ' + h(B.dateCourte(v.d.departDate)) : '') + '</span></button>';
+          }).join('') : '<div class="aide">Le bureau assigne les voyages dans Bonneville - Logistique.</div>') + '</div>';
+        }
+        html += '<button type="button" class="btn" data-a="commencer" data-v="">Commencer ma journée sans voyage</button>';
+      }
+      html += resumeSemaine();
+      return html + '</div>';
+    }
+    var c = B.calculer(j.d), enCoursJ = j.d.statut === 'ouverte' && !j.d.fin && dateSel === aujour();
+    if (j.d.statut === 'a_corriger') { html += '<div class="alerte">Retournée pour correction' + (j.d.commentaire ? ' : « ' + h(j.d.commentaire) + ' »' : '') + '. Corrige puis soumets de nouveau dans l’onglet Semaine.</div>'; }
+    if (enCoursJ) {
+      var segCourant = estCommissionnaire() ? j.d.segments[j.d.segments.length - 1] : null;
+      html += '<section class="noire"><div class="rangee"><span class="puce ok">● ' + (enPause(j) ? 'En pause' : 'En service') + '</span>' + (estCommissionnaire() ? '<span class="puce sombre">Commissionnaire</span>' : (j.d.voyage ? '<span class="sous">Lié au voyage ' + h(j.d.voyage) + '</span>' : '')) + '</div>';
+      if (estCommissionnaire()) {
+        var dureeSeg = B.minutesDe(B.heureMaintenant()) - B.minutesDe(segCourant.debut);
+        html += '<span class="sous">En ce moment sur</span><span class="moyen">' + h(segCourant.serie || 'Temps général') + '</span><span class="sous">' + h(segCourant.serie ? libelleVoyage(segCourant.serie) + ' · ' : '') + 'depuis ' + h(B.heureFr(segCourant.debut)) + ' (' + B.duree(dureeSeg) + ')</span>'
+          + '<button type="button" class="btn jaune" data-a="feuille" data-v="voyage">' + svg(IC.swap, 22) + ' Changer de voyage</button>';
+      } else {
+        html += '<span class="grand" id="bh-minuterie">' + B.duree(c.total) + '</span>';
+      }
+      html += '<div class="rangee" style="justify-content:space-between"><span class="sous">Depuis ' + h(B.heureFr(j.d.debut)) + (c.pauses ? ', pause de ' + B.duree(c.pauses) + ' déduite' : '') + (estCommissionnaire() ? ' · total ' + B.duree(c.total) : '') + '</span><button type="button" class="btn lien" data-a="feuille" data-v="debut">Modifier l’heure</button></div>'
+        + '<div class="rangee"><button type="button" class="btn sombre" data-a="pause">' + (enPause(j) ? 'Reprendre' : 'Pause') + '</button><button type="button" class="btn ' + (estCommissionnaire() ? 'sombre' : 'jaune') + '" data-a="terminer">Terminer la journée</button></div></section>';
+    } else {
+      html += '<div class="carte"><h2>Journée : ' + B.duree(c.total) + ' ' + puceStatut(j.d.statut) + '</h2>'
+        + '<div class="ligne"><span style="flex:1"><span class="t">Début</span><br><span class="s">' + h(B.heureFr(j.d.debut)) + (j.d.debutOrigine && j.d.debutOrigine !== j.d.debut ? ' (enregistré ' + h(B.heureFr(j.d.debutOrigine)) + ')' : '') + '</span></span>' + (B.modifiable(j.d) ? '<button type="button" class="btn lien" data-a="feuille" data-v="debut">Modifier</button>' : '') + '</div>'
+        + '<div class="ligne"><span style="flex:1"><span class="t">Fin</span><br><span class="s">' + h(j.d.fin ? B.heureFr(j.d.fin) : 'pas encore terminée') + (j.d.finOrigine && j.d.finOrigine !== j.d.fin ? ' (enregistré ' + h(B.heureFr(j.d.finOrigine)) + ')' : '') + '</span></span>' + (B.modifiable(j.d) && j.d.fin ? '<button type="button" class="btn lien" data-a="feuille" data-v="fin">Modifier</button>' : '') + '</div>'
+        + (j.d.fin && dateSel === aujour() && j.d.statut === 'terminee' ? '<button type="button" class="btn" data-a="reprendre">Reprendre la journée</button>' : '')
+        + '</div>';
+    }
+    // Blocs de temps et ajouts
+    if (estCommissionnaire() || (j.d.ajouts || []).length) {
+      html += '<div class="carte"><h2>Ma journée <span class="s">Total ' + B.duree(c.total) + '</span></h2>';
+      (j.d.segments || []).forEach(function (s, i) {
+        var dernier = i === j.d.segments.length - 1 && !s.fin && enCoursJ;
+        var cal = B.calculer({ debut: j.d.debut, fin: j.d.fin, pauses: j.d.pauses, segments: [s] });
+        html += '<div class="ligne"><span class="barre-couleur' + (dernier ? ' ok' : (s.serie ? '' : ' gris')) + '"></span><span style="flex:1;display:flex;flex-direction:column;gap:2px"><span class="rangee" style="justify-content:space-between"><span class="t">' + h(s.serie || 'Temps général') + '</span><span class="t">' + B.duree(cal.total) + '</span></span>'
+          + '<span class="s">' + h(B.heureFr(s.debut)) + ' à ' + (s.fin ? h(B.heureFr(s.fin)) : 'maintenant') + (s.serie ? ' · ' + h(libelleVoyage(s.serie)) : '') + '</span>'
+          + (dernier ? '<span style="font-size:12px;font-weight:700;color:var(--ok)">● En cours</span>' : (B.modifiable(j.d) ? '<button type="button" class="lien-a" data-a="feuille" data-v="segment:' + i + '">Modifier les heures</button>' : '')) + '</span></div>';
+      });
+      (j.d.ajouts || []).forEach(function (a, i) {
+        html += '<div class="ligne"><span class="barre-couleur gris"></span><span style="flex:1;display:flex;flex-direction:column;gap:2px"><span class="rangee" style="justify-content:space-between"><span class="t">' + h(a.serie || 'Temps général') + '</span><span class="t">' + B.duree(a.minutes) + '</span></span><span class="s">Ajoutées à la main</span>'
+          + (B.modifiable(j.d) ? '<button type="button" class="lien-a" data-a="retirer-ajout" data-v="' + i + '">Retirer</button>' : '') + '</span></div>';
+      });
+      if (B.modifiable(j.d)) { html += '<button type="button" class="btn noir" data-a="feuille" data-v="ajout">+ Ajouter des heures sur un voyage</button>'; }
+      html += '</div>';
+    } else if (!enCoursJ) {
+      html += '<div class="carte"><h2>Voyage</h2><div class="s">' + h(j.d.voyage ? 'Série ' + j.d.voyage + ' · ' + libelleVoyage(j.d.voyage) : 'Sans voyage') + '</div>'
+        + (B.modifiable(j.d) ? '<div class="rangee"><button type="button" class="btn lien" data-a="feuille" data-v="voyage">Changer</button><button type="button" class="btn lien" data-a="feuille" data-v="ajout">+ Ajouter des heures</button></div>' : '') + '</div>';
+    }
+    // Pauses, repas, km
+    var fil = '';
+    (j.d.pauses || []).forEach(function (p) { fil += '<div class="ligne"><span class="t" style="flex:0 0 70px;font-size:15px">' + h(B.heureFr(p.debut)) + '</span><span>Pause' + (p.fin ? ' jusqu’à ' + h(B.heureFr(p.fin)) : ' en cours') + '</span></div>'; });
+    (j.d.repas || []).forEach(function (r) { fil += '<div class="ligne"><span class="t" style="flex:0 0 70px;font-size:15px">Repas</span><span>' + h(r.type) + ' : ' + B.argent(r.montant) + (r.serie ? ' · ' + h(r.serie) : '') + '</span></div>'; });
+    if (c.km) { fil += '<div class="ligne"><span class="t" style="flex:0 0 70px;font-size:15px">Km</span><span>' + c.km + ' km, véhicule ' + (j.d.vehicule === 'compagnie' ? 'de la compagnie' : 'personnel') + '</span></div>'; }
+    if (B.modifiable(j.d)) { html += '<div class="rangee"><button type="button" class="btn" data-a="onglet" data-v="repas">+ Repas</button><button type="button" class="btn" data-a="onglet" data-v="km">+ Kilomètres</button></div>'; }
+    if (fil) { html += '<div class="carte"><h2>Détails</h2>' + fil + '</div>'; }
+    return html + '</div>';
+  }
+  function resumeSemaine() {
+    var deb = B.debutSemaine(aujour()), t = { m: 0, r: 0, k: 0 };
+    for (var i = 0; i < 7; i++) { var j = journees[B.ajouterJours(deb, i)]; if (j) { var c = B.calculer(j.d); t.m += c.total; t.r += c.repas; t.k += c.km; } }
+    return '<div class="carte"><h2>Cette semaine</h2><div class="chiffres"><div class="chiffre"><b>' + B.duree(t.m) + '</b><span>heures</span></div><div class="chiffre"><b>' + B.argent(t.r) + '</b><span>repas</span></div><div class="chiffre"><b>' + t.k + ' km</b><span>kilomètres</span></div></div></div>';
+  }
+
+  // ---------- Repas
+  var repasForm = { type: 'Dîner', montant: '', serie: '' };
+  function seriesDuJour(j) {
+    var s = {};
+    if (j) {
+      if (j.d.voyage) { s[j.d.voyage] = true; }
+      (j.d.segments || []).forEach(function (x) { if (x.serie) { s[x.serie] = true; } });
+      (j.d.ajouts || []).forEach(function (x) { if (x.serie) { s[x.serie] = true; } });
+      (j.d.km || []).forEach(function (x) { if (x.serie) { s[x.serie] = true; } });
+    }
+    return Object.keys(s);
+  }
+  function vueRepas() {
+    var j = jour(), html = '<div class="ecran">' + enteteJour();
+    if (!j) { return html + '<div class="carte"><div class="aide">Commence ou ajoute d’abord la journée dans l’onglet Journée.</div><button type="button" class="btn" data-a="onglet" data-v="journee">Aller à la journée</button></div></div>'; }
+    html += '<div class="carte"><h2>Repas du jour</h2>' + ((j.d.repas || []).length ? j.d.repas.map(function (r, i) {
+      return '<div class="ligne"><span style="flex:1"><span class="t">' + h(r.type) + ' : ' + B.argent(r.montant) + '</span><br><span class="s">' + h(r.serie ? 'Série ' + r.serie : 'Sans série') + '</span></span>' + (B.modifiable(j.d) ? '<button type="button" class="btn lien rouge" data-a="retirer-repas" data-v="' + i + '">Retirer</button>' : '') + '</div>';
+    }).join('') : '<div class="aide">Aucun repas inscrit.</div>') + '</div>';
+    if (!B.modifiable(j.d)) { return html + '<div class="aide">Cette journée est soumise : elle ne peut plus être modifiée.</div></div>'; }
+    var series = seriesDuJour(j);
+    html += '<div class="carte"><h2>Ajouter un repas</h2><div class="rangee">' + ['Déjeuner', 'Dîner', 'Souper'].map(function (t) { return '<button type="button" class="choix' + (repasForm.type === t ? ' on' : '') + '" data-a="repas-type" data-v="' + t + '">' + t + '</button>'; }).join('') + '</div>'
+      + '<label class="s" style="font-weight:700">Montant payé (taxes et pourboire inclus)<input class="gros" id="bh-repas-montant" inputmode="decimal" placeholder="0,00 $" value="' + h(repasForm.montant) + '"></label>'
+      + (series.length ? '<div class="s" style="font-weight:700">Série (facultatif)</div><div class="rangee" style="flex-wrap:wrap">' + series.concat(['']).map(function (s) { return '<button type="button" class="choix' + (repasForm.serie === s ? ' on' : '') + '" style="flex:0 0 auto;padding:0 14px" data-a="repas-serie" data-v="' + h(s) + '">' + h(s || 'Aucune') + '</button>'; }).join('') + '</div>' : '')
+      + '<button type="button" class="btn jaune" data-a="repas-ajouter">Enregistrer le repas</button></div>';
+    return html + '</div>';
+  }
+
+  // ---------- Kilomètres
+  var kmBrouillon = null;
+  function vueKm() {
+    var j = jour(), html = '<div class="ecran">' + enteteJour();
+    if (!j) { return html + '<div class="carte"><div class="aide">Commence ou ajoute d’abord la journée dans l’onglet Journée.</div><button type="button" class="btn" data-a="onglet" data-v="journee">Aller à la journée</button></div></div>'; }
+    if (!kmBrouillon || kmBrouillon.date !== dateSel) {
+      var lignes = {};
+      seriesDuJour(j).forEach(function (s) { lignes[s] = ''; });
+      lignes[''] = '';
+      (j.d.km || []).forEach(function (k) { lignes[k.serie || ''] = String(k.km); });
+      kmBrouillon = { date: dateSel, lignes: lignes, vehicule: j.d.vehicule || 'personnel' };
+    }
+    var mod = B.modifiable(j.d), total = 0;
+    html += '<div class="carte"><h2>Kilomètres du jour</h2>';
+    Object.keys(kmBrouillon.lignes).sort(function (a, b) { return (a === '') - (b === '') || a.localeCompare(b); }).forEach(function (s) {
+      var v = voyageDe(s); total += Number(String(kmBrouillon.lignes[s]).replace(',', '.')) || 0;
+      html += '<div class="ligne"><span style="flex:1;display:flex;flex-direction:column"><span class="t">' + h(s || 'Sans voyage') + '</span><span class="s">' + h(s ? libelleVoyage(s) : 'Déplacements généraux') + '</span>'
+        + (mod && v && v.d.totalKm ? '<button type="button" class="lien-a" data-a="km-trajet" data-v="' + h(s) + '">Calculer avec le trajet (' + Math.round(v.d.totalKm) + ' km)</button>' : '') + '</span>'
+        + '<input class="champ" style="width:90px;text-align:center" inputmode="numeric" data-km="' + h(s) + '" value="' + h(kmBrouillon.lignes[s]) + '"' + (mod ? '' : ' disabled') + '><span style="font-weight:700">km</span></div>';
+    });
+    if (mod) { html += '<button type="button" class="btn lien" data-a="feuille" data-v="km-voyage">+ Ajouter un voyage</button>'; }
+    html += '</div><div class="carte"><h2>Véhicule</h2><div class="rangee">' + [['personnel', 'Personnel'], ['compagnie', 'Compagnie']].map(function (x) { return '<button type="button" class="choix' + (kmBrouillon.vehicule === x[0] ? ' on' : '') + '" data-a="km-vehicule" data-v="' + x[0] + '"' + (mod ? '' : ' disabled') + '>' + x[1] + '</button>'; }).join('') + '</div>';
+    var taux = monEmp ? B.tauxA(monEmp.tauxKm, dateSel) : null;
+    html += '<div class="rangee" style="justify-content:space-between"><span class="s">Total</span><span class="t" id="bh-km-total">' + total + ' km</span></div>'
+      + '<div class="rangee" style="justify-content:space-between"><span class="s">Taux de ta fiche</span><span>' + (taux !== null ? h(taux.toLocaleString('fr-CA', { minimumFractionDigits: 2, maximumFractionDigits: 4 })) + ' $/km' : 'non inscrit') + '</span></div>'
+      + '<div class="rangee" style="justify-content:space-between"><span class="t">Remboursement</span><span class="t" id="bh-km-montant">' + (kmBrouillon.vehicule === 'compagnie' ? 'aucun (compagnie)' : (taux !== null ? B.argent(total * taux) : '—')) + '</span></div>'
+      + '<div class="aide">Le taux est celui inscrit dans ta fiche par le bureau. Seul un véhicule personnel est remboursé.</div></div>';
+    if (mod) { html += '<button type="button" class="btn jaune" data-a="km-sauver">Enregistrer les kilomètres</button>'; }
+    return html + '</div>';
+  }
+  function lireKmEcran() {
+    Array.prototype.forEach.call(document.querySelectorAll('input[data-km]'), function (i) { kmBrouillon.lignes[i.getAttribute('data-km')] = i.value.replace(/[^\d.,]/g, ''); });
+  }
+
+  // ---------- Semaine
+  function vueSemaine() {
+    semaineSel = semaineSel || B.debutSemaine(aujour());
+    var fin = B.ajouterJours(semaineSel, 6), d1 = B.dateDe(semaineSel), d2 = B.dateDe(fin);
+    var html = '<div class="ecran"><div class="rangee" style="justify-content:space-between"><button type="button" class="rond" data-a="semaine" data-v="-7" aria-label="Semaine précédente">‹</button>'
+      + '<span style="font-size:18px;font-weight:800;text-align:center">Semaine du ' + d1.getDate() + ' ' + B.MOIS[d1.getMonth()] + ' au ' + d2.getDate() + ' ' + B.MOIS[d2.getMonth()] + '</span>'
+      + '<button type="button" class="rond" data-a="semaine" data-v="7" aria-label="Semaine suivante">›</button></div>';
+    var t = { m: 0, r: 0, k: 0 }, aSoumettre = 0, corrections = [];
+    html += '<div class="carte"><div class="semaine-l titre"><span>Jour</span><span>Heures</span><span>Repas</span><span>Km</span><span>Statut</span></div>';
+    for (var i = 0; i < 7; i++) {
+      var date = B.ajouterJours(semaineSel, i), j = journees[date], c = j ? B.calculer(j.d) : null;
+      if (c) { t.m += c.total; t.r += c.repas; t.k += c.km; }
+      if (j && (j.d.statut === 'terminee' || j.d.statut === 'a_corriger') && j.d.fin) { aSoumettre++; }
+      if (j && j.d.statut === 'a_corriger') { corrections.push(j); }
+      html += '<button type="button" class="semaine-l" data-a="ouvrir-jour" data-v="' + date + '"><span style="font-weight:800">' + h(B.dateCourte(date).replace(/ \S+$/, '')) + '</span><span>' + (c ? B.duree(c.total) : '—') + '</span><span>' + (c && c.repas ? B.argent(c.repas) : '—') + '</span><span>' + (c && c.km ? c.km : '—') + '</span><span>' + (j ? puceStatut(j.d.statut) : '') + '</span></button>';
+    }
+    html += '<div class="semaine-l titre" style="font-size:16px;color:var(--encre);font-weight:800;border:none"><span>Total</span><span>' + B.duree(t.m) + '</span><span>' + B.argent(t.r) + '</span><span>' + t.k + '</span><span></span></div></div>';
+    corrections.forEach(function (j) { html += '<button type="button" class="alerte" style="border:none;text-align:left" data-a="ouvrir-jour" data-v="' + j.d.date + '">' + h(B.dateCourte(j.d.date)) + ' retournée pour correction' + (j.d.commentaire ? ' : « ' + h(j.d.commentaire) + ' »' : '') + '. Touche pour corriger.</button>'; });
+    html += '<div class="aide">Une fois soumise, la semaine passe à ton chef d’équipe, puis au bureau pour l’approbation finale. Une journée retournée pour correction redevient modifiable.</div>';
+    html += '<button type="button" class="btn jaune" data-a="soumettre"' + (aSoumettre ? '' : ' disabled') + '>' + (aSoumettre ? 'Soumettre ' + aSoumettre + ' journée' + (aSoumettre > 1 ? 's' : '') + ' pour approbation' : 'Rien à soumettre') + '</button>';
+    return html + '</div>';
+  }
+  function soumettre() {
+    var c = B.chefDe(moi, Object.keys(employes).map(function (k) { return employes[k]; }));
+    var n = 0, ouvertes = 0;
+    for (var i = 0; i < 7; i++) {
+      var date = B.ajouterJours(semaineSel, i), j = journees[date];
+      if (!j) { continue; }
+      if (j.d.statut === 'ouverte') { ouvertes++; continue; }
+      if ((j.d.statut === 'terminee' || j.d.statut === 'a_corriger') && j.d.fin) {
+        if (c && !droits.chef) { j.d.statut = 'attente_chef'; j.d.chef = c.chef; j.d.approbateursChef = [c.chef].concat(c.remplacant ? [c.remplacant] : []); }
+        else { j.d.statut = 'attente_admin'; j.d.chef = ''; j.d.approbateursChef = []; }
+        j.d.soumisLe = new Date().toISOString();
+        j.d.historique.push({ quand: j.d.soumisLe, qui: moi, action: 'soumise' });
+        sauver(date); n++;
+      }
+    }
+    alert(n + ' journée(s) soumise(s)' + (c && !droits.chef ? ' à ' + nomUser(c.chef) : ' au bureau') + '.' + (ouvertes ? ' ' + ouvertes + ' journée(s) pas encore terminée(s) n’ont pas été soumises.' : ''));
+    rendre();
+  }
+
+  // ---------- Mon équipe (chef)
+  var selEquipe = {};
+  function vueEquipe() {
+    var html = '<div class="ecran"><div><div style="font-size:22px;font-weight:800">Approuver mon équipe</div><div class="s">' + equipeJ.length + ' journée' + (equipeJ.length > 1 ? 's' : '') + ' soumise' + (equipeJ.length > 1 ? 's' : '') + '</div></div>';
+    if (!equipeJ.length) { return html + '<div class="carte"><div class="aide">Aucune journée à approuver pour l’instant.</div><button type="button" class="btn" data-a="rafraichir">Actualiser</button></div></div>'; }
+    equipeJ.slice().sort(function (a, b) { return (a.d.nom || a.d.user).localeCompare(b.d.nom || b.d.user) || a.d.date.localeCompare(b.d.date); }).forEach(function (x) {
+      var c = B.calculer(x.d), on = !!selEquipe[x.id];
+      var parSerie = Object.keys(c.parSerie).map(function (s) { return (s || 'général') + ' : ' + B.duree(c.parSerie[s]); }).join(' · ');
+      html += '<label class="carte" style="flex-direction:row;align-items:flex-start;gap:12px;' + (on ? 'background:#fffaf0;color:#14191e' : '') + '"><input type="checkbox" data-a="sel-equipe" data-v="' + h(x.id) + '"' + (on ? ' checked' : '') + ' style="width:22px;height:22px;margin-top:3px">'
+        + '<span style="flex:1;display:flex;flex-direction:column;gap:3px"><span class="rangee" style="justify-content:space-between"><span class="t">' + h(x.d.nom || nomUser(x.d.user)) + '</span><span class="s" style="font-weight:600">' + h(B.dateCourte(x.d.date)) + '</span></span>'
+        + '<span style="font-weight:600">' + h(B.heureFr(x.d.debut)) + ' à ' + h(B.heureFr(x.d.fin)) + ' · ' + B.duree(c.total) + ' · ' + B.argent(c.repas) + ' · ' + c.km + ' km</span>'
+        + '<span class="s">' + h(parSerie) + (x.d.debutOrigine && x.d.debutOrigine !== x.d.debut ? ' · début modifié (enregistré ' + h(B.heureFr(x.d.debutOrigine)) + ')' : '') + '</span></span></label>';
+    });
+    var n = Object.keys(selEquipe).filter(function (k) { return selEquipe[k]; }).length;
+    html += '<div class="aide">Après ton approbation, les journées passent à l’administrateur pour l’approbation finale.</div>'
+      + '<div class="rangee"><button type="button" class="btn rouge" style="flex:0 0 130px" data-a="equipe-retour"' + (n ? '' : ' disabled') + '>Retourner</button><button type="button" class="btn jaune" data-a="equipe-ok"' + (n ? '' : ' disabled') + '>Approuver (' + n + ')</button></div>';
+    return html + '</div>';
+  }
+  function decisionEquipe(approuver) {
+    var commentaire = '';
+    if (!approuver) { commentaire = window.prompt('Commentaire pour l’employé (obligatoire) :') || ''; if (!commentaire.trim()) { return; } }
+    var ids = Object.keys(selEquipe).filter(function (k) { return selEquipe[k]; }), c = Promise.resolve(), ok = 0;
+    ids.forEach(function (id) {
+      var x = equipeJ.filter(function (y) { return y.id === id; })[0]; if (!x) { return; }
+      var d = JSON.parse(JSON.stringify(x.d)), q = new Date().toISOString();
+      if (approuver) { d.statut = 'attente_admin'; d.approuveChefPar = moi; d.approuveChefLe = q; d.historique.push({ quand: q, qui: moi, action: 'approuvee_chef' }); }
+      else { d.statut = 'a_corriger'; d.commentaire = commentaire.trim(); d.historique.push({ quand: q, qui: moi, action: 'retournee', commentaire: d.commentaire }); }
+      c = c.then(function () { return G.modifier(id, d).then(function () { ok++; }); });
+    });
+    c.catch(function () { alert('Une partie n’a pas pu être envoyée : vérifie le réseau et réessaie.'); }).then(function () {
+      selEquipe = {};
+      return chargerEquipe();
+    }).then(function () { alert(ok + ' journée(s) ' + (approuver ? 'approuvée(s)' : 'retournée(s)') + '.'); rendre(); });
+  }
+
+  // ---------- Feuilles (fenêtres du bas)
+  var recherche = '';
+  function rendreFeuille() {
+    var ancien = $('bh-feuille'); if (ancien) { ancien.parentNode.removeChild(ancien); }
+    if (!feuille) { return; }
+    var j = jour(), html = '<div class="poignee"></div>', k = feuille.type;
+    function cases(hm) { var m = B.minutesDe(hm || B.heureMaintenant()); return '<div class="rangee" style="justify-content:center"><label class="s" style="display:flex;flex-direction:column;align-items:center;gap:4px;font-weight:700"><input class="case-h" id="bh-hh" inputmode="numeric" maxlength="2" value="' + B.hhmm(m).slice(0, 2) + '">Heure</label><span style="font-size:40px;font-weight:800;margin-bottom:22px">:</span><label class="s" style="display:flex;flex-direction:column;align-items:center;gap:4px;font-weight:700"><input class="case-h" id="bh-mm" inputmode="numeric" maxlength="2" value="' + B.hhmm(m).slice(3) + '">Minutes</label></div><div class="aide" style="text-align:center">Format 24 h.</div>'; }
+    if (k === 'debut' || k === 'fin') {
+      html += '<h1>Modifier l’heure de ' + (k === 'debut' ? 'début' : 'fin') + '</h1><div class="s">Enregistrée : ' + h(B.heureFr(j.d[k + 'Origine'] || j.d[k])) + '</div>' + cases(j.d[k]);
+    } else if (k === 'nouvelle') {
+      html += '<h1>Ajouter cette journée</h1><div class="s" style="font-weight:700">Début</div>' + cases('07:00').replace(/bh-hh/g, 'bh-dh').replace(/bh-mm/g, 'bh-dm') + '<div class="s" style="font-weight:700">Fin</div>' + cases('16:00').replace(/bh-hh/g, 'bh-fh').replace(/bh-mm/g, 'bh-fm');
+    } else if (k.indexOf('segment:') === 0) {
+      var s = j.d.segments[+k.split(':')[1]];
+      html += '<h1>Bloc ' + h(s.serie || 'Temps général') + '</h1><div class="s" style="font-weight:700">Début</div>' + cases(s.debut).replace(/bh-hh/g, 'bh-dh').replace(/bh-mm/g, 'bh-dm') + '<div class="s" style="font-weight:700">Fin</div>' + cases(s.fin || B.heureMaintenant()).replace(/bh-hh/g, 'bh-fh').replace(/bh-mm/g, 'bh-fm');
+    } else if (k === 'voyage' || k === 'km-voyage' || k === 'ajout') {
+      var titre = k === 'ajout' ? 'Ajouter des heures' : (k === 'km-voyage' ? 'Ajouter un voyage' : (estCommissionnaire() ? 'Je travaille maintenant sur…' : 'Choisir le voyage'));
+      html += '<h1>' + titre + '</h1>';
+      if (k === 'ajout') { html += '<div class="s" style="font-weight:800">1. Heures</div>' + cases('02:00').replace('<div class="aide" style="text-align:center">Format 24 h.</div>', '') + '<div class="s" style="font-weight:800">2. Série</div>'; }
+      html += '<input class="champ" id="bh-recherche" inputmode="numeric" placeholder="Taper 3 chiffres de la série" value="' + h(recherche) + '">';
+      var liste = voyages.filter(function (v) { return !recherche || String(v.d.ref).indexOf(recherche) === 0; }).slice(0, 8);
+      var courant = estCommissionnaire() && j && j.d.segments.length ? j.d.segments[j.d.segments.length - 1].serie : (j ? j.d.voyage : '');
+      html += liste.map(function (v) {
+        var s = String(v.d.ref).split('-')[0], on = feuille.serie === s || (!feuille.serie && k === 'voyage' && courant === s);
+        return '<button type="button" class="voyage-btn' + (on ? ' on' : '') + '" data-a="choisir-serie" data-v="' + h(s) + '"><span class="t">' + h(v.d.ref) + (k === 'voyage' && courant === s ? ' (en cours)' : '') + '</span><span class="s">' + h(libelleVoyage(s)) + (v.d.departDate ? ' · ' + h(B.dateCourte(v.d.departDate)) : '') + '</span></button>';
+      }).join('') || '<div class="aide">' + (estCommissionnaire() ? 'Aucun voyage ne correspond.' : 'Aucun voyage assigné ne correspond.') + '</div>';
+      if (k !== 'km-voyage') { html += '<button type="button" class="voyage-btn' + (feuille.serie === '' ? ' on' : '') + '" style="border-style:dashed;align-items:center" data-a="choisir-serie" data-v=""><span class="t">Sans voyage (temps général)</span></button>'; }
+      if (estCommissionnaire()) { html += '<div class="aide">Commissionnaire : tous les voyages sont proposés.</div>'; }
+    }
+    var libelleOk = 'Enregistrer';
+    if (k === 'ajout' && feuille.serie !== undefined) { libelleOk = 'Ajouter à ' + (feuille.serie || 'temps général'); }
+    if (k === 'voyage' && estCommissionnaire()) { libelleOk = feuille.serie !== undefined ? 'Passer à ' + (feuille.serie || 'temps général') : 'Choisir un voyage'; }
+    html += '<div class="rangee"><button type="button" class="btn" style="flex:0 0 120px" data-a="fermer">Annuler</button><button type="button" class="btn jaune" data-a="valider"' + ((k === 'voyage' || k === 'ajout' || k === 'km-voyage') && feuille.serie === undefined ? ' disabled' : '') + '>' + h(libelleOk) + '</button></div>';
+    var fond = document.createElement('div');
+    fond.className = 'fond-feuille'; fond.id = 'bh-feuille';
+    fond.innerHTML = '<section class="feuille" role="dialog" aria-label="' + h(k) + '">' + html + '</section>';
+    $('bh').appendChild(fond);
+    var r = $('bh-recherche');
+    if (r) { r.oninput = function () { recherche = r.value.replace(/\D/g, ''); var pos = r.value.length; rendreFeuille(); var n = $('bh-recherche'); if (n) { n.focus(); n.setSelectionRange(pos, pos); } }; }
+  }
+  function lireHeure(hId, mId) {
+    var hh = parseInt($(hId).value, 10), mm = parseInt($(mId).value, 10);
+    if (isNaN(hh) || hh < 0 || hh > 23 || isNaN(mm) || mm < 0 || mm > 59) { return null; }
+    return B.hhmm(hh * 60 + mm);
+  }
+  function validerFeuille() {
+    var j = jour(), k = feuille.type;
+    if (k === 'debut' || k === 'fin') {
+      var v = lireHeure('bh-hh', 'bh-mm'); if (!v) { alert('Heure invalide.'); return; }
+      if (k === 'fin' && B.minutesDe(v) <= B.minutesDe(j.d.debut)) { alert('La fin doit être après le début.'); return; }
+      if (k === 'debut' && j.d.fin && B.minutesDe(v) >= B.minutesDe(j.d.fin)) { alert('Le début doit être avant la fin.'); return; }
+      if (!j.d[k + 'Origine']) { j.d[k + 'Origine'] = j.d[k]; }
+      j.d[k] = v;
+      var s = j.d.segments || [];
+      if (k === 'debut' && s.length) { s[0].debut = v; }
+      if (k === 'fin' && s.length) { s[s.length - 1].fin = v; }
+      j.d.historique.push({ quand: new Date().toISOString(), qui: moi, action: 'heure_' + k, valeur: v });
+      sauver(dateSel);
+    } else if (k === 'nouvelle') {
+      var d1 = lireHeure('bh-dh', 'bh-dm'), f1 = lireHeure('bh-fh', 'bh-fm');
+      if (!d1 || !f1 || B.minutesDe(f1) <= B.minutesDe(d1)) { alert('Vérifie le début et la fin.'); return; }
+      nouvelleJournee(dateSel, '', d1, f1);
+    } else if (k.indexOf('segment:') === 0) {
+      var i = +k.split(':')[1], seg = j.d.segments[i];
+      var sd = lireHeure('bh-dh', 'bh-dm'), sf = lireHeure('bh-fh', 'bh-fm');
+      if (!sd || !sf || B.minutesDe(sf) <= B.minutesDe(sd)) { alert('Vérifie le début et la fin du bloc.'); return; }
+      seg.debut = sd; seg.fin = sf;
+      if (j.d.segments[i - 1]) { j.d.segments[i - 1].fin = sd; } else { j.d.debut = sd; }
+      if (j.d.segments[i + 1]) { j.d.segments[i + 1].debut = sf; } else if (j.d.fin) { j.d.fin = sf; }
+      sauver(dateSel);
+    } else if (k === 'voyage') {
+      changerVoyage(feuille.serie || '');
+    } else if (k === 'ajout') {
+      var hh = parseInt($('bh-hh').value, 10) || 0, mm = parseInt($('bh-mm').value, 10) || 0, min = hh * 60 + mm;
+      if (min <= 0 || mm > 59) { alert('Inscris un nombre d’heures valide.'); return; }
+      j.d.ajouts = j.d.ajouts || [];
+      j.d.ajouts.push({ serie: feuille.serie || '', minutes: min, quand: new Date().toISOString() });
+      sauver(dateSel);
+    } else if (k === 'km-voyage') {
+      lireKmEcran(); kmBrouillon.lignes[feuille.serie] = kmBrouillon.lignes[feuille.serie] || '';
+    }
+    feuille = null; recherche = ''; rendre();
+  }
+
+  // ---------- Événements (délégation)
+  function action(a, v, cible) {
+    if (a === 'onglet') { ecran = v; if (v === 'semaine') { semaineSel = B.debutSemaine(dateSel); } if (v === 'equipe') { chargerEquipe().then(rendre); } rendre(); window.scrollTo(0, 0); }
+    else if (a === 'aujourdhui') { dateSel = aujour(); rendre(); }
+    else if (a === 'commencer') { commencer(v); }
+    else if (a === 'pause') { basculerPause(); }
+    else if (a === 'terminer') { terminer(); }
+    else if (a === 'reprendre') { reprendre(); }
+    else if (a === 'feuille') { feuille = { type: v }; recherche = ''; rendreFeuille(); }
+    else if (a === 'fermer') { feuille = null; rendreFeuille(); }
+    else if (a === 'valider') { validerFeuille(); }
+    else if (a === 'choisir-serie') { feuille.serie = v; var hh = $('bh-hh'), mm = $('bh-mm'); var garde = hh ? [hh.value, mm.value] : null; rendreFeuille(); if (garde) { $('bh-hh').value = garde[0]; $('bh-mm').value = garde[1]; } }
+    else if (a === 'retirer-ajout') { if (confirm('Retirer ces heures ajoutées ?')) { jour().d.ajouts.splice(+v, 1); sauver(dateSel); rendre(); } }
+    else if (a === 'repas-type') { repasForm.montant = ($('bh-repas-montant') || {}).value || ''; repasForm.type = v; rendre(); }
+    else if (a === 'repas-serie') { repasForm.montant = ($('bh-repas-montant') || {}).value || ''; repasForm.serie = v; rendre(); }
+    else if (a === 'repas-ajouter') {
+      var m = parseFloat(String($('bh-repas-montant').value).replace(/[^\d,.-]/g, '').replace(',', '.'));
+      if (isNaN(m) || m <= 0) { alert('Inscris le montant du repas.'); return; }
+      var j = jour(); j.d.repas = j.d.repas || []; j.d.repas.push({ type: repasForm.type, montant: Math.round(m * 100) / 100, serie: repasForm.serie || '' });
+      sauver(dateSel); repasForm.montant = ''; rendre();
+    }
+    else if (a === 'retirer-repas') { if (confirm('Retirer ce repas ?')) { jour().d.repas.splice(+v, 1); sauver(dateSel); rendre(); } }
+    else if (a === 'km-trajet') { lireKmEcran(); var vo = voyageDe(v); if (vo) { kmBrouillon.lignes[v] = String(Math.round(vo.d.totalKm)); } rendre(); }
+    else if (a === 'km-vehicule') { lireKmEcran(); kmBrouillon.vehicule = v; rendre(); }
+    else if (a === 'km-sauver') {
+      lireKmEcran(); var jk = jour();
+      jk.d.km = Object.keys(kmBrouillon.lignes).map(function (s) { return { serie: s, km: Number(String(kmBrouillon.lignes[s]).replace(',', '.')) || 0 }; }).filter(function (x) { return x.km > 0; });
+      jk.d.vehicule = kmBrouillon.vehicule; sauver(dateSel); kmBrouillon = null; ecran = 'journee'; rendre();
+    }
+    else if (a === 'semaine') { semaineSel = B.ajouterJours(semaineSel, +v); rendre(); }
+    else if (a === 'ouvrir-jour') { dateSel = v; ecran = 'journee'; rendre(); window.scrollTo(0, 0); }
+    else if (a === 'soumettre') { if (confirm('Soumettre les journées terminées de cette semaine ?')) { soumettre(); } }
+    else if (a === 'sel-equipe') { selEquipe[v] = cible.checked; rendre(); }
+    else if (a === 'equipe-ok') { decisionEquipe(true); }
+    else if (a === 'equipe-retour') { decisionEquipe(false); }
+    else if (a === 'rafraichir') { chargerEquipe().then(rendre); }
+  }
+  function brancher() {
+    $('bh').addEventListener('click', function (e) {
+      var c = e.target.closest('[data-a]'); if (!c || c.disabled) { return; }
+      if (c.tagName === 'INPUT') { return; }
+      action(c.getAttribute('data-a'), c.getAttribute('data-v'), c);
+    });
+    $('bh').addEventListener('change', function (e) {
+      var c = e.target.closest('input[data-a]'); if (c) { action(c.getAttribute('data-a'), c.getAttribute('data-v'), c); }
+    });
+    $('bh').addEventListener('input', function (e) {
+      if (e.target.matches('input[data-km]') && kmBrouillon) {
+        lireKmEcran();
+        var tot = 0; Object.keys(kmBrouillon.lignes).forEach(function (s) { tot += Number(String(kmBrouillon.lignes[s]).replace(',', '.')) || 0; });
+        var taux = monEmp ? B.tauxA(monEmp.tauxKm, dateSel) : null;
+        $('bh-km-total').textContent = tot + ' km';
+        $('bh-km-montant').textContent = kmBrouillon.vehicule === 'compagnie' ? 'aucun (compagnie)' : (taux !== null ? B.argent(tot * taux) : '—');
+      }
+    });
+    $('bh-theme').addEventListener('click', function () {
+      var n = $('bh').getAttribute('data-theme') === 'nuit' ? 'jour' : 'nuit'; appliquerTheme(n); ecrire(CLE_THEME, n);
+    });
+    window.addEventListener('online', function () { horsReseau = false; viderFile(); majPastille(); });
+    window.addEventListener('offline', majPastille);
+    setInterval(function () { try { if (enAttente() && navigator.onLine !== false) { viderFile(); } } catch (e) {} }, 30000);
+    minuterie = setInterval(function () {
+      try {
+        if (feuille || !pret || ecran !== 'journee') { return; }
+        var a = document.activeElement; if (a && a.tagName === 'INPUT') { return; }
+        var j = jour(); if (j && j.d.statut === 'ouverte' && !j.d.fin) { rendre(); }
+      } catch (e) {}
+    }, 30000);
+  }
+
+  function demarrer(a) {
+    api = a; G = B.creerApi(a);
+    try { themeInitial(); if (!branche) { brancher(); branche = true; } } catch (e) { console.warn(e); }
+    dateSel = dateSel || aujour();
+    G.session().then(function (s) {
+      moi = s.userName || ''; var c = lire(CLE_CACHE);
+      if (c && c.moi === moi && c.journees) { journees = c.journees; }
+      return G.appel('Get', { typeName: 'User', search: { name: moi } }).then(function (u) {
+        var x = u && u[0]; monNom = x ? ((x.firstName || '') + ' ' + (x.lastName || '')).trim() || moi : moi;
+      }).catch(function () { monNom = moi; });
+    }).then(charger);
+  }
+
+  var fabrique = function () {
+    return {
+      initialize: function (a, state, callback) { try { demarrer(a); } catch (e) { console.warn(e); } callback(); },
+      focus: function (a) { if (a) { api = a; G = B.creerApi(a); } if (pret) { charger(); } },
+      blur: function () {}
+    };
+  };
+  window.geotab = window.geotab || {}; window.geotab.addin = window.geotab.addin || {};
+  ['tempoDrive', 'tempo-drive', 'TempoDrive', 'tempodrive', 'heuresDrive', 'heures-drive', 'bonnevilleTempo', 'BonnevilleTempo', 'bonnevilletempo', 'bonneville-tempo', 'tempo', 'Tempo', 'bonnevilleHeuresDepenses', 'heuresEtDepenses'].forEach(function (n) { window.geotab.addin[n] = fabrique; });
+})();
+</script>
+</body>
+</html>
