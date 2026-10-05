@@ -69,7 +69,7 @@ window.__bnErreurs = [];
 window.addEventListener('error', function (e) { try { window.__bnErreurs.push((e.message || 'erreur') + (e.filename ? ' (' + String(e.filename).split('/').pop() + ':' + e.lineno + ')' : '')); } catch (x) {} });
 (function () {
   'use strict';
-  var VERSION = '3.1.6';
+  var VERSION = '3.1.7';
   var B = window.Bonneville;
   var BASE = 'https://ericgloutnez.github.io/LFS/';
   var CACHER = '.entete { display: none !important; } #lfsd > .pied { display: none !important; }';
@@ -125,9 +125,11 @@ window.addEventListener('error', function (e) { try { window.__bnErreurs.push((e
     if (enChargement[cle]) { return enChargement[cle]; }
     var m = MODULES[cle];
     enChargement[cle] = texteModule(m).then(function (html) {
-      var avant = '<script>window.geotab = { addin: {} }; window.__bonnevilleIntegre = true;<\/script><style>' + CACHER + '</style>';
+      // Les balises sont assemblées en morceaux : MyGeotab lit le texte de la page et prendrait sinon ces chaînes pour de vraies balises.
+      var SCR = 'scr' + 'ipt';
+      var avant = '<' + SCR + '>window.geotab = { addin: {} }; window.__bonnevilleIntegre = true;</' + SCR + '><style>' + CACHER + '</style>';
       html = html.replace(/<head>/i, '<head>' + avant);
-      if (communTexte) { html = html.replace(/<script src="[^"]*bonneville-commun\.js[^"]*"><\/script>/, function () { return '<script>' + communTexte + '<\/script>'; }); }
+      if (communTexte) { html = html.replace(new RegExp('<' + SCR + ' src="[^"]*bonneville-commun[.]js[^"]*"></' + SCR + '>'), function () { return '<' + SCR + '>' + communTexte + '</' + SCR + '>'; }); }
       return new Promise(function (ok, ko) {
         var cadre = document.createElement('iframe');
         cadre.title = 'Bonneville - ' + m.titre; cadre.setAttribute('data-m', cle);

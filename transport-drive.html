@@ -2336,6 +2336,7 @@
   }
 
   window.geotab = window.geotab || {};
+  try { if (typeof geotab !== 'undefined' && geotab && geotab.addin && geotab.addin !== window.geotab.addin) { ['transportDrive', 'transport-drive', 'bonnevilleTransportDrive', 'bonneville', 'lfsDrive'].forEach(function (n) { geotab.addin[n] = fabrique; }); } } catch (e) {}
   window.geotab.addin = window.geotab.addin || {};
   ['transportDrive', 'transport-drive', 'TransportDrive', 'transportdrive', 'bonnevilleTransportDrive', 'BonnevilleTransportDrive', 'bonnevilletransportdrive', 'bonneville-transport-drive', 'bonneville', 'Bonneville', 'BONNEVILLE', 'lfsEscortes', 'lfsescortes', 'LFSEscortes', 'lfs_escortes', 'lfs-escortes', 'lfsDrive', 'lfs-drive', 'lfs'].forEach(function (nom) {
     window.geotab.addin[nom] = fabrique;

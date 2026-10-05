@@ -809,6 +809,7 @@
     };
   };
   window.geotab = window.geotab || {}; window.geotab.addin = window.geotab.addin || {};
+  try { if (typeof geotab !== 'undefined' && geotab && geotab.addin && geotab.addin !== window.geotab.addin) { ['tempoDrive', 'tempo-drive', 'bonnevilleTempo', 'tempo'].forEach(function (n) { geotab.addin[n] = fabrique; }); } } catch (e) {}
   ['tempoDrive', 'tempo-drive', 'TempoDrive', 'tempodrive', 'heuresDrive', 'heures-drive'].forEach(function (n) { window.geotab.addin[n] = fabrique; });
   (function (noms, f) {
   var vus = {};
