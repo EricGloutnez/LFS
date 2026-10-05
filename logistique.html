@@ -2407,6 +2407,7 @@ geotab.addin.logistique = function () {
         throw e;
       });
     }).then(function () {
+      pousserVoyage(details, true);
       message((voyageEnEdition ? 'Voyage ' + ref + ' mis à jour' : 'Voyage ' + ref + ' enregistré') + ' (directions comprises, montant dû : ' + montantFr(montantSaisi) + ').');
       voyageEnEdition = null;
       trouver('it511-sauver-voyage').textContent = 'Enregistrer le voyage';
@@ -2663,7 +2664,7 @@ geotab.addin.logistique = function () {
       cellule(tr, f.total ? 'L1 ' + f.L1 + '/' + (d.nbModules || '?') + ' · L2 ' + f.L2 + '/' + (d.nbModules || '?') + (f.alerte ? ' · ' + f.alerte + ' NC' : '') : '—');
       cellule(tr, d.archive ? puce('Retiré', 'gris') : puce('Sur les cellulaires', 'vert'));
       var a = document.createElement('span'); a.style.cssText = 'display:flex;gap:12px;flex-wrap:wrap;';
-      [['Ouvrir', function () { ouvrirVoyage(v); }], ['Modifier', function () { modifierVoyage(v); }], [d.archive ? 'Remettre' : 'Retirer des cellulaires', function () { archiverVoyage(v, !d.archive); }], ['Supprimer', function () { supprimerVoyage(v); }, true]].forEach(function (x) {
+      [['Ouvrir', function () { ouvrirVoyage(v); }], ['Modifier', function () { modifierVoyage(v); }], ['Pousser aux cellulaires', function () { pousserVoyage(d); }], [d.archive ? 'Remettre' : 'Retirer des cellulaires', function () { archiverVoyage(v, !d.archive); }], ['Supprimer', function () { supprimerVoyage(v); }, true]].forEach(function (x) {
         var b = document.createElement('button'); b.type = 'button'; b.className = 'lg-lien' + (x[2] ? ' rouge' : ''); b.textContent = x[0]; b.addEventListener('click', x[1]); a.appendChild(b);
       });
       cellule(tr, a);
@@ -2671,6 +2672,21 @@ geotab.addin.logistique = function () {
     });
     t.appendChild(tb); boite.appendChild(t);
   }
+  // ----- Pousser un voyage aux cellulaires : les téléphones des personnes assignées le rechargent d'eux-mêmes (vérification chaque minute)
+  function pousserVoyage(d, silencieux) {
+    return lireType('synchro').then(function (l) {
+      var rec = l && l[0], s2 = rec ? JSON.parse(JSON.stringify(rec.details)) : { type: 'synchro', voyages: {} };
+      s2.voyages = s2.voyages || {};
+      var limite = new Date(Date.now() - 7 * 86400000).toISOString();
+      Object.keys(s2.voyages).forEach(function (k) { if (s2.voyages[k].quand < limite) { delete s2.voyages[k]; } });
+      s2.voyages[d.ref] = { users: (d.assignes || []).slice(), quand: new Date().toISOString() };
+      var ent = { addInId: ADDIN_ID, groups: [{ id: 'GroupCompanyId' }], details: s2 };
+      return rec ? appelGeotab('Set', { typeName: 'AddInData', entity: Object.assign({ id: rec.id }, ent) }) : appelGeotab('Add', { typeName: 'AddInData', entity: ent });
+    }).then(function () {
+      if (!silencieux) { message('Voyage ' + d.ref + ' poussé aux cellulaires' + ((d.assignes || []).length ? ' de ' + d.assignes.map(nomAffiche).join(', ') : '') + '. Il apparaîtra en moins d’une minute si Bonneville est ouverte, sinon dès son ouverture.'); }
+    }).catch(function (e) { if (!silencieux) { message('Envoi impossible : ' + (e && e.message ? e.message : e), true); } });
+  }
+
   function nouveauVoyage() {
     voyageEnEdition = null; voyageAffiche = null; desactiverEdition();
     ['it511-ref', 'it511-nb-modules', 'it511-arrivee', 'it511-hauteur', 'it511-largeur', 'it511-longueur', 'it511-exc-av', 'it511-exc-ar', 'it511-exc-lat'].forEach(function (id) { trouver(id).value = ''; });
@@ -3222,7 +3238,7 @@ geotab.addin.logistique = function () {
       <button type="button" data-o="restrictions">Restrictions</button>
       <button type="button" data-o="parametres">Paramètres</button>
     </nav>
-    <span id="lg-etat" title="Cliquer pour voir l’état des sources"><span>version 2.5.2</span><span id="it511-statut">Démarrage...</span><span id="it511-sources"></span></span>
+    <span id="lg-etat" title="Cliquer pour voir l’état des sources"><span>version 2.6.0</span><span id="it511-statut">Démarrage...</span><span id="it511-sources"></span></span>
   </div>
 
   <div id="lg-planifier" data-onglet="planifier">

@@ -294,7 +294,7 @@
   <div class="bloc recherche-zone" id="lfsd-zone-recherche">
     <div id="lfsd-etat" class="info-etat">Chargement des voyages…</div>
     <div id="lfsd-espace" class="info-espace"></div>
-    <div class="titre-bloc">Série</div>
+    <div class="titre-bloc" style="display:flex;justify-content:space-between;align-items:center">Série<button id="lfsd-actualiser" type="button" style="height:36px !important;padding:0 12px !important;border-radius:18px !important;font-size:14px !important;font-weight:700 !important">↻ Actualiser</button></div>
     <input id="lfsd-recherche" type="text" inputmode="numeric" autocomplete="off" placeholder="ex. 17513-2" aria-label="Série">
     <div id="lfsd-suggestions" class="suggestions"></div>
   </div>
@@ -380,7 +380,7 @@
 <script>
 (function () {
   var ADDIN_ID = 'aXdeNEZ7tQ7eMPNywYFFKrA';
-  var VERSION = '2.1.1';
+  var VERSION = '2.2.0';
   var CLE_CACHE = 'lfsd-voyages', CLE_DERNIER = 'lfsd-dernier', CLE_PARAM = 'lfsd-parametres';
 
   var api = null, carte = null, coucheTrace = null, marqueurMoi = null, marqueurCamion = null;
@@ -555,6 +555,24 @@
     var o = $('lfsd-onglets'); if (o) { o.style.display = refus ? 'none' : ''; }
   }
 
+  // ----- Synchronisation poussée par le bureau (Logistique → « Pousser aux cellulaires »)
+  var derniereLecture = '', verifEnCours = false;
+  function verifierPoussees() {
+    if (verifEnCours || !api || navigator.onLine === false) { return; }
+    verifEnCours = true;
+    lireTypes(['synchro']).then(function (l) {
+      var d = (l && l[0] && l[0].details) || null; if (!d || !d.voyages) { return; }
+      var recus = Object.keys(d.voyages).filter(function (ref) {
+        var x = d.voyages[ref];
+        return x && x.quand > derniereLecture && (mesDroits.tousVoyages || (x.users || []).indexOf(sessionUser) >= 0);
+      });
+      if (!recus.length) { return; }
+      return chargerVoyages().then(function () { etat('Reçu du bureau : voyage ' + recus.join(', ') + ' - à jour à ' + new Date().toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' })); });
+    }).catch(function () {}).then(function () { verifEnCours = false; });
+  }
+  setInterval(function () { try { verifierPoussees(); } catch (e) {} }, 60000);
+  window.addEventListener('online', function () { setTimeout(function () { try { verifierPoussees(); } catch (e) {} }, 3000); });
+
   function chargerVoyages() {
     etat('Chargement des voyages…');
     return sessionPrete().then(function () { return lireTypes(['voyage', 'acces', 'parametres', 'formresume', 'employe', 'profil']); }).then(function (lignes) {
@@ -599,6 +617,7 @@
       horsReseau = false;
       afficherRefus();
       if (!accesGps()) { return; }
+      derniereLecture = new Date().toISOString();
       etat(voyages.length + ' voyage' + (voyages.length > 1 ? 's' : '') + (mesDroits.tousVoyages ? ' (commissionnaire : tous les voyages)' : ' assigné' + (voyages.length > 1 ? 's' : '')) + ' - à jour à ' + new Date().toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' }));
     }).catch(function () {
       horsReseau = true;
@@ -2283,6 +2302,7 @@
     });
     $('lfsd-telecharger').addEventListener('click', telechargerDirections);
     $('lfsd-retirer').addEventListener('click', retirerDuTelephone);
+    $('lfsd-actualiser').addEventListener('click', function () { var b = $('lfsd-actualiser'); b.disabled = true; b.textContent = '↻ …'; chargerVoyages().then(function () { b.disabled = false; b.textContent = '↻ Actualiser'; }); });
     nav.voix = lireCache('lfsd-voix') !== false;
     $('lfsd-demarrer').addEventListener('click', demarrerNavigation);
     window.addEventListener('online', function () { viderFile(); });
