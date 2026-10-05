@@ -59,7 +59,7 @@
 <script>
 (function () {
   'use strict';
-  var VERSION = '3.1.0';
+  var VERSION = '3.1.3';
   var B = window.Bonneville;
   var BASE = 'https://ericgloutnez.github.io/LFS/';
   var MODULES = {
@@ -67,6 +67,27 @@
     tempo: { fichier: 'tempo.html', nom: 'tempo', cache: '#hb .entete img, #hb .entete .sep, #hb .entete .titre, #hb .version { display: none !important; }' },
     employes: { fichier: 'employes.html', nom: 'employes', cache: '#be .entete img, #be .entete .sep, #be .entete .titre { display: none !important; }' }
   };
+
+  // La bibliothèque commune peut arriver après ce script (Drive et MyGeotab chargent parfois les scripts dans le désordre).
+  // On l'attend, on la charge nous-mêmes au besoin, et on en garde une copie pour le hors réseau.
+  var URL_COMMUN = BASE + 'bonneville-commun.js?v=1.1.0', communTexte = null;
+  function chargerCommunTexte() {
+    return fetch(URL_COMMUN).then(function (r) { if (!r.ok) { throw new Error('HTTP ' + r.status); } return r.text(); })
+      .then(function (t) { communTexte = t; try { localStorage.setItem('bn-commun', t); } catch (e) {} return t; })
+      .catch(function () { try { communTexte = localStorage.getItem('bn-commun'); } catch (e) {} return communTexte; });
+  }
+  function attendreCommun() {
+    var texte = chargerCommunTexte();
+    return new Promise(function (ok, ko) {
+      var essais = 0;
+      var t = setInterval(function () {
+        if (window.Bonneville) { clearInterval(t); B = window.Bonneville; ok(); return; }
+        essais++;
+        if (essais === 15) { texte.then(function (src) { if (!window.Bonneville && src) { try { (0, eval)(src); } catch (e) {} } }); }
+        if (essais > 150) { clearInterval(t); ko(new Error('La bibliothèque Bonneville n’a pas pu être chargée. Vérifie le réseau puis rouvre l’application.')); }
+      }, 100);
+    });
+  }
   var api = null, state = null, G = null, moi = '', courant = 'accueil', instances = {}, enChargement = {};
   var acces = { tempo: false, employes: false };
   function $(id) { return document.getElementById(id); }
@@ -83,6 +104,7 @@
     }).then(function (html) {
       var avant = '<script>window.geotab = { addin: {} }; window.__bonnevilleIntegre = true;<\/script><style>' + m.cache + '</style>';
       html = html.replace(/<head>/i, '<head>' + avant);
+      if (communTexte) { html = html.replace(/<script src="[^"]*bonneville-commun\.js[^"]*"><\/script>/, function () { return '<script>' + communTexte + '<\/script>'; }); }
       return new Promise(function (ok, ko) {
         var cadre = document.createElement('iframe');
         cadre.title = 'Bonneville - ' + cle;
@@ -201,8 +223,13 @@
   }
   var fabrique = function () {
     return {
-      initialize: function (a, s, callback) { api = a; state = s; try { if (!branche) { brancher(); branche = true; } demarrer(); } catch (e) { console.warn(e); } callback(); },
-      focus: function (a, s) { api = a; state = s; if (courant === 'accueil') { try { demarrer(); } catch (e) {} } else if (instances[courant]) { try { instances[courant].inst.focus(api, state || {}); } catch (e) {} } },
+      initialize: function (a, s, callback) {
+        api = a; state = s;
+        try { if (!branche) { brancher(); branche = true; } } catch (e) { console.warn(e); }
+        attendreCommun().then(demarrer).catch(function (e) { $('bn-accueil').innerHTML = '<div class="bn-aide">' + h(e && e.message ? e.message : e) + '</div>'; });
+        callback();
+      },
+      focus: function (a, s) { api = a; state = s; if (!B) { return; } if (courant === 'accueil') { try { demarrer(); } catch (e) {} } else if (instances[courant]) { try { instances[courant].inst.focus(api, state || {}); } catch (e) {} } },
       blur: function () {}
     };
   };
