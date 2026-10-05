@@ -105,7 +105,11 @@
   #lfsd .nav { display: none; position: relative; background: var(--fond); }
   #lfsd.en-nav .entete, #lfsd.en-nav .bloc, #lfsd.en-nav .voyage, #lfsd.en-nav .pied { display: none !important; }
   #lfsd.en-nav .nav { display: block !important; }
-  #lfsd .nav-carte { width: 100%; height: 70vh; background: #d9dee3; }
+  #lfsd .nav-cadre { position: relative; width: 100%; overflow: hidden; background: #d9dee3; }
+  #lfsd .nav-carte { position: absolute; background: #d9dee3; transition: transform .7s ease-out; will-change: transform; }
+  #lfsd .nav-credit { position: absolute; right: 4px; bottom: 2px; z-index: 500; font-size: 10px; color: #4f5963; background: rgba(255,255,255,.7); padding: 0 4px; border-radius: 3px; }
+  #lfsd #lfsd-boussole svg { display: block; margin: auto; }
+  #lfsd #lfsd-aiguille { transition: transform .7s ease-out; transform-origin: 15px 15px; }
   #lfsd .manoeuvre { position: absolute; top: 10px; left: 10px; right: 10px; z-index: 1000; display: flex; align-items: center; gap: 14px;
     background: #1b5e3b; color: #fff; border-radius: 14px; padding: 12px 16px; box-shadow: 0 4px 14px rgba(0,0,0,.35); }
   #lfsd .manoeuvre.hors { background: var(--signal); }
@@ -343,7 +347,7 @@
   <div id="lfsd-form" class="ecran-form"></div>
 
   <div id="lfsd-nav" class="nav">
-    <div id="lfsd-nav-carte" class="nav-carte" style="height:70vh;"></div>
+    <div id="lfsd-nav-cadre" class="nav-cadre" style="height:70vh;"><div id="lfsd-nav-carte" class="nav-carte"></div><span class="nav-credit">© OpenStreetMap</span></div>
     <div id="lfsd-manoeuvre" class="manoeuvre" aria-live="polite">
       <div id="lfsd-fleche"></div>
       <div>
@@ -354,6 +358,7 @@
     </div>
     <div id="lfsd-nav-hors" class="nav-hors">Carte indisponible sans réseau. La ligne bleue, le guidage et la voix restent actifs.</div>
     <div class="nav-boutons">
+      <button id="lfsd-boussole" type="button" aria-label="Orientation de la carte : direction en haut. Toucher pour mettre le nord en haut."><svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><g id="lfsd-aiguille"><path d="M15 3 L20 15 L10 15 Z" fill="#b42318"/><path d="M15 27 L20 15 L10 15 Z" fill="#9aa3ac"/><text x="15" y="11.5" text-anchor="middle" font-size="7" font-weight="800" fill="#ffffff" font-family="system-ui, sans-serif">N</text></g></svg></button>
       <button id="lfsd-son" type="button" aria-label="Voix">🔊</button>
       <button id="lfsd-recentrer" type="button" aria-label="Recentrer">◎</button>
     </div>
@@ -380,7 +385,7 @@
 <script>
 (function () {
   var ADDIN_ID = 'aXdeNEZ7tQ7eMPNywYFFKrA';
-  var VERSION = '2.2.0';
+  var VERSION = '2.3.0';
   var CLE_CACHE = 'lfsd-voyages', CLE_DERNIER = 'lfsd-dernier', CLE_PARAM = 'lfsd-parametres';
 
   var api = null, carte = null, coucheTrace = null, marqueurMoi = null, marqueurCamion = null;
@@ -2015,7 +2020,7 @@
 
   function creerCarteNav() {
     if (nav.carte || typeof L === 'undefined') { return; }
-    nav.carte = L.map($('lfsd-nav-carte'), { zoomControl: false, attributionControl: true });
+    nav.carte = L.map($('lfsd-nav-carte'), { zoomControl: false, attributionControl: false });
     var url = parametres.cleCarto ? 'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=' + encodeURIComponent(parametres.cleCarto)
       : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
     var fond = L.tileLayer(url, { maxZoom: 20, attribution: parametres.cleCarto ? '&copy; OpenStreetMap, &copy; CARTO' : '&copy; OpenStreetMap' });
@@ -2024,16 +2029,47 @@
     fond.on('tileerror', function () { err++; if (err >= 6 && !ok && parametres.cleCarto) { fond.setUrl('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'); } });
     fond.addTo(nav.carte);
     nav.couche = L.layerGroup().addTo(nav.carte);
-    nav.carte.on('dragstart', function () { nav.suivre = false; });
+    nav.carte.on('dragstart', function () { nav.suivre = false; orienter(); });
   }
 
   function ajusterHauteurNav() {
-    var el = $('lfsd-nav-carte');
-    var haut = el.getBoundingClientRect().top + (window.scrollY || 0);
-    var h = Math.max(320, window.innerHeight - Math.max(0, el.getBoundingClientRect().top) - 72);
-    el.style.height = h + 'px';
+    var cadre = $('lfsd-nav-cadre'), el = $('lfsd-nav-carte');
+    var haut = cadre.getBoundingClientRect().top + (window.scrollY || 0);
+    var h = Math.max(320, window.innerHeight - Math.max(0, cadre.getBoundingClientRect().top) - 72);
+    cadre.style.height = h + 'px';
+    var w = cadre.clientWidth || window.innerWidth, diag = Math.ceil(Math.sqrt(w * w + h * h)) + 4;
+    el.style.width = diag + 'px'; el.style.height = diag + 'px';
+    el.style.left = Math.round((w - diag) / 2) + 'px'; el.style.top = Math.round((h - diag) / 2) + 'px';
     if (nav.carte) { nav.carte.invalidateSize(); }
     return haut;
+  }
+
+  // ----- Orientation : direction en haut (la flèche reste vers le haut, la carte tourne)
+  nav.dirEnHaut = lireCache('lfsd-dir-haut') !== false; nav.cap = 0; nav.capAffiche = 0; nav.dernierPoint = null;
+  function capEntre(a, b) {
+    var la1 = a[0] * Math.PI / 180, la2 = b[0] * Math.PI / 180, dl = (b[1] - a[1]) * Math.PI / 180;
+    var y = Math.sin(dl) * Math.cos(la2), x = Math.cos(la1) * Math.sin(la2) - Math.sin(la1) * Math.cos(la2) * Math.cos(dl);
+    return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+  }
+  function majCap(p, capGps, vitesse) {
+    var bouge = vitesse === null || vitesse === undefined ? true : vitesse > 4;
+    if (capGps !== null && capGps !== undefined && !isNaN(capGps) && bouge) { nav.cap = capGps; }
+    else if (nav.dernierPoint) {
+      var dm = distanceM(nav.dernierPoint, p);
+      if (dm > 15) { nav.cap = capEntre(nav.dernierPoint, p); }
+      else { return; }
+    }
+    nav.dernierPoint = p;
+  }
+  function orienter() {
+    var vise = nav.dirEnHaut && nav.suivre ? nav.cap : 0;
+    // Chemin le plus court entre l'angle affiché et l'angle visé (évite un tour complet de 359° à 1°)
+    var diff = ((vise - nav.capAffiche) % 360 + 540) % 360 - 180;
+    nav.capAffiche += diff;
+    $('lfsd-nav-carte').style.transform = 'rotate(' + (-nav.capAffiche) + 'deg)';
+    var aig = $('lfsd-aiguille'); if (aig) { aig.style.transform = 'rotate(' + (-nav.capAffiche) + 'deg)'; }
+    var b = $('lfsd-boussole');
+    if (b) { b.setAttribute('aria-label', nav.dirEnHaut ? 'Orientation : direction en haut. Toucher pour mettre le nord en haut.' : 'Orientation : nord en haut. Toucher pour mettre la direction en haut.'); b.style.outline = nav.dirEnHaut ? '' : '3px solid #1a73e8'; }
   }
 
   function demarrerNavigation() {
@@ -2054,6 +2090,7 @@
     nav.horsCompte = 0; nav.horsAnnonce = false; nav.dernierKm = 0;
     preparerSegments();
     preparerManoeuvres();
+    nav.capAffiche = 0; $('lfsd-nav-carte').style.transform = ''; nav.dernierPoint = null;
     nav.carte.fitBounds(L.polyline(trace).getBounds(), { padding: [30, 30] });
     if (!nav.manoeuvres.length) {
       $('lfsd-fleche').innerHTML = svgFleche('tout_droit');
@@ -2079,6 +2116,7 @@
 
   function majNavigation(p, cap, vitesse) {
     if (!nav.actif || !nav.carte) { return; }
+    majCap(p, cap, vitesse); cap = nav.cap;
     var vt = $('lfsd-n-vitesse'); if (vt) { vt.textContent = (vitesse !== null && vitesse !== undefined) ? Math.round(vitesse) : '-'; }
     var icone = L.divIcon({ className: '', iconSize: [34, 34], iconAnchor: [17, 17],
       html: '<svg class="moi" viewBox="0 0 34 34" style="transform:rotate(' + (cap || 0) + 'deg)"><circle cx="17" cy="17" r="15" fill="#ffffff"/><path d="M17 5 L26 27 L17 22 L8 27 Z" fill="#1a73e8"/></svg>' });
@@ -2088,6 +2126,7 @@
       var zoom = vitesse && vitesse > 20 ? 15 : 16;
       nav.carte.setView(p, zoom, { animate: true });
     }
+    orienter();
 
     var pr = projeterPrecis(p, 0);
     var total = cumul[cumul.length - 1] || 0;
@@ -2307,7 +2346,8 @@
     $('lfsd-demarrer').addEventListener('click', demarrerNavigation);
     window.addEventListener('online', function () { viderFile(); });
     $('lfsd-quitter').addEventListener('click', quitterNavigation);
-    $('lfsd-recentrer').addEventListener('click', function () { nav.suivre = true; if (positionMoi && nav.carte) { nav.carte.setView(positionMoi, 16); } });
+    $('lfsd-recentrer').addEventListener('click', function () { nav.suivre = true; if (positionMoi && nav.carte) { nav.carte.setView(positionMoi, 16); } orienter(); });
+    $('lfsd-boussole').addEventListener('click', function () { nav.dirEnHaut = !nav.dirEnHaut; ecrireCache('lfsd-dir-haut', nav.dirEnHaut); if (nav.dirEnHaut) { nav.suivre = true; if (positionMoi && nav.carte) { nav.carte.setView(positionMoi, 16); } } orienter(); });
     $('lfsd-son').addEventListener('click', function () {
       nav.voix = !nav.voix; ecrireCache('lfsd-voix', nav.voix);
       $('lfsd-son').textContent = nav.voix ? '🔊' : '🔇';
