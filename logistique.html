@@ -2381,7 +2381,7 @@ geotab.addin.logistique = function () {
       longueurPi: trouver('it511-longueur').value,
       excAvPi: trouver('it511-exc-av').value, excArPi: trouver('it511-exc-ar').value, excLatPi: trouver('it511-exc-lat').value,
       totalKm: Math.round(dernierResultat.totalKm * 10) / 10, dureeS: Math.round(dernierResultat.dureeS),
-      routes: dernierResultat.routes.map(function (r) { return { n: r.nom, k: Math.round(r.km * 10) / 10 }; }),
+      routes: dernierResultat.routes.map(function (r) { var x = { n: r.nom, k: Math.round(r.km * 10) / 10 }; if (r.ontario) { x.o = 1; } if (r.bretelle) { x.b = 1; } return x; }),
       enLigne: dernierResultat.enLigne,
       trace: dernierResultat.traceEnc,
       vias: vias.map(function (v) { return { lat: Math.round(v.lat * 1e5) / 1e5, lon: Math.round(v.lon * 1e5) / 1e5 }; }),
@@ -2803,9 +2803,7 @@ geotab.addin.logistique = function () {
     }).catch(function (e) { message('Suppression impossible : ' + (e && e.message ? e.message : e), true); });
   }
 
-  function modifierVoyage(v) {
-    var d = v.d;
-    try { allerOnglet('planifier'); } catch (e) {}
+  function remplirFormulaire(d) {
     trouver('it511-ref').value = d.ref;
     trouver('it511-nb-modules').value = d.nbModules || '';
     trouver('it511-depart').value = d.depart ? d.depart.label : '';
@@ -2822,6 +2820,13 @@ geotab.addin.logistique = function () {
     fournisseur = d.pointsFournisseur && d.pointsFournisseur.length >= 2 ? { lien: d.lienFournisseur || '', points: d.pointsFournisseur } : null;
     trouver('lg-lien').value = fournisseur ? fournisseur.lien : ''; afficherEtatLien();
     if (d.departDate) { trouver('it511-depart-prevu').value = d.departDate + 'T' + (d.departHeure || '06:00'); afficherChampsDepart(); }
+    var sel = trouver('it511-actif'); if (sel) { sel.value = d.actifId || ''; }
+  }
+
+  function modifierVoyage(v) {
+    var d = v.d;
+    try { allerOnglet('planifier'); } catch (e) {}
+    remplirFormulaire(d);
     voyageEnEdition = v.id;
     vias = (d.vias || []).slice();
     trouver('it511-sauver-voyage').textContent = '✓ Mettre à jour le voyage ' + d.ref;
@@ -2832,16 +2837,28 @@ geotab.addin.logistique = function () {
   function ouvrirVoyage(v) {
     var d = v.d;
     try { allerOnglet('planifier'); } catch (e) {}
+    voyageEnEdition = null;
+    remplirFormulaire(d);
+    vias = (d.vias || []).slice();
+    trouver('it511-sauver-voyage').textContent = '✓ Enregistrer le voyage';
     voyageAffiche = v;
     desactiverEdition();
-    afficherBilanRestrictions([]);
-    afficherClasse2([{ t: 'Clique sur « Modifier » puis recalcule le trajet pour obtenir l’analyse classe 2 à jour.', c: '#5a6270' }]);
     var latlngs = d.trace ? decoderPolyligne(d.trace) : [];
+    var routesO = (d.routes || []).map(function (r) { return { nom: r.n, km: r.k, ontario: !!r.o, bretelle: !!r.b || r.n === 'Bretelle' }; });
     afficherDonnees({
-      routes: (d.routes || []).map(function (r) { return { nom: r.n, km: r.k }; }),
+      routes: routesO,
       totalKm: d.totalKm, dureeS: d.dureeS, enLigne: d.enLigne,
       latlngs: latlngs, depart: d.depart, arrivee: d.arrivee
     });
+    // Analyses refaites à partir du voyage enregistré
+    var coordsO = latlngs.map(function (p) { return [p[1], p[0]]; });
+    try { afficherBilanRestrictions(verifierHoraires(coordsO, d.dureeS || 0, d.totalKm || 0)); } catch (e) { afficherBilanRestrictions([]); }
+    try {
+      var hO = lireDimension('it511-hauteur'), wO = lireDimension('it511-largeur');
+      var qcO = routesO.filter(function (r) { return !r.ontario; }), kmQcO = routesO.some(function (r) { return r.ontario; }) ? qcO.reduce(function (a, r) { return a + (r.km || 0); }, 0) : (d.totalKm || 0);
+      if (hO && wO && latlngs.length) { afficherClasse2(analyseClasse2(latlngs, qcO, kmQcO, d.dureeS || 0, lireDimsClasse2(hO, wO))); }
+      else { afficherClasse2([{ t: 'Dimensions manquantes : l’analyse classe 2 ne peut pas être refaite.', c: '#5a6270' }]); }
+    } catch (e) { afficherClasse2([{ t: 'Clique sur « Modifier » puis recalcule le trajet pour obtenir l’analyse classe 2 à jour.', c: '#5a6270' }]); }
     trouver('it511-titre-resultat').textContent = 'Voyage ' + d.ref + (d.departDate ? ' · départ prévu ' + d.departDate + (d.departHeure ? ' ' + d.departHeure : '') : '') + ((d.assignes || []).length ? ' · ' + d.assignes.map(nomAffiche).join(', ') : '');
     majChiffresDims(d.largeurPi, d.hauteurPi);
     afficherEntravesTrajet(entravesSurTrajet(latlngs.map(function (p) { return [p[1], p[0]]; })), 0);
@@ -2853,6 +2870,7 @@ geotab.addin.logistique = function () {
     trouver('it511-comparaison').textContent = '';
     mettreAJourSuivi();
     trouverActifParChauffeur(v);
+    message('Voyage ' + d.ref + ' ouvert : toutes ses informations sont rechargées. « Modifier » permet de le changer et de le recalculer.');
   }
 
   function afficherChampsDepart() {
@@ -3204,7 +3222,7 @@ geotab.addin.logistique = function () {
       <button type="button" data-o="restrictions">Restrictions</button>
       <button type="button" data-o="parametres">Paramètres</button>
     </nav>
-    <span id="lg-etat" title="Cliquer pour voir l’état des sources"><span>version 2.5.1</span><span id="it511-statut">Démarrage...</span><span id="it511-sources"></span></span>
+    <span id="lg-etat" title="Cliquer pour voir l’état des sources"><span>version 2.5.2</span><span id="it511-statut">Démarrage...</span><span id="it511-sources"></span></span>
   </div>
 
   <div id="lg-planifier" data-onglet="planifier">
