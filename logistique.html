@@ -952,6 +952,67 @@ geotab.addin.logistique = function () {
 
   var numeroCalcul = 0;
 
+
+  // ===================== Trajet d'un fournisseur (lien Google Maps) =====================
+  // Le trajet calculé va du départ indiqué jusqu'au début du trajet du fournisseur, puis suit ses points jusqu'à la fin.
+  var fournisseur = null; // { lien, points: [{lat, lon, label}] }
+  function lireLienGoogle(lien) {
+    var u = String(lien || '').trim();
+    if (!u) { return Promise.reject(new Error('Colle d’abord le lien.')); }
+    if (/maps\.app\.goo\.gl|goo\.gl\/maps/i.test(u)) {
+      return Promise.reject(new Error('Ce lien est un lien court. Ouvre-le dans ton navigateur, attends que la carte s’affiche, puis copie l’adresse complète de la barre d’adresse (elle commence par https://www.google.com/maps/dir/) et colle-la ici.'));
+    }
+    var coords = [], m, re = /!1d(-?\d+(?:\.\d+)?)!2d(-?\d+(?:\.\d+)?)/g;
+    while ((m = re.exec(u))) {
+      var p = { lon: parseFloat(m[1]), lat: parseFloat(m[2]) };
+      var dernier = coords[coords.length - 1];
+      if (!dernier || Math.abs(dernier.lat - p.lat) > 1e-5 || Math.abs(dernier.lon - p.lon) > 1e-5) { coords.push(p); }
+    }
+    // Segments de l'adresse : /maps/dir/Origine/Étape/Destination/@...
+    var segs = [];
+    var md = u.match(/\/maps\/dir\/([^?#@]*)/);
+    if (md) { segs = md[1].split('/').filter(function (x) { return x && x.indexOf('data=') !== 0; }).map(function (x) { try { return decodeURIComponent(x.replace(/\+/g, ' ')); } catch (e) { return x; } }); }
+    // Format « api=1 » : origin, destination, waypoints
+    var q = {}; (u.split('?')[1] || '').split('#')[0].split('&').forEach(function (kv) { var a = kv.split('='); if (a[0]) { try { q[a[0]] = decodeURIComponent((a[1] || '').replace(/\+/g, ' ')); } catch (e) { q[a[0]] = a[1]; } } });
+    if (q.origin && q.destination) { segs = [q.origin].concat(q.waypoints ? q.waypoints.split('|') : [], [q.destination]); }
+    var enCoord = function (t) { var c = String(t).match(/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/); return c ? { lat: parseFloat(c[1]), lon: parseFloat(c[2]) } : null; };
+    if (coords.length >= 2) {
+      var noms = segs.slice();
+      return Promise.resolve(coords.map(function (c, i) { return { lat: c.lat, lon: c.lon, label: i === 0 ? (noms[0] || 'Début du trajet du fournisseur') : (i === coords.length - 1 ? (noms[noms.length - 1] || 'Fin du trajet du fournisseur') : 'Point du trajet du fournisseur') }; }));
+    }
+    if (segs.length >= 2) {
+      return Promise.all(segs.map(function (t) { var c = enCoord(t); return c ? Promise.resolve({ lat: c.lat, lon: c.lon, label: t }) : geocoder(t); }));
+    }
+    return Promise.reject(new Error('Ce lien ne contient pas de trajet reconnaissable. Il doit s’agir d’un itinéraire Google Maps (« Itinéraire »), avec un départ et une arrivée.'));
+  }
+  function afficherEtatLien() {
+    var z = trouver('lg-lien-etat'); if (!z) { return; }
+    var arr = trouver('it511-arrivee');
+    var ouvrir = trouver('lg-lien-ouvrir'), zone = trouver('lg-lien-zone');
+    if (!fournisseur) { z.textContent = ''; arr.disabled = false; if (ouvrir) { ouvrir.style.display = ''; } return; }
+    var pts = fournisseur.points;
+    if (ouvrir) { ouvrir.style.display = 'none'; } if (zone) { zone.style.display = 'none'; }
+    z.innerHTML = '';
+    var t = document.createElement('span');
+    t.title = 'Le trajet va du départ jusqu’au début du trajet du fournisseur, puis le suit.';
+    t.textContent = 'Trajet du fournisseur : ' + String(pts[0].label).split(',')[0] + ' → ' + String(pts[pts.length - 1].label).split(',')[0] + ' (' + pts.length + ' points) · ';
+    var b = document.createElement('button'); b.type = 'button'; b.className = 'lg-lien'; b.textContent = 'Retirer le lien';
+    b.style.fontSize = '12px';
+    b.addEventListener('click', function () { fournisseur = null; trouver('lg-lien').value = ''; points.arrivee = null; trouver('it511-arrivee').value = ''; afficherEtatLien(); });
+    z.appendChild(t); z.appendChild(b);
+    arr.value = pts[pts.length - 1].label; arr.disabled = true;
+    points.arrivee = { lat: pts[pts.length - 1].lat, lon: pts[pts.length - 1].lon, label: pts[pts.length - 1].label };
+  }
+  function utiliserLien() {
+    var z = trouver('lg-lien-etat'); z.textContent = 'Lecture du lien…';
+    lireLienGoogle(trouver('lg-lien').value).then(function (pts) {
+      fournisseur = { lien: trouver('lg-lien').value.trim(), points: pts };
+      vias = [];
+      afficherEtatLien();
+      message('Lien du fournisseur prêt : clique sur « Calculer le trajet ».');
+    }).catch(function (e) { fournisseur = null; z.textContent = (e && e.message) ? e.message : String(e); z.style.color = '#b42318'; setTimeout(function () { z.style.color = ''; }, 100); });
+  }
+
   function calculer() {
     message('');
     var cle = lire('cle', '');
@@ -981,7 +1042,7 @@ geotab.addin.logistique = function () {
       var appliquerPref = preferenceActive && preferenceRefusee !== preferenceActive.id;
       if (!appliquerPref) { preferenceActive = preferenceActive && preferenceRefusee === preferenceActive.id ? null : preferenceActive; }
       var viaPref = appliquerPref ? [{ lat: preferenceActive.d.viaLat, lon: preferenceActive.d.viaLon }] : [];
-      var arrets = [p[0]].concat(viaPref, vias, [p[1]]);
+      var arrets = fournisseur ? [p[0]].concat(viaPref, vias, fournisseur.points.slice(0, -1), [p[1]]) : [p[0]].concat(viaPref, vias, [p[1]]);
       bouton.textContent = 'Vérification des restrictions...';
       return chargerGeometriesRestrictions().then(function () {
         if (jeton !== numeroCalcul) { throw new Error('annule'); }
@@ -1191,11 +1252,11 @@ geotab.addin.logistique = function () {
       var dernier = routes[routes.length - 1];
       if (!cle) {
         if (dernier && (dernier.cle === '' || s.distance < 0.5)) { dernier.km += s.distance; dernier.fin = wp[1]; }
-        else { routes.push({ cle: '', brut: '(route sans nom)', ref: null, km: s.distance, debut: wp[0], fin: wp[1] }); }
+        else { routes.push({ cle: '', brut: '(route sans nom)', ref: null, km: s.distance, debut: wp[0], fin: wp[1], ontario: !!(c0 && enOntario(c0[1], c0[0])) }); }
         return;
       }
       if (dernier && dernier.cle === cle) { dernier.km += s.distance; dernier.fin = wp[1]; }
-      else { routes.push({ cle: cle, brut: brut || (ref.type + ' ' + ref.num), ref: ref, km: s.distance, debut: wp[0], fin: wp[1] }); }
+      else { routes.push({ cle: cle, brut: brut || (ref.type + ' ' + ref.num), ref: ref, km: s.distance, debut: wp[0], fin: wp[1], ontario: !!(c0 && enOntario(c0[1], c0[0])) }); }
     });
     routes = routes.filter(function (r) { return r.km >= 0.05 || routes.length === 1; });
     afficherDiagnostic();
@@ -1205,11 +1266,11 @@ geotab.addin.logistique = function () {
         var dir = (coords && coords[r.debut] && coords[r.fin]) ? ' ' + capCardinal(coords[r.debut], coords[r.fin]) : '';
         nom = (r.ref.type === 'Hwy' ? 'Hwy ' : r.ref.type + '-') + r.ref.num + dir;
       } else if (!r.cle && r.km < 1.5) {
-        return { nom: 'Bretelle', km: r.km, bretelle: true };
+        return { nom: 'Bretelle', km: r.km, bretelle: true, ontario: r.ontario };
       } else if (nom.indexOf(',') > 0) {
         nom = nom.split(',')[0].trim();
       }
-      return { nom: nom, km: r.km };
+      return { nom: nom, km: r.km, ontario: r.ontario };
     });
   }
 
@@ -1307,8 +1368,17 @@ geotab.addin.logistique = function () {
     trouver('it511-duree').textContent = heures + ' h ' + (minutes < 10 ? '0' : '') + minutes;
     var tableau = trouver('it511-routes');
     while (tableau.firstChild) { tableau.removeChild(tableau.firstChild); }
-    d.routes.forEach(function (r) {
+    var ontarioTitre = false;
+    d.routes.slice().sort(function (a, b) { return (a.ontario ? 1 : 0) - (b.ontario ? 1 : 0); }).forEach(function (r) {
+      if (r.ontario && !ontarioTitre) {
+        ontarioTitre = true;
+        var t = document.createElement('div');
+        t.style.cssText = 'margin-top:10px;padding:6px 0;font-size:12px;font-weight:700;color:#4f5963;border-bottom:1px solid #d3d8dd;';
+        t.textContent = 'En Ontario (hors permis du Québec, non inscrites dans la ligne du permis)';
+        tableau.appendChild(t);
+      }
       var ligne = document.createElement('div');
+      if (r.ontario) { ligne.style.opacity = '0.6'; }
       ligne.style.cssText = 'display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid #eef0f3;font-size:13px;';
       var nom = document.createElement('span'); nom.textContent = r.nom;
       if (r.bretelle || r.nom === 'Bretelle') { nom.style.color = '#8a8f98'; nom.style.fontStyle = 'italic'; }
@@ -1383,8 +1453,11 @@ geotab.addin.logistique = function () {
     var totalKm = f.properties.summary.distance;
     var routes = regrouperRoutes(seg.steps || [], coords);
     var latlngs = coords.map(function (c) { return [c[1], c[0]]; });
-    var enLigne = routes.filter(function (r) { return !r.bretelle; }).map(function (r) { return r.nom; }).join(' - ') + ' (' + nombreFr(totalKm, 1) + ' km)';
-    var d = { routes: routes, totalKm: totalKm, dureeS: f.properties.summary.duration, enLigne: enLigne, latlngs: latlngs, depart: points.depart, arrivee: points.arrivee };
+    var routesQc = routes.filter(function (r) { return !r.ontario; });
+    var kmQc = routesQc.reduce(function (a, r) { return a + (r.km || 0); }, 0);
+    var aOntario = routes.some(function (r) { return r.ontario; });
+    var enLigne = routesQc.filter(function (r) { return !r.bretelle; }).map(function (r) { return r.nom; }).join(' - ') + ' (' + nombreFr(aOntario ? kmQc : totalKm, 1) + ' km' + (aOntario ? ' au Québec' : '') + ')';
+    var d = { routes: routes, totalKm: totalKm, dureeS: f.properties.summary.duration, enLigne: enLigne, latlngs: latlngs, depart: points.depart, arrivee: points.arrivee, lienFournisseur: fournisseur ? fournisseur.lien : '', pointsFournisseur: fournisseur ? fournisseur.points : null };
     voyageAffiche = null;
     if (coucheReel) { coucheReel.clearLayers(); }
     trouver('it511-zone-suivi').style.display = 'none';
@@ -1392,7 +1465,7 @@ geotab.addin.logistique = function () {
     trouver('it511-titre-resultat').textContent = voyageEnEdition ? 'Nouveau calcul (modification en cours)' : 'Nouveau trajet';
     afficherEntravesTrajet(entravesSurTrajet(coords), nbEviteesCourant);
     afficherBilanRestrictions(verifierHoraires(coords, f.properties.summary.duration, totalKm));
-    afficherClasse2(analyseClasse2(latlngs, routes, totalKm, f.properties.summary.duration, lireDimsClasse2(h, w)));
+    afficherClasse2(analyseClasse2(latlngs, routesQc, aOntario ? kmQc : totalKm, f.properties.summary.duration, lireDimsClasse2(h, w)));
     d.traceEnc = traceCompacte(latlngs);
     d.hauteur = h; d.largeur = w;
     dernierResultat = d;
@@ -2300,6 +2373,7 @@ geotab.addin.logistique = function () {
       type: 'voyage', ref: ref, maison: ref.split('-')[0], module: ref.split('-')[1] || '', nbModules: nbModules, montantDu: montantSaisi,
       departDate: trouver('it511-dp-date').value || '', departHeure: trouver('it511-dp-date').value ? trouver('it511-dp-heure').value + ':' + trouver('it511-dp-min').value : '',
       assignes: assignesCourants.slice(), eloigne: !!trouver('lg-eloigne').checked,
+      lienFournisseur: fournisseur ? fournisseur.lien : '', pointsFournisseur: fournisseur ? fournisseur.points : null,
       date: new Date().toISOString(),
       depart: dernierResultat.depart, arrivee: dernierResultat.arrivee,
       hauteurPi: trouver('it511-hauteur').value, largeurPi: trouver('it511-largeur').value,
@@ -2601,6 +2675,7 @@ geotab.addin.logistique = function () {
     voyageEnEdition = null; voyageAffiche = null; desactiverEdition();
     ['it511-ref', 'it511-nb-modules', 'it511-arrivee', 'it511-hauteur', 'it511-largeur', 'it511-longueur', 'it511-exc-av', 'it511-exc-ar', 'it511-exc-lat'].forEach(function (id) { trouver(id).value = ''; });
     points.arrivee = null; assignesCourants = []; afficherAssignation(); trouver('lg-eloigne').checked = false;
+    fournisseur = null; trouver('lg-lien').value = ''; afficherEtatLien();
     trouver('it511-sauver-voyage').textContent = '✓ Enregistrer le voyage';
     trouver('it511-resultat').style.display = 'none'; majChiffresDims();
     allerOnglet('planifier');
@@ -2744,6 +2819,8 @@ geotab.addin.logistique = function () {
     trouver('it511-exc-lat').value = d.excLatPi || '';
     assignesCourants = (d.assignes || []).slice(); afficherAssignation();
     trouver('lg-eloigne').checked = !!d.eloigne;
+    fournisseur = d.pointsFournisseur && d.pointsFournisseur.length >= 2 ? { lien: d.lienFournisseur || '', points: d.pointsFournisseur } : null;
+    trouver('lg-lien').value = fournisseur ? fournisseur.lien : ''; afficherEtatLien();
     if (d.departDate) { trouver('it511-depart-prevu').value = d.departDate + 'T' + (d.departHeure || '06:00'); afficherChampsDepart(); }
     voyageEnEdition = v.id;
     vias = (d.vias || []).slice();
@@ -2986,6 +3063,9 @@ geotab.addin.logistique = function () {
     trouver('it511-sauver-voyage').addEventListener('click', sauverVoyage);
     trouver('it511-comparer').addEventListener('click', comparerReel);
     trouver('it511-reinit-trace').addEventListener('click', function () { vias = []; calculer(); });
+    trouver('lg-lien-ok').addEventListener('click', utiliserLien);
+    trouver('lg-lien-ouvrir').addEventListener('click', function () { var zz = trouver('lg-lien-zone'); var ouvert = zz.style.display !== 'none'; zz.style.display = ouvert ? 'none' : 'flex'; if (!ouvert) { trouver('lg-lien').focus(); } });
+    trouver('lg-lien').addEventListener('keydown', function (e) { if (e.key === 'Enter') { utiliserLien(); } });
   }
 
   return {
@@ -3124,13 +3204,18 @@ geotab.addin.logistique = function () {
       <button type="button" data-o="restrictions">Restrictions</button>
       <button type="button" data-o="parametres">Paramètres</button>
     </nav>
-    <span id="lg-etat" title="Cliquer pour voir l’état des sources"><span>version 2.4.2</span><span id="it511-statut">Démarrage...</span><span id="it511-sources"></span></span>
+    <span id="lg-etat" title="Cliquer pour voir l’état des sources"><span>version 2.5.1</span><span id="it511-statut">Démarrage...</span><span id="it511-sources"></span></span>
   </div>
 
   <div id="lg-planifier" data-onglet="planifier">
     <div id="lg-gauche">
       <section class="lg-carte"><h3>Trajet</h3>
         <label class="lg-ch">Départ<input id="it511-depart" type="text" autocomplete="off" placeholder="601 Rue de l’Industrie, Belœil"><div id="it511-liste-depart" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:2000;background:#fff;border:1px solid #d3d8dd;border-radius:8px;max-height:240px;overflow:auto;"></div></label>
+        <div>
+          <button id="lg-lien-ouvrir" type="button" class="lg-lien" style="font-size:12px;font-weight:600;color:#4f5963">+ Trajet d’un fournisseur (lien Google Maps)</button>
+          <div id="lg-lien-zone" style="display:none;margin-top:6px;gap:6px"><input id="lg-lien" type="text" autocomplete="off" placeholder="Coller le lien Google Maps du fournisseur" style="font-size:13px !important;height:34px !important"><button id="lg-lien-ok" type="button" class="lg-btn" style="height:34px;padding:0 10px;font-size:13px">Utiliser</button></div>
+          <div id="lg-lien-etat" class="lg-aide" style="font-weight:500;margin-top:4px"></div>
+        </div>
         <label class="lg-ch">Arrivée<input id="it511-arrivee" type="text" autocomplete="off" placeholder="Adresse de livraison"><div id="it511-liste-arrivee" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:2000;background:#fff;border:1px solid #d3d8dd;border-radius:8px;max-height:240px;overflow:auto;"></div></label>
       </section>
       <section class="lg-carte"><h3>Dimensions du chargement (pi)</h3>
