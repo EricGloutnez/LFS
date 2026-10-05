@@ -65,9 +65,11 @@
 </div>
 
 <script>
+window.__bnErreurs = [];
+window.addEventListener('error', function (e) { try { window.__bnErreurs.push((e.message || 'erreur') + (e.filename ? ' (' + String(e.filename).split('/').pop() + ':' + e.lineno + ')' : '')); } catch (x) {} });
 (function () {
   'use strict';
-  var VERSION = '3.1.4';
+  var VERSION = '3.1.6';
   var B = window.Bonneville;
   var BASE = 'https://ericgloutnez.github.io/LFS/';
   var CACHER = '.entete { display: none !important; } #lfsd > .pied { display: none !important; }';
@@ -278,6 +280,7 @@
   var fabrique = function () {
     return {
       initialize: function (a, s, callback) {
+        window.__bnInit = true;
         api = a; state = s;
         try { if (!branche) { brancher(); branche = true; } } catch (e) { console.warn(e); }
         attendreCommun().then(demarrer).catch(function (e) {
@@ -289,8 +292,34 @@
       blur: function () {}
     };
   };
+
+  // Geotab peut fournir « geotab » comme variable locale (MyGeotab) ou sur window (Drive) : on s'annonce aux deux endroits.
+  var cibles = [];
+  try { if (typeof geotab !== 'undefined' && geotab && geotab.addin) { cibles.push(geotab.addin); } } catch (e) {}
   window.geotab = window.geotab || {}; window.geotab.addin = window.geotab.addin || {};
-  ['bonnevilleDrive', 'BonnevilleDrive', 'bonnevilledrive', 'bonneville-drive', 'bonneville_drive', 'Bonneville Drive', 'Bonneville - Drive', 'bonneville', 'Bonneville', 'BONNEVILLE'].forEach(function (n) { window.geotab.addin[n] = fabrique; });
+  if (cibles.indexOf(window.geotab.addin) < 0) { cibles.push(window.geotab.addin); }
+  function annoncer(noms, f) { noms.forEach(function (n) { cibles.forEach(function (c) { try { c[n] = f; } catch (e) {} }); }); }
+  annoncer(['bonnevilleDrive', 'BonnevilleDrive', 'bonnevilledrive', 'bonneville-drive', 'bonneville_drive', 'Bonneville Drive', 'Bonneville - Drive', 'bonneville', 'Bonneville', 'BONNEVILLE'], fabrique);
+  // Diagnostic : noter les noms que Drive demande, et afficher un rapport si l'application n'a pas démarré
+  var demandes = [];
+  try {
+    if (window.Proxy) {
+      var reel = window.geotab.addin;
+      window.geotab.addin = new Proxy(reel, { get: function (t, k) { if (typeof k === 'string' && demandes.indexOf(k) < 0 && demandes.length < 25) { demandes.push(k); } return t[k]; } });
+    }
+  } catch (e) { window.__bnErreurs.push('Proxy : ' + e.message); }
+  setTimeout(function () {
+    if (window.__bnInit) { return; }
+    var z = document.getElementById('bd-accueil');
+    var rapport = 'Bonneville ' + VERSION + ' · diagnostic\n'
+      + 'Démarrage par Drive : NON (initialize jamais appelé)\n'
+      + 'Noms demandés par Drive : ' + (demandes.length ? demandes.join(', ') : 'aucun') + '\n'
+      + 'Noms annoncés : ' + Object.keys(window.geotab.addin || {}).slice(0, 15).join(', ') + '\n'
+      + 'Bibliothèque commune : ' + (window.Bonneville ? 'chargée' : 'absente') + '\n'
+      + 'Erreurs : ' + (window.__bnErreurs.length ? window.__bnErreurs.join(' | ') : 'aucune') + '\n'
+      + 'Navigateur : ' + navigator.userAgent;
+    if (z) { z.innerHTML = '<div style="background:#fff;border:2px solid #b42318;border-radius:12px;padding:12px;font:13px/1.45 monospace;white-space:pre-wrap;color:#14191e">' + rapport.replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }) + '</div><div style="font-size:14px;margin-top:8px">Fais une capture de cet écran et envoie-la.</div>'; }
+  }, 6000);
 })();
 </script>
 </body>
