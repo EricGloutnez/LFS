@@ -38,20 +38,29 @@
   .bn-lien { color: var(--bleu); font-weight: 700; font-size: 13px; background: none; border: none; text-decoration: underline; cursor: pointer; font-family: inherit; }
   .bn-aide { font-size: 13px; color: var(--doux); }
   #bn-modules iframe { display: none; width: 100%; height: calc(100vh - 64px); border: none; background: var(--fond); }
+  #bn.avec-sous #bn-modules iframe { height: calc(100vh - 64px - 49px); }
+  #bn-sous { position: sticky; top: 64px; z-index: 49; height: 49px; display: flex; gap: 4px; padding: 0 28px; background: var(--surface); border-bottom: 1px solid var(--ligne); }
+  #bn-sous[hidden] { display: none; }
+  #bn-sous button { height: 48px; padding: 0 16px; border: none; background: none; border-bottom: 3px solid transparent; font-size: 14px; font-weight: 600; color: var(--doux); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-family: inherit; }
+  #bn-sous button.on { color: var(--encre); border-bottom-color: #9E1F27; }
+  #bn-sous button[hidden] { display: none; }
   #bn-modules iframe.on { display: block; }
   #bn-chargement { padding: 40px; text-align: center; color: var(--doux); display: none; }
 </style>
 <div id="bn-entete">
   <img alt="Bonneville" src="https://ericgloutnez.github.io/LFS/logo-bonneville.png"><span class="sep"></span>
-  <nav id="bn-nav">
-    <button type="button" data-m="accueil" class="on">Accueil</button>
+  <nav id="bn-nav" aria-label="Menus principaux">
+    <button type="button" data-m="accueil" class="on" aria-current="page">Accueil</button>
     <button type="button" data-m="logistique">Logistique</button>
     <button type="button" data-m="finition">Finition</button>
-    <button type="button" data-m="tempo" hidden>Heures &amp; Dépenses</button>
-    <button type="button" data-m="employes" hidden>Employés 🔒</button>
   </nav>
   <span id="bn-qui"></span>
 </div>
+<nav id="bn-sous" aria-label="Logistique" hidden>
+  <button type="button" data-m="logistique">Voyages et itinéraires</button>
+  <button type="button" data-m="tempo" hidden>Heures &amp; Dépenses</button>
+  <button type="button" data-m="employes" hidden>Employés <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>
+</nav>
 <div id="bn-accueil"><div class="bn-aide">Chargement…</div></div>
 <div id="bn-chargement">Ouverture du module…</div>
 <div id="bn-modules"></div>
@@ -60,7 +69,7 @@
 <script>
 (function () {
   'use strict';
-  var VERSION = '3.2.0';
+  var VERSION = '3.3.0';
   var B = window.Bonneville;
   var BASE = 'https://ericgloutnez.github.io/LFS/';
   var MODULES = {
@@ -131,9 +140,14 @@
     });
     return enChargement[cle].catch(function (e) { delete enChargement[cle]; throw e; });
   }
+  var GROUPE = { logistique: 'logistique', tempo: 'logistique', employes: 'logistique', finition: 'finition', accueil: 'accueil' };
   function ouvrir(cle, sousOnglet, valeur) {
     courant = cle;
-    Array.prototype.forEach.call(document.querySelectorAll('#bn-nav button'), function (b) { b.className = b.getAttribute('data-m') === cle ? 'on' : ''; });
+    var groupe = GROUPE[cle] || cle;
+    Array.prototype.forEach.call(document.querySelectorAll('#bn-nav button'), function (b) { var on = b.getAttribute('data-m') === groupe; b.className = on ? 'on' : ''; if (on) { b.setAttribute('aria-current', 'page'); } else { b.removeAttribute('aria-current'); } });
+    $('bn-sous').hidden = groupe !== 'logistique';
+    $('bn').className = groupe === 'logistique' ? 'avec-sous' : '';
+    Array.prototype.forEach.call(document.querySelectorAll('#bn-sous button'), function (b) { var on = b.getAttribute('data-m') === cle; b.className = on ? 'on' : ''; if (on) { b.setAttribute('aria-current', 'page'); } else { b.removeAttribute('aria-current'); } });
     $('bn-accueil').style.display = cle === 'accueil' ? '' : 'none';
     Array.prototype.forEach.call(document.querySelectorAll('#bn-modules iframe'), function (f) { f.className = f.getAttribute('data-m') === cle ? 'on' : ''; });
     if (cle === 'accueil') { $('bn-chargement').style.display = 'none'; chargerAccueil(); return; }
@@ -201,6 +215,7 @@
   }
 
   function brancher() {
+    Array.prototype.forEach.call(document.querySelectorAll('#bn-sous button'), function (b) { b.addEventListener('click', function () { ouvrir(b.getAttribute('data-m')); }); });
     Array.prototype.forEach.call(document.querySelectorAll('#bn-nav button'), function (b) { b.addEventListener('click', function () { ouvrir(b.getAttribute('data-m')); }); });
     $('bn-accueil').addEventListener('click', function (e) {
       var b = e.target.closest('[data-aller]'); if (!b) { return; }
@@ -222,8 +237,8 @@
       r[1].forEach(function (l) { if (l.details.type === 'employe' && l.details.user === moi) { emp = l.details; } else if (l.details.type === 'profil') { profils.push(l.details); } });
       acces.employes = !!r[0];
       acces.tempo = !!B.droitsEffectifs(emp, profils).admin;
-      document.querySelector('#bn-nav [data-m=tempo]').hidden = !acces.tempo;
-      document.querySelector('#bn-nav [data-m=employes]').hidden = !acces.employes;
+      document.querySelector('#bn-sous [data-m=tempo]').hidden = !acces.tempo;
+      document.querySelector('#bn-sous [data-m=employes]').hidden = !acces.employes;
       $('bn-qui').textContent = moi + (acces.tempo ? ' · Administrateur Heures & Dépenses' : '') + ' · version ' + VERSION;
       if (courant === 'accueil') { chargerAccueil(); }
     });
