@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Bonneville</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="https://ericgloutnez.github.io/LFS/bonneville-commun.js?v=1.2.0"></script>
+<script src="https://ericgloutnez.github.io/LFS/bonneville-commun.js?v=1.3.0"></script>
 </head>
 <body style="margin:0">
 <div id="bn">
@@ -53,6 +53,7 @@
     <button type="button" data-m="accueil" class="on" aria-current="page">Accueil</button>
     <button type="button" data-m="logistique">Logistique</button>
     <button type="button" data-m="finition">Finition</button>
+    <button type="button" data-m="service">Service</button>
   </nav>
   <span id="bn-qui"></span>
 </div>
@@ -69,19 +70,20 @@
 <script>
 (function () {
   'use strict';
-  var VERSION = '3.3.0';
+  var VERSION = '3.5.0';
   var B = window.Bonneville;
   var BASE = 'https://ericgloutnez.github.io/LFS/';
   var MODULES = {
     logistique: { fichier: 'logistique.html', nom: 'logistique', cache: '#lg-entete img, #lg-entete .sep, #lg-entete .titre, #lg-etat { display: none !important; } #lg-entete { top: 0 !important; }' },
     tempo: { fichier: 'tempo.html', nom: 'tempo', cache: '#hb .entete img, #hb .entete .sep, #hb .entete .titre, #hb .version { display: none !important; }' },
     finition: { fichier: 'finition.html', nom: 'finition', cache: '#fi .fi-entete { display: none !important; }' },
+    service: { fichier: 'service.html', nom: 'service', cache: '#sv .sv-entete { display: none !important; }' },
     employes: { fichier: 'employes.html', nom: 'employes', cache: '#be .entete img, #be .entete .sep, #be .entete .titre { display: none !important; }' }
   };
 
   // La bibliothèque commune peut arriver après ce script (Drive et MyGeotab chargent parfois les scripts dans le désordre).
   // On l'attend, on la charge nous-mêmes au besoin, et on en garde une copie pour le hors réseau.
-  var URL_COMMUN = BASE + 'bonneville-commun.js?v=1.2.0', communTexte = null;
+  var URL_COMMUN = BASE + 'bonneville-commun.js?v=1.3.0', communTexte = null;
   function chargerCommunTexte() {
     return fetch(URL_COMMUN).then(function (r) { if (!r.ok) { throw new Error('HTTP ' + r.status); } return r.text(); })
       .then(function (t) { communTexte = t; try { localStorage.setItem('bn-commun', t); } catch (e) {} return t; })
@@ -140,7 +142,7 @@
     });
     return enChargement[cle].catch(function (e) { delete enChargement[cle]; throw e; });
   }
-  var GROUPE = { logistique: 'logistique', tempo: 'logistique', employes: 'logistique', finition: 'finition', accueil: 'accueil' };
+  var GROUPE = { logistique: 'logistique', tempo: 'logistique', employes: 'logistique', finition: 'finition', service: 'service', accueil: 'accueil' };
   function ouvrir(cle, sousOnglet, valeur) {
     courant = cle;
     var groupe = GROUPE[cle] || cle;
@@ -177,15 +179,15 @@
     emp: '<svg width="22" height="22" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>'
   };
   function chargerAccueil() {
-    var types = ['voyage', 'formresume', 'employe', 'profil', 'finBloc', 'finChantier'];
+    var types = ['voyage', 'formresume', 'employe', 'profil', 'finBloc', 'finChantier', 'srvBloc', 'srvAppel'];
     Promise.all([
       G.lireTypes(types),
       acces.tempo ? G.lireType('journee').catch(function () { return []; }) : Promise.resolve([]),
       acces.employes ? G.utilisateurs().catch(function () { return []; }) : Promise.resolve([])
     ]).then(function (r) {
       var aujour = B.jourIso(), voy = [], forms = [], emps = {};
-      var fBlocs = [], fChantiers = [], todo = [];
-      r[0].forEach(function (l) { var d = l.details; if (d.type === 'voyage' && !d.archive) { voy.push(d); } else if (d.type === 'formresume') { forms.push(d); } else if (d.type === 'employe') { emps[d.user] = d; } else if (d.type === 'finBloc') { fBlocs.push(d); } else if (d.type === 'finChantier') { fChantiers.push(d); } });
+      var fBlocs = [], fChantiers = [], todo = [], sBlocs = [], sAppels = [];
+      r[0].forEach(function (l) { var d = l.details; if (d.type === 'voyage' && !d.archive) { voy.push(d); } else if (d.type === 'formresume') { forms.push(d); } else if (d.type === 'employe') { emps[d.user] = d; } else if (d.type === 'finBloc') { fBlocs.push(d); } else if (d.type === 'finChantier') { fChantiers.push(d); } else if (d.type === 'srvBloc') { sBlocs.push(d); } else if (d.type === 'srvAppel') { sAppels.push(d); } });
       var prevus = voy.filter(function (v) { return (v.departDate || '') >= aujour; });
       var aAssigner = voy.filter(function (v) { return !(v.assignes || []).length; });
       var nc = forms.filter(function (f) { return !f.archive && !f.approuve && f.resume && f.resume.alerte; });
@@ -199,8 +201,10 @@
       var fChg = fBlocs.filter(function (b) { return b.brouillon || b.retrait; }).length, fAtt = fBlocs.filter(function (b) { return b.publie && !b.confirme && !b.retire; }).length, fFile = fChantiers.filter(function (c) { return c.statut !== 'planifie' && !c.archive; }).length;
       html += bloc('#9E1F27', IC.log, 'Finition', [[fFile, 'à planifier'], [fChg, 'changements non publiés', '#9a5b00'], [fAtt, 'en attente de confirmation', '#4f5963']], [['Horaire', 'finition', 'horaire', true]]);
       if (fChg) { todo.push(['#9a5b00', 'Horaire Finition : ' + fChg + ' changement(s) non publié(s)', 'Réviser', 'finition', 'horaire']); }
-      if (acces.tempo) { html += bloc('#1b7f3b', IC.tempo, 'Heures & Dépenses', [[fin.length, 'à finaliser', '#9a5b00'], [chef.length, 'chez le chef d’équipe', '#4f5963'], [B.duree(jr.filter(function (j) { return j.date >= B.debutSemaine(aujour); }).reduce(function (a, j) { return a + B.calculer(j).total; }, 0)), 'cette semaine']],
-        [['Approuver', 'tempo', 'journees', true], ['Archivage', 'tempo', 'archivage']]); }
+      var sChg = sBlocs.filter(function (b) { return b.brouillon || b.retrait; }).length, sFile = sAppels.filter(function (a) { return a.statut !== 'planifie' && !a.archive; }).length;
+      var sAuj = sBlocs.filter(function (b) { return b.publie && b.publie.date === aujour && !b.retire; }).length;
+      html += bloc('#1F5FA8', IC.tempo, 'Service', [[sFile, 'appels à planifier'], [sChg, 'changements non publiés', '#9a5b00'], [sAuj, 'interventions aujourd’hui']], [['Horaire', 'service', 'horaire', true]]);
+      if (sChg) { todo.push(['#9a5b00', 'Horaire Service : ' + sChg + ' changement(s) non publié(s)', 'Réviser', 'service', 'horaire']); }
       html += '</div>';
       aAssigner.slice(0, 5).forEach(function (v) { todo.push(['#b42318', 'Voyage ' + v.ref + (v.departDate ? ' (départ ' + v.departDate + ')' : '') + ' : personne assignée', 'Assigner', 'logistique', 'voyages']); });
       nc.slice(0, 5).forEach(function (f) { todo.push(['#9a5b00', f.code + (f.module ? ' du module ' + f.serie + '-' + f.module : ' de la série ' + f.serie) + ' : ' + ((f.resume && f.resume.texte) || 'non-conformité'), 'Voir les formulaires', 'logistique', 'formulaires']); });
@@ -209,7 +213,7 @@
       html += '<section class="bn-afaire"><h3>À faire aujourd’hui</h3>' + (todo.length ? todo.map(function (t) {
         return '<div class="bn-ligne"><span class="bn-point" style="background:' + t[0] + '"></span><span style="flex:1">' + h(t[1]) + '</span><button type="button" class="bn-lien" data-aller="' + t[3] + '" data-sous="' + t[4] + '" data-val="' + (t[5] || '') + '">' + h(t[2]) + '</button></div>';
       }).join('') : '<div class="bn-aide">Rien d’urgent pour l’instant.</div>') + '</section>';
-      html += '<div class="bn-aide">Heures &amp; Dépenses demande le profil Administrateur Heures &amp; Dépenses (onglet Employés). Employés demande le rôle Administrateur de MyGeotab. Version ' + VERSION + '.</div>';
+      html += '<div class="bn-aide">Version ' + VERSION + '.</div>';
       $('bn-accueil').innerHTML = html;
     }).catch(function (e) { $('bn-accueil').innerHTML = '<div class="bn-aide">Lecture impossible : ' + h(e && e.message ? e.message : e) + '</div>'; });
   }

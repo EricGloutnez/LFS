@@ -5,7 +5,8 @@
 <title>Bonneville - Finition</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-<script src="https://ericgloutnez.github.io/LFS/bonneville-commun.js?v=1.2.0"></script>
+<script src="https://ericgloutnez.github.io/LFS/bonneville-commun.js?v=1.3.0"></script>
+<script src="https://ericgloutnez.github.io/LFS/formulaires-finition.js?v=1.0.0"></script>
 </head>
 <body style="margin:0">
 <div id="fi">
@@ -99,7 +100,7 @@
 <header class="entete fi-entete"><span class="logo" aria-hidden="true">B</span><span><small>Bonneville</small><b>Finition</b></span></header>
 <nav class="sous" aria-label="Finition">
   <button type="button" data-o="horaire" aria-current="page">Horaire <span class="compte" id="fi-compte" hidden></span></button>
-  <button type="button" data-o="formulaires">Formulaires F0 à F5</button>
+  <button type="button" data-o="formulaires">Formulaires F0 à F5 <span class="compte" id="fi-compte-f" hidden></span></button>
 </nav>
 <div id="fi-contenu"><div class="page"><div class="aide">Chargement…</div></div></div>
 </div>
@@ -107,7 +108,7 @@
 <script>
 geotab.addin.finition = function () {
   'use strict';
-  var VERSION = '1.0.0';
+  var VERSION = '1.1.0';
   var B = window.Bonneville, G = null, api = null, moi = '';
   var TRAVAUX = ['Raccordement', 'Raccordement de menuiserie', 'Correctifs après F5', 'F3 · Travaux en extra', 'Autre'];
   var onglet = 'horaire', vue = 'horaire', mode = 'semaine', lundi = null, jourSel = null, afficher = 'brouillon', recherche = '';
@@ -185,12 +186,14 @@ geotab.addin.finition = function () {
   function rendre() {
     Array.prototype.forEach.call(document.querySelectorAll('#fi .sous button'), function (x) { if (x.getAttribute('data-o') === onglet) { x.setAttribute('aria-current', 'page'); } else { x.removeAttribute('aria-current'); } });
     var n = changements().length, c = $('fi-compte'); c.hidden = !n; c.textContent = n;
+    var nf = fCharge ? aApprouver().length : 0, cf = $('fi-compte-f'); cf.hidden = !nf; cf.textContent = nf;
     var html = '';
     if (onglet === 'formulaires') { html = vueFormulaires(); }
     else if (vue === 'publier') { html = vuePublier(); }
     else { html = vueHoraire(); }
     $('fi-contenu').innerHTML = html;
     brancher();
+    if (onglet === 'formulaires') { brancherFormulaires(); }
   }
   function bandeau() {
     var n = changements().length; if (!n || afficher === 'publie') { return ''; }
@@ -383,9 +386,213 @@ geotab.addin.finition = function () {
     }).catch(function (e) { dire('Publication impossible : ' + (e && e.message ? e.message : e), true); });
   }
 
-  // ---------- Formulaires F0 à F5
+  // ===================== Formulaires F0 à F5 : approbation photo par photo =====================
+  var FF = window.FormulairesFinition || null;
+  var fResumes = [], fMedias = {}, fSel = null, fChoix = {}, fTous = false, fSerie = '', fUrls = {}, fCharge = false, fDernierZip = null;
+  function chargerFormulaires() {
+    FF = window.FormulairesFinition || FF;
+    return Promise.all([
+      G.lireType('finFormResume').catch(function () { return []; }),
+      G.appel('Get', { typeName: 'MediaFile', search: { solutionId: B.ADDIN_ID } }).catch(function () { return []; })
+    ]).then(function (r) {
+      fResumes = r[0].map(function (l) { return { id: l.id, d: l.details }; }).sort(function (a, b) { return String(b.d.date).localeCompare(String(a.d.date)); });
+      fMedias = {};
+      (r[1] || []).forEach(function (m) {
+        var meta = {}; try { meta = typeof m.metaData === 'string' ? JSON.parse(m.metaData) : (m.metaData || {}); } catch (e) {}
+        if ((meta.type === 'photoFinition' || meta.type === 'signatureFinition') && meta.fid) { (fMedias[meta.fid] = fMedias[meta.fid] || []).push({ id: m.id, nom: m.name, meta: meta }); }
+      });
+      Object.keys(fMedias).forEach(function (k) { fMedias[k].sort(function (a, b) { return (a.meta.n || 0) - (b.meta.n || 0); }); });
+      fCharge = true;
+    });
+  }
+  function photosDe(fid) { return (fMedias[fid] || []).filter(function (m) { return m.meta.type === 'photoFinition'; }); }
+  function etatPhoto(r, m) { var p = (r.d.photos || {})[m.id]; return p ? p.etat : 'attente'; }
+  function enAttente(r) { return photosDe(r.d.fid).filter(function (m) { return etatPhoto(r, m) === 'attente'; }).length; }
+  function aApprouver() { return fResumes.filter(function (r) { return enAttente(r) || (r.d.code === 'F3' && r.d.statut === 'en_attente'); }); }
+  function nomDossier(code) { var d = FF && FF.DEFS[code]; return code + ' - ' + (d ? d.titre : ''); }
+  function distanceChantier(r) {
+    var v = voyages[r.d.serie], p = v ? B.pointDe(v.arrivee) : null;
+    if (!p || !r.d.gps) { return null; }
+    return Math.round(B.distanceM({ lat: r.d.gps.lat, lon: r.d.gps.lon }, p));
+  }
+  function heureFr(iso) { var d = new Date(iso); return d.getHours() + ' h ' + ('0' + d.getMinutes()).slice(-2); }
+  function sessionGeotab() { return new Promise(function (ok, ko) { try { api.getSession(function (c, s) { ok({ cred: { database: c.database, userName: c.userName, sessionId: c.sessionId }, serveur: s || c.server || 'my.geotab.com' }); }); } catch (e) { ko(e); } }); }
+  function telechargerMedia(id) {
+    return sessionGeotab().then(function (ses) {
+      var fd = new FormData(); fd.append('JSON-RPC', JSON.stringify({ method: 'DownloadMediaFile', params: { credentials: ses.cred, mediaFile: { id: id } } }));
+      return fetch('https://' + ses.serveur + '/apiv1', { method: 'POST', body: fd });
+    }).then(function (rep) { if (!rep.ok) { throw new Error('HTTP ' + rep.status); } if (/json/.test(rep.headers.get('content-type') || '')) { return rep.text().then(function (t) { throw new Error(t.slice(0, 120)); }); } return rep.blob(); });
+  }
+  function chargerVignettes() {
+    Array.prototype.forEach.call(document.querySelectorAll('img[data-media]'), function (im) {
+      var id = im.getAttribute('data-media');
+      if (fUrls[id]) { im.src = fUrls[id]; return; }
+      telechargerMedia(id).then(function (b) { fUrls[id] = URL.createObjectURL(b); var x = document.querySelector('img[data-media="' + id + '"]'); if (x) { x.src = fUrls[id]; } }).catch(function () { var x = document.querySelector('img[data-media="' + id + '"]'); if (x) { x.alt = 'Image non disponible'; } });
+    });
+  }
   function vueFormulaires() {
-    return '<div class="page"><section class="panneau" style="max-width:760px"><h2>Formulaires F0 à F5</h2><div class="aide" style="font-size:14px">Les formulaires de Finition (F0 Pré-évaluation, F1 Inspection des biens, F2 Vérification du matériel, F3 Demande de travaux en extra, F4 Auto-inspection, F5 Inspection de fin des travaux) seront ajoutés ici dès que leur contenu sera fourni : remplissage dans Drive, signature du client sur F1 et F5, photos approuvées une par une.</div></section></div>';
+    if (!fCharge) { chargerFormulaires().then(rendre).catch(function () { fCharge = true; rendre(); }); return '<div class="page"><div class="aide">Lecture des formulaires…</div></div>'; }
+    var liste = (fTous ? fResumes : aApprouver()).filter(function (r) { return !fSerie || String(r.d.serie).indexOf(fSerie) === 0; });
+    if (fSel && !fResumes.some(function (r) { return r.d.fid === fSel; })) { fSel = null; }
+    if (!fSel && liste.length) { fSel = liste[0].d.fid; }
+    var html = '<div class="page">';
+    if (message) { html += '<div class="message ' + (message.e ? 'erreur' : 'ok') + '" role="status">' + h(message.t) + '</div>'; }
+    html += '<div class="corps"><aside class="file" style="width:300px;padding:0;gap:0;overflow:hidden" aria-label="Formulaires">'
+      + '<div style="padding:14px;display:flex;flex-direction:column;gap:10px;border-bottom:1px solid #E8EBEF"><h2>' + (fTous ? 'Tous les formulaires' : 'À approuver') + ' <small>' + liste.length + ' formulaire' + (liste.length > 1 ? 's' : '') + '</small></h2>'
+      + '<label class="champ">Rechercher une Série<input type="text" id="ff-serie" value="' + h(fSerie) + '" placeholder="5 chiffres" style="width:110px"></label>'
+      + '<label class="champ"><input type="checkbox" id="ff-tous"' + (fTous ? ' checked' : '') + ' style="width:20px;height:20px"> Afficher aussi les formulaires traités</label></div>';
+    if (!liste.length) { html += '<div class="aide" style="padding:14px">' + (fTous ? 'Aucun formulaire reçu.' : 'Rien à approuver pour l’instant.') + '</div>'; }
+    liste.forEach(function (r) {
+      var d = r.d, n = photosDe(d.fid).length, sel = d.fid === fSel;
+      html += '<button type="button" data-ff="' + h(d.fid) + '" style="text-align:left;border:none;border-bottom:1px solid #E8EBEF;padding:12px 14px;cursor:pointer;display:flex;flex-direction:column;gap:2px;' + (sel ? 'background:#EAF1FA;box-shadow:inset 4px 0 0 #1F5FA8;' : 'background:#fff;') + '"' + (sel ? ' aria-current="true"' : '') + '>'
+        + '<span class="mono">Série ' + h(d.serie) + '</span><b>' + h(d.code + ' · ' + (d.titre || '')) + '</b><span class="aide">' + h(d.auteur || nomUser(d.user)) + ' · ' + n + ' photo' + (n > 1 ? 's' : '') + (d.code === 'F3' && d.statut === 'en_attente' ? ' · autorisation demandée' : '') + '</span></button>';
+    });
+    html += '</aside><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:14px">' + (fSel ? detailFormulaire(fResumes.filter(function (r) { return r.d.fid === fSel; })[0]) : '<section class="panneau"><div class="aide">Choisis un formulaire dans la liste.</div></section>') + '</div></div></div>';
+    return html;
+  }
+  function detailFormulaire(r) {
+    var d = r.d, def = FF && FF.DEFS[d.code], dist = distanceChantier(r), photos = photosDe(d.fid);
+    var dt = new Date(d.date), soumis = B.JOURS_COURTS[dt.getDay()].toLowerCase() + '. ' + dt.getDate() + ' ' + B.MOIS[dt.getMonth()] + ' à ' + heureFr(d.date);
+    var IC = '<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" style="vertical-align:-3px"><path d="M5 12.5 L10 17 L19 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    var html = '<section class="panneau" style="flex-direction:row;justify-content:space-between;flex-wrap:wrap"><div style="display:flex;flex-direction:column;gap:4px"><span class="mono" style="color:#4A5565">Série ' + h(d.serie) + (voyages[d.serie] && voyages[d.serie].arrivee ? ' · ' + h(String(voyages[d.serie].arrivee.label || '').split(',')[0]) : '') + '</span>'
+      + '<b style="font-size:20px">' + h(d.code + ' · ' + (d.titre || (def ? def.titre : ''))) + '</b><span class="aide" style="font-size:13px">' + h((d.auteur || nomUser(d.user)) + (d.compagnie ? ' (' + d.compagnie + ')' : '') + ' · soumis le ' + soumis) + (d.nonConf ? ' · <b style="color:#9E1F27">' + d.nonConf + ' réponse' + (d.nonConf > 1 ? 's' : '') + ' Non</b>' : '') + '</span></div>'
+      + '<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;font-size:13px;color:#1E6B3A;font-weight:600">' + (dist !== null ? '<span>' + IC + ' Rempli à ' + (dist >= 1000 ? (Math.round(dist / 100) / 10 + ' km') : dist + ' m') + ' du chantier</span>' : (d.gps ? '<span style="color:#4A5565">Position enregistrée</span>' : '<span style="color:#4A5565">Position non disponible</span>'))
+      + ((d.signatures || []).indexOf('client') >= 0 ? '<span>' + IC + ' Signature du client reçue</span>' : '') + '<button type="button" class="lien" data-a="ff-voir">Voir le formulaire rempli</button></div></section>';
+    if (d.code === 'F3') {
+      html += '<section class="panneau" style="flex-direction:row;align-items:center;gap:12px;flex-wrap:wrap"><b>Autorisation des travaux en extra :</b>' + (d.statut === 'en_attente' ? '<span class="aide">en attente</span><span style="flex:1"></span><button type="button" class="btn refus" data-a="f3-refuser">Refuser…</button><button type="button" class="btn" style="background:#1E6B3A;border-color:#1E6B3A;color:#fff" data-a="f3-autoriser">Autoriser les travaux</button>'
+        : (d.statut === 'autorise' ? '<span style="color:#1E6B3A;font-weight:600">Autorisés</span>' : '<span style="color:#9E1F27;font-weight:600">Refusés · ' + h(d.raison || '') + '</span>')) + '</section>';
+    }
+    var nSel = photos.filter(function (m) { return fChoix[m.id]; }).length, nAtt = photos.filter(function (m) { return etatPhoto(r, m) === 'attente'; }).length;
+    html += '<section class="panneau" style="flex-direction:row;align-items:center;gap:12px;flex-wrap:wrap"><button type="button" class="btn" data-a="ff-tout"' + (nAtt ? '' : ' disabled') + '>Sélectionner toutes les photos en attente</button><b>' + nSel + ' sélectionnée' + (nSel > 1 ? 's' : '') + '</b><span style="flex:1"></span>'
+      + '<button type="button" class="btn refus" data-a="ff-refuser"' + (nSel ? '' : ' disabled') + '>Refuser la sélection…</button><button type="button" class="btn" style="background:#1E6B3A;border-color:#1E6B3A;color:#fff" data-a="ff-approuver"' + (nSel ? '' : ' disabled') + '>Approuver la sélection</button></section>';
+    if (!photos.length) { html += '<section class="panneau"><div class="aide">Aucune photo pour ce formulaire (elles peuvent encore être en route depuis le téléphone).</div></section>'; }
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px">';
+    photos.forEach(function (m) {
+      var e = etatPhoto(r, m), info = (d.photos || {})[m.id] || {}, choisi = !!fChoix[m.id], verrou = e !== 'attente';
+      var p = { attente: ['En attente', 'background:#FFF4DC;color:#5C3B00;border:1px solid #E8C77A'], approuvee: ['Approuvée · prête à copier', 'background:#1E6B3A;color:#fff'], refusee: ['Refusée · ' + (info.raison || ''), 'background:#9E1F27;color:#fff'], copiee: ['Copiée sur le lecteur réseau', 'background:#E5F2EA;color:#1E6B3A'] }[e] || ['', ''];
+      var dm = m.meta.gps && voyages[d.serie] && B.pointDe(voyages[d.serie].arrivee) ? Math.round(B.distanceM({ lat: m.meta.gps.lat, lon: m.meta.gps.lon }, B.pointDe(voyages[d.serie].arrivee))) : null;
+      var it = (FF ? FF.items(d.code) : []).filter(function (x) { return x.id === String(m.meta.item).split('#')[0]; })[0];
+      html += '<div style="background:#fff;border:' + (choisi ? '3px solid #1F5FA8' : '1px solid #DDE1E7') + ';border-radius:8px;overflow:hidden;display:flex;flex-direction:column">'
+        + '<div style="position:relative;aspect-ratio:4/3;background:#E2E5EA;display:flex;align-items:center;justify-content:center"><img data-media="' + h(m.id) + '" alt="' + h(m.meta.itemTitre || 'Photo') + '" style="width:100%;height:100%;object-fit:cover">'
+        + '<label style="position:absolute;top:8px;left:8px;width:44px;height:44px;background:#fff;border:1px solid #C8CED7;border-radius:6px;display:flex;align-items:center;justify-content:center"><input type="checkbox" data-photo-choix="' + h(m.id) + '"' + (choisi ? ' checked' : '') + (verrou ? ' disabled' : '') + ' style="width:22px;height:22px;accent-color:#1F5FA8" aria-label="Sélectionner ' + h(m.meta.itemTitre || 'la photo') + '"></label></div>'
+        + '<div style="padding:10px 12px;display:flex;flex-direction:column;gap:4px"><b style="font-size:13px">' + h(m.meta.itemTitre || 'Photo') + '</b><span class="aide">' + h(heureFr(m.meta.heure)) + (dm !== null ? ' · à ' + dm + ' m du chantier' : '') + (it && (it.type === 'ok' || it.type === 'ouinon') && m.meta.itemReponse ? ' · item coché ' + h(m.meta.itemReponse === 'na' ? 'sans objet' : String(m.meta.itemReponse).toUpperCase()) : '') + (m.meta.remplace ? ' · reprise' : '') + '</span>'
+        + '<span style="align-self:flex-start;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;' + p[1] + '">' + h(p[0]) + '</span></div></div>';
+    });
+    html += '</div>';
+    var nApp = photos.filter(function (m) { return etatPhoto(r, m) === 'approuvee'; }).length;
+    html += '<section class="panneau" style="gap:8px"><span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h7l2 2h9v11H3z" fill="none" stroke="#4A5565" stroke-width="1.8" stroke-linejoin="round"/></svg><span class="aide" style="font-size:13px">Destination des photos approuvées :</span><span class="mono">[Lecteur réseau]\\Chantiers\\' + h(d.serie) + '\\' + h(nomDossier(d.code)) + '\\</span></span>'
+      + '<span class="aide">Une photo refusée retourne à l’entrepreneur dans Drive avec la raison.</span>'
+      + '<div class="rang"><button type="button" class="btn principal" data-a="ff-zip"' + (nApp ? '' : ' disabled') + '>Télécharger les photos approuvées (ZIP, ' + nApp + ')</button>' + (fDernierZip && fDernierZip.fid === d.fid ? '<button type="button" class="btn refus" data-a="ff-retirer">Retirer de Geotab les ' + fDernierZip.ids.length + ' photo' + (fDernierZip.ids.length > 1 ? 's' : '') + ' copiée' + (fDernierZip.ids.length > 1 ? 's' : '') + '</button>' : '') + '</div></section>';
+    return html;
+  }
+  // Mise à jour du résumé : on relit avant d'écrire pour garder les reprises faites depuis Drive
+  function majResume(fid, f) {
+    return G.lireChamp('finFormResume', 'fid', fid).then(function (l) {
+      var rec = l[0]; if (!rec) { throw new Error('Formulaire introuvable'); }
+      var d = rec.details; d.photos = d.photos || {}; f(d);
+      var photos = photosDe(fid), toutes = photos.length && photos.every(function (m) { var e = (d.photos[m.id] || {}).etat; return e === 'approuvee' || e === 'copiee' || ((d.photos[m.id] || {}).remplacee && e === 'refusee'); });
+      d.approuve = !!toutes;
+      return G.modifier(rec.id, d).then(function () { var r = fResumes.filter(function (x) { return x.d.fid === fid; })[0]; if (r) { r.d = d; r.id = rec.id; } });
+    });
+  }
+  function decider(etat, raison) {
+    var r = fResumes.filter(function (x) { return x.d.fid === fSel; })[0]; if (!r) { return; }
+    var ids = photosDe(fSel).filter(function (m) { return fChoix[m.id]; });
+    majResume(fSel, function (d) { ids.forEach(function (m) { d.photos[m.id] = { etat: etat, raison: raison || '', par: moi, le: new Date().toISOString(), titre: m.meta.itemTitre || 'Photo', item: m.meta.item || '' }; }); })
+      .then(function () { fChoix = {}; dire(ids.length + ' photo' + (ids.length > 1 ? 's' : '') + (etat === 'approuvee' ? ' approuvée' : ' refusée') + (ids.length > 1 ? 's' : '') + '.' + (etat === 'refusee' ? ' L’entrepreneur la verra dans Drive avec la raison.' : '')); })
+      .catch(function (e) { dire('Enregistrement impossible : ' + (e && e.message ? e.message : e), true); });
+  }
+  // Rendu du formulaire rempli (fenêtre et fichier du ZIP)
+  function donneesForm(fid) { return G.lireChamp('finFormData', 'fid', fid).then(function (l) { var parts = l.map(function (x) { return x.details; }).sort(function (a, b) { return a.partie - b.partie; }); try { return JSON.parse(parts.map(function (p) { return p.data; }).join('')).rep || {}; } catch (e) { return {}; } }); }
+  function blobEnUrl(b) { return new Promise(function (ok) { var f = new FileReader(); f.onload = function () { ok(f.result); }; f.onerror = function () { ok(''); }; f.readAsDataURL(b); }); }
+  function htmlFormulaire(r, rep, sigs) {
+    var d = r.d, def = FF.DEFS[d.code], o = '';
+    var val = function (x) { return h(x === undefined || x === null ? '' : x); };
+    o += '<h1 style="font-size:20px;margin:0 0 6px">' + val(def.code + ' – ' + def.titre.toUpperCase()) + '</h1><p style="margin:0 0 12px;color:#4A5565">' + val(def.moment) + '</p>';
+    o += '<table style="width:100%;border-collapse:collapse;margin-bottom:12px;font-size:13px"><tr><td><b>Série :</b> ' + val(d.serie) + '</td><td><b>Client :</b> ' + val(d.client) + '</td><td><b>Date :</b> ' + val(new Date(d.date).toLocaleString('fr-CA')) + '</td></tr><tr><td colspan="2"><b>Chef d’équipe :</b> ' + val(d.auteur) + '</td><td><b>Compagnie :</b> ' + val(d.compagnie) + '</td></tr>'
+      + (d.gps ? '<tr><td colspan="3"><b>Position à l’envoi :</b> ' + d.gps.lat.toFixed(5) + ', ' + d.gps.lon.toFixed(5) + ' (± ' + d.gps.prec + ' m)</td></tr>' : '') + '</table>';
+    def.sections.forEach(function (s) {
+      o += '<h2 style="font-size:14px;background:#F8F9FB;border:1px solid #DDE1E7;padding:6px 8px;margin:14px 0 0">' + val(s.titre) + '</h2><table style="width:100%;border-collapse:collapse;font-size:13px">';
+      s.items.forEach(function (i) {
+        var r2 = rep[i.id] || {}, cel = '';
+        if (i.type === 'note') { o += '<tr><td colspan="2" style="padding:6px 8px;border:1px solid #E8EBEF;font-style:italic">' + val(i.t) + '</td></tr>'; return; }
+        if (i.type === 'ok' || i.type === 'ouinon') { cel = '<b style="color:' + (r2.v === 'non' ? '#9E1F27' : '#1E6B3A') + '">' + (r2.v === 'oui' ? 'OUI' : (r2.v === 'non' ? 'NON' : (r2.v === 'na' ? val(i.na) : '—'))) + '</b>' + (r2.mesure ? ' · ' + val(i.mesure) + ' : ' + val(r2.mesure) : '') + (r2.expl ? '<br>' + val(r2.expl) : ''); }
+        else if (i.type === 'calcul') { var t = 0; cel = i.lignes.map(function (l, k) { var n = parseFloat(String((r2.v || [])[k] || '0').replace(',', '.')) || 0; t += l[0] === '-' ? -n : n; return (l[0] || '') + ' ' + val((r2.v || [])[k]) + ' ' + i.unite + ' · ' + val(l[1]); }).join('<br>') + '<br><b>= ' + String(Math.round(t * 100) / 100).replace('.', ',') + ' ' + i.unite + '</b>'; }
+        else if (i.type === 'table') { cel = (r2.lignes || []).filter(function (l) { return Object.keys(l).length; }).map(function (l, k) { return (k + 1) + '. ' + i.colonnes.map(function (c) { return val(l[c.id]); }).join(' · '); }).join('<br>') || '—'; }
+        else if (i.type === 'signature') { cel = sigs[i.id] ? '<img src="' + sigs[i.id] + '" alt="' + val(i.t) + '" style="max-width:260px;border-bottom:1px solid #18202B">' : (r2.v ? 'Signée' : '—'); }
+        else if (i.type === 'photos') { cel = 'Voir les photos jointes'; }
+        else { cel = val(i.type === 'dateheure' && r2.v ? new Date(r2.v).toLocaleString('fr-CA') : r2.v) || '—'; }
+        o += '<tr><td style="padding:6px 8px;border:1px solid #E8EBEF;width:55%">' + val(i.t) + '</td><td style="padding:6px 8px;border:1px solid #E8EBEF">' + cel + '</td></tr>';
+      });
+      o += '</table>';
+    });
+    return o;
+  }
+  function ouvrirFormulaire(r) {
+    Promise.all([donneesForm(r.d.fid), signaturesDe(r)]).then(function (x) {
+      var f = document.createElement('div'); f.className = 'fond-modale'; f.id = 'fi-modale';
+      f.innerHTML = '<section class="modale" role="dialog" aria-modal="true" aria-label="Formulaire rempli" style="width:min(860px,100%)">' + htmlFormulaire(r, x[0], x[1]) + '<div class="rang" style="justify-content:flex-end"><button type="button" class="btn" data-f="fermer">Fermer</button></div></section>';
+      $('fi').appendChild(f);
+      f.addEventListener('click', function (e) { if (e.target === f || e.target.getAttribute('data-f') === 'fermer') { f.parentNode.removeChild(f); } });
+    }).catch(function (e) { dire('Lecture du formulaire impossible : ' + (e && e.message ? e.message : e), true); });
+  }
+  function signaturesDe(r) {
+    var o = {}, c = Promise.resolve();
+    (fMedias[r.d.fid] || []).filter(function (m) { return m.meta.type === 'signatureFinition'; }).forEach(function (m) { c = c.then(function () { return telechargerMedia(m.id).then(blobEnUrl).then(function (u) { o[m.meta.item] = u; }).catch(function () {}); }); });
+    return c.then(function () { return o; });
+  }
+  function chargerZip() {
+    if (window.JSZip) { return Promise.resolve(window.JSZip); }
+    return new Promise(function (ok, ko) { var s = document.createElement('scr' + 'ipt'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'; s.onload = function () { ok(window.JSZip); }; s.onerror = function () { ko(new Error('JSZip introuvable')); }; document.head.appendChild(s); });
+  }
+  function telechargerZip() {
+    var r = fResumes.filter(function (x) { return x.d.fid === fSel; })[0]; if (!r) { return; }
+    var app = photosDe(r.d.fid).filter(function (m) { return etatPhoto(r, m) === 'approuvee'; });
+    dire('Préparation du ZIP…');
+    Promise.all([chargerZip(), donneesForm(r.d.fid), signaturesDe(r)]).then(function (x) {
+      var zip = new x[0](), dossier = zip.folder('Chantiers').folder(String(r.d.serie)).folder(nomDossier(r.d.code).replace(/[\\/:*?"<>|]/g, '-'));
+      dossier.file(nomDossier(r.d.code) + ' - formulaire rempli.html', '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>' + h(nomDossier(r.d.code)) + '</title></head><body style="font-family:Segoe UI,sans-serif;max-width:860px;margin:20px auto">' + htmlFormulaire(r, x[1], x[2]) + '</body></html>');
+      var c = Promise.resolve(), faits = [];
+      app.forEach(function (m) { c = c.then(function () { return telechargerMedia(m.id).then(function (b) { dossier.file(String(m.nom || ('photo ' + m.meta.n + '.jpg')).replace(/[\\/:*?"<>|]/g, '-'), b); faits.push(m.id); }).catch(function () {}); }); });
+      return c.then(function () { return zip.generateAsync({ type: 'blob' }); }).then(function (blob) {
+        var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'Chantiers ' + r.d.serie + ' ' + r.d.code + '.zip'; document.body.appendChild(a); a.click(); setTimeout(function () { a.remove(); }, 1000);
+        fDernierZip = { fid: r.d.fid, ids: faits };
+        dire('ZIP téléchargé : ' + faits.length + ' photo' + (faits.length > 1 ? 's' : '') + ' et le formulaire rempli, rangés dans Chantiers\\' + r.d.serie + '\\' + nomDossier(r.d.code) + '\\. Copie le dossier sur le lecteur réseau, puis retire les photos de Geotab.' + (faits.length < app.length ? ' Attention : ' + (app.length - faits.length) + ' photo(s) n’ont pas pu être téléchargées.' : ''), faits.length < app.length);
+      });
+    }).catch(function (e) { dire('ZIP impossible : ' + (e && e.message ? e.message : e), true); });
+  }
+  function retirerCopiees() {
+    if (!fDernierZip) { return; }
+    if (!confirm('As-tu bien copié le dossier sur le lecteur réseau ? Les ' + fDernierZip.ids.length + ' photos seront retirées de Geotab.')) { return; }
+    var z = fDernierZip, c = Promise.resolve();
+    z.ids.forEach(function (id) { c = c.then(function () { return G.appel('Remove', { typeName: 'MediaFile', entity: { id: id } }).catch(function () {}); }); });
+    c.then(function () { return majResume(z.fid, function (d) { z.ids.forEach(function (id) { d.photos[id] = Object.assign({}, d.photos[id] || {}, { etat: 'copiee', copieeLe: new Date().toISOString() }); }); }); })
+      .then(function () { fMedias[z.fid] = (fMedias[z.fid] || []).filter(function (m) { return z.ids.indexOf(m.id) < 0; }); fDernierZip = null; dire('Photos retirées de Geotab.'); })
+      .catch(function (e) { dire('Retrait impossible : ' + (e && e.message ? e.message : e), true); });
+  }
+  function surClicFormulaires(t, a) {
+    if (t.hasAttribute('data-ff')) { fSel = t.getAttribute('data-ff'); fChoix = {}; message = null; rendre(); return true; }
+    var r = fResumes.filter(function (x) { return x.d.fid === fSel; })[0];
+    if (a === 'ff-voir' && r) { ouvrirFormulaire(r); return true; }
+    if (a === 'ff-tout' && r) { photosDe(fSel).forEach(function (m) { if (etatPhoto(r, m) === 'attente') { fChoix[m.id] = true; } }); rendre(); return true; }
+    if (a === 'ff-approuver') { decider('approuvee'); return true; }
+    if (a === 'ff-refuser') { var raison = prompt('Raison du refus (l’entrepreneur la verra dans Drive) :', 'floue'); if (raison && raison.trim()) { decider('refusee', raison.trim()); } return true; }
+    if (a === 'ff-zip') { telechargerZip(); return true; }
+    if (a === 'ff-retirer') { retirerCopiees(); return true; }
+    if ((a === 'f3-autoriser' || a === 'f3-refuser') && r) {
+      var raison2 = a === 'f3-refuser' ? prompt('Raison du refus des travaux en extra :', '') : '';
+      if (a === 'f3-refuser' && !(raison2 && raison2.trim())) { return true; }
+      majResume(fSel, function (d) { d.statut = a === 'f3-autoriser' ? 'autorise' : 'refuse'; d.raison = raison2 || ''; d.decisionPar = moi; d.decisionLe = new Date().toISOString(); })
+        .then(function () { dire(a === 'f3-autoriser' ? 'Travaux en extra autorisés : l’entrepreneur le verra dans Drive.' : 'Travaux en extra refusés.'); });
+      return true;
+    }
+    return false;
+  }
+  function brancherFormulaires() {
+    var se = $('ff-serie'); if (se) { se.oninput = function () { fSerie = se.value.trim(); var p = se.selectionStart; rendre(); var s2 = $('ff-serie'); s2.focus(); try { s2.setSelectionRange(p, p); } catch (e) {} }; }
+    var to = $('ff-tous'); if (to) { to.onchange = function () { fTous = to.checked; fSel = null; rendre(); }; }
+    Array.prototype.forEach.call(document.querySelectorAll('[data-photo-choix]'), function (c) { c.onchange = function () { fChoix[c.getAttribute('data-photo-choix')] = c.checked; rendre(); }; });
+    chargerVignettes();
   }
 
   // ---------- Chantier : ajout et modification
@@ -505,7 +712,8 @@ geotab.addin.finition = function () {
   function surClic(e) {
     var t = e.target.closest('button'); if (!t || !$('fi').contains(t) || $('fi-modale')) { return; }
     var a = t.getAttribute('data-a');
-    if (t.hasAttribute('data-o')) { onglet = t.getAttribute('data-o'); vue = 'horaire'; message = null; rendre(); return; }
+    if (t.hasAttribute('data-o')) { onglet = t.getAttribute('data-o'); vue = 'horaire'; message = null; if (onglet === 'formulaires') { fCharge = false; } rendre(); return; }
+    if (onglet === 'formulaires' && surClicFormulaires(t, a)) { return; }
     if (t.hasAttribute('data-carte')) { var cid = t.getAttribute('data-carte'); carteChoisie = carteChoisie === cid ? null : cid; rendre(); return; }
     if (t.hasAttribute('data-poser')) { var p = t.getAttribute('data-poser').split('|'); placer(carteChoisie, p[0], p[1]); return; }
     if (t.hasAttribute('data-bloc')) { var b = blocs.filter(function (x) { return x.d.bid === t.getAttribute('data-bloc'); })[0]; if (b && afficher === 'brouillon') { formBloc(b); } return; }
@@ -530,7 +738,7 @@ geotab.addin.finition = function () {
     api = a; B = window.Bonneville; G = B.creerApi(a);
     if (!lundi) { var auj = B.jourIso(); lundi = lundiDe(auj); jourSel = [0, 6].indexOf(B.dateDe(auj).getDay()) >= 0 ? lundi : auj; }
     if (!branche) { document.addEventListener('click', surClic); branche = true; }
-    G.session().then(function (s) { moi = s.userName || ''; return charger(); }).then(rendre)
+    G.session().then(function (s) { moi = s.userName || ''; return charger(); }).then(function () { return chargerFormulaires().catch(function () {}); }).then(rendre)
       .catch(function (e) { $('fi-contenu').innerHTML = '<div class="page"><div class="message erreur">Lecture impossible : ' + h(e && e.message ? e.message : e) + '</div></div>'; });
   }
   window.BonnevilleModule = { aller: function (nom) { onglet = nom === 'formulaires' ? 'formulaires' : 'horaire'; vue = 'horaire'; rendre(); } };

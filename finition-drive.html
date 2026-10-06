@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Bonneville - Finition</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-<script src="https://ericgloutnez.github.io/LFS/bonneville-commun.js?v=1.2.0"></script>
+<script src="https://ericgloutnez.github.io/LFS/bonneville-commun.js?v=1.3.0"></script>
+<script src="https://ericgloutnez.github.io/LFS/formulaires-finition.js?v=1.0.0"></script>
 </head>
 <body style="margin:0">
 <div id="fd">
@@ -53,6 +54,26 @@
   #fd .formulaire b { display: block; font-size: 16px; } #fd .formulaire small { font-size: 14px; color: var(--t2); }
   #fd .doc { display: flex; align-items: center; gap: 10px; min-height: 48px; color: var(--bleu); text-decoration: none; font-size: 17px; }
   #fd .msg { border-radius: 8px; padding: 10px 12px; font-weight: 600; background: #E5F2EA; color: var(--vert); }
+  #fd .progression { height: 6px; background: var(--ligne); border-radius: 3px; overflow: hidden; } #fd .progression span { display: block; height: 100%; background: var(--bleu); }
+  #fd .aide-f { font-size: 14px; color: var(--t2); }
+  #fd .section-f { font-size: 13px; font-weight: 700; color: var(--t2); text-transform: uppercase; letter-spacing: .3px; margin-top: 4px; }
+  #fd .question { font-size: 20px; font-weight: 600; line-height: 1.35; } #fd .facultatif { font-size: 14px; font-weight: 400; color: var(--t2); }
+  #fd .choix-on, #fd .options-f { display: flex; gap: 10px; flex-wrap: wrap; }
+  #fd .on { flex: 1; min-width: 96px; min-height: 64px; border-radius: 10px; border: 2px solid var(--champ); background: var(--surf); font-size: 19px; font-weight: 700; cursor: pointer; }
+  #fd .on.oui.actif { background: var(--vert); border-color: var(--vert); color: #fff; } #fd .on.non.actif { background: var(--rouge); border-color: var(--rouge); color: #fff; }
+  #fd .on.actif { background: var(--bleu); border-color: var(--bleu); color: #fff; }
+  #fd .champ-f { display: flex; flex-direction: column; gap: 6px; font-size: 15px; font-weight: 600; } #fd .champ-f small { font-weight: 400; color: var(--t2); }
+  #fd input[type=text], #fd input[type=datetime-local], #fd textarea { min-height: 48px; border: 1px solid var(--champ); border-radius: 8px; padding: 0 12px; font-size: 17px; background: #fff; width: 100%; }
+  #fd textarea { min-height: 110px; padding: 10px 12px; } #fd textarea.grand { min-height: 160px; }
+  #fd .nav-f { display: flex; gap: 10px; } #fd .nav-f .btn { flex: 1; } #fd .btn:disabled { opacity: .45; }
+  #fd .lien-f { background: none; border: none; color: var(--bleu); text-decoration: underline; font-size: 15px; min-height: 44px; cursor: pointer; }
+  #fd .ligne-i { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; border-top: 1px solid var(--ligne); } #fd .ligne-i span { color: var(--t2); }
+  #fd .vignettes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; } #fd .vignette { position: relative; aspect-ratio: 1; border-radius: 8px; overflow: hidden; background: var(--ligne); }
+  #fd .vignette img { width: 100%; height: 100%; object-fit: cover; } #fd .vignette button { position: absolute; top: 4px; right: 4px; width: 36px; height: 36px; border-radius: 18px; border: none; background: rgba(0,0,0,.65); color: #fff; font-size: 20px; }
+  #fd canvas.signature { width: 100%; height: 220px; border: 2px dashed var(--champ); border-radius: 10px; background: #fff; touch-action: none; }
+  #fd .refus-f { display: flex; flex-direction: column; gap: 8px; background: #FFF7F7; border-radius: 8px; padding: 10px; color: var(--rouge); font-weight: 600; }
+  #fd .rappel-f { display: flex; gap: 10px; align-items: flex-start; text-align: left; width: 100%; background: var(--ambre); border: 1px solid var(--ambreBord); color: var(--ambreTexte); border-radius: 10px; padding: 12px 14px; font-size: 16px; cursor: pointer; }
+  #fd .etat-f { font-size: 13px; font-weight: 700; color: var(--vert); }
   #fd .msg.erreur { background: #FFF7F7; color: var(--rouge); }
 </style>
 <header class="entete" id="fd-entete"></header>
@@ -67,7 +88,7 @@
 <script>
 (function () {
   'use strict';
-  var VERSION = '1.0.0';
+  var VERSION = '1.1.0';
   var B = window.Bonneville, G = null, api = null, moi = '', monNom = '';
   var blocs = lire('fd-blocs') || [], chantiers = lire('fd-chantiers') || [], publications = lire('fd-pubs') || [], param = null;
   var ecran = 'horaire', lundi = null, chantierOuvert = null, message = null, branche = false;
@@ -124,6 +145,11 @@
 
   // ---------- Rendu
   function entete() {
+    if (ecran === 'forme' && forme) {
+      $('fd-entete').innerHTML = '<button type="button" class="retour" data-a="f-quitter" aria-label="Enregistrer et revenir au chantier"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5 L8 12 L15 19" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>'
+        + '<span><span class="s mono">Série ' + h(forme.serie) + '</span><b>' + h(forme.code + ' · ' + (defDe(forme.code) || {}).titre) + '</b></span>';
+      return;
+    }
     if (ecran === 'chantier' && chantierOuvert) {
       var d = chantierOuvert.b.d;
       $('fd-entete').innerHTML = '<button type="button" class="retour" data-a="retour" aria-label="Retour à l’horaire"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5 L8 12 L15 19" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>'
@@ -137,10 +163,12 @@
     entete();
     Array.prototype.forEach.call(document.querySelectorAll('#fd .nav-bas button'), function (b) { if (b.getAttribute('data-n') === (ecran === 'chantier' ? 'horaire' : ecran)) { b.setAttribute('aria-current', 'page'); } else { b.removeAttribute('aria-current'); } });
     var html = message ? '<div class="msg' + (message.e ? ' erreur' : '') + '" role="status">' + h(message.t) + '</div>' : '';
-    if (ecran === 'chantier' && chantierOuvert) { html += vueChantier(); }
-    else if (ecran === 'formulaires') { html += vueFormulaires(); }
+    if (ecran === 'forme' && forme) { html += vueForme(); }
+    else if (ecran === 'chantier' && chantierOuvert) { html += vueChantier(); }
+    else if (ecran === 'formulaires') { html += vueMesFormulaires(); }
     else { html += vueHoraire(); }
     $('fd-main').innerHTML = html;
+    if (ecran === 'forme' && forme) { brancherForme(); }
   }
   function vueAvis() {
     return avisNonLus().map(function (p) {
@@ -162,7 +190,7 @@
     return dateCourte(du) + ' au ' + dateCourte(au);
   }
   function vueHoraire() {
-    var html = vueAvis();
+    var html = vueAvis() + rappelsF0();
     var a = B.dateDe(lundi);
     html += '<div class="semaine"><h1>Semaine du ' + a.getDate() + ' ' + MOIS_LONGS[a.getMonth()] + '</h1><button type="button" class="btn" data-a="prec" aria-label="Semaine précédente">‹</button><button type="button" class="btn" data-a="suiv" aria-label="Semaine suivante">›</button></div>';
     var mes = mesBlocs(), nouv = nouveauxBids(), rien = true;
@@ -197,13 +225,371 @@
     html += '<section class="carte"><b style="color:#4A5565">Documents du bureau</b>' + (docs.length ? docs.map(function (doc) {
       return '<a class="doc" href="' + h(doc.url) + '" target="_blank" rel="noopener"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z M14 3v4h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>' + h(doc.nom) + '</a>';
     }).join('') : '<span style="color:#4A5565;font-size:15px">Aucun document pour ce chantier.</span>') + '</section>';
+    var auj = B.jourIso();
     html += '<section class="carte liste-f"><h2>Formulaires du chantier</h2>' + FORMS.map(function (f) {
-      return '<button type="button" class="formulaire' + (f[3] === 'plein' ? ' afaire' : '') + '" data-form="' + f[0] + '"><span class="code ' + f[3] + '">' + f[0] + '</span><span style="flex:1"><b>' + h(f[1]) + '</b><small>' + h(f[2]) + '</small></span></button>';
+      var r = resumeDe(d.serie, f[0]), brouillon = lire(cleForme(d.serie, f[0]));
+      var afaire = !r && f[0] === 'F0' && x.v.du > auj, classe = r ? '' : (f[3] === 'besoin' ? 'besoin' : (afaire ? 'plein' : ''));
+      var etat = r ? '<small class="etat-f">' + h(etatResume(r)[0]) + '</small>' : (brouillon ? '<small>Commencé · à terminer</small>' : '<small>' + h(f[0] === 'F0' && afaire ? 'À faire d’ici le ' + dateCourte(B.ajouterJours(x.v.du, -1)) : f[2]) + '</small>');
+      return '<button type="button" class="formulaire' + (afaire ? ' afaire' : '') + '" data-form="' + f[0] + '"><span class="code ' + classe + '">' + (r ? '<svg width="20" height="20" viewBox="0 0 24 24" aria-label="Envoyé"><path d="M5 12.5 L10 17 L19 7" fill="none" stroke="#1E6B3A" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' : f[0]) + '</span><span style="flex:1"><b>' + h(f[0] + ' · ' + f[1]) + '</b>' + etat + '</span></button>';
     }).join('') + '</section>';
     return html;
   }
   function vueFormulaires() {
     return '<section class="carte"><b>Formulaires F0 à F5</b><span style="color:#4A5565;font-size:15px">Les formulaires de Finition seront disponibles ici bientôt. En attendant, ouvre un chantier dans ton horaire pour voir la liste de ses formulaires.</span></section>';
+  }
+
+
+  // ===================== Formulaires F0 à F5 =====================
+  var FF = window.FormulairesFinition || null;
+  var forme = null;            // formulaire en cours : { code, bid, cid, serie, ville, client, rep, etape }
+  var mesResumes = lire('fd-resumes') || [];
+  var fileEnvois = lire('fd-file') || [];
+  var envoiEnCours = false, bdPhotos = null, photosEnCours = false;
+  function chargerDefinitions() {
+    if (window.FormulairesFinition) { FF = window.FormulairesFinition; }
+    else { try { var t = localStorage.getItem('fd-defs'); if (t) { (0, eval)(t); FF = window.FormulairesFinition || null; } } catch (e) {} }
+    fetch('https://ericgloutnez.github.io/LFS/formulaires-finition.js?v=1.0.0').then(function (r) { return r.ok ? r.text() : null; })
+      .then(function (t) { if (t) { try { localStorage.setItem('fd-defs', t); } catch (e) {} if (!FF) { (0, eval)(t); FF = window.FormulairesFinition; rendre(); } } }).catch(function () {});
+  }
+  function defDe(code) { return FF && FF.DEFS[code]; }
+  function cleForme(serie, code) { return 'fd-brouillon-' + serie + '-' + code; }
+  function resumeDe(serie, code) { return mesResumes.filter(function (r) { return String(r.d.serie) === String(serie) && r.d.code === code; }).sort(function (a, b) { return String(b.d.date).localeCompare(String(a.d.date)); })[0]; }
+  function positionPonctuelle() {
+    return new Promise(function (ok) {
+      if (!navigator.geolocation) { ok(null); return; }
+      var fini = false; setTimeout(function () { if (!fini) { fini = true; ok(null); } }, 8000);
+      try { navigator.geolocation.getCurrentPosition(function (p) { if (!fini) { fini = true; ok({ lat: p.coords.latitude, lon: p.coords.longitude, prec: Math.round(p.coords.accuracy) }); } }, function () { if (!fini) { fini = true; ok(null); } }, { enableHighAccuracy: true, timeout: 7000, maximumAge: 60000 }); } catch (e) { fini = true; ok(null); }
+    });
+  }
+
+  // ----- Photos (IndexedDB, puis fichiers média de Geotab)
+  function ouvrirBd() {
+    if (bdPhotos) { return Promise.resolve(bdPhotos); }
+    return new Promise(function (ok, ko) {
+      try { var req = indexedDB.open('bonneville-photos-finition', 1);
+        req.onupgradeneeded = function () { var db = req.result; if (!db.objectStoreNames.contains('photos')) { db.createObjectStore('photos', { keyPath: 'id', autoIncrement: true }); } };
+        req.onsuccess = function () { bdPhotos = req.result; ok(bdPhotos); }; req.onerror = function () { ko(req.error); };
+      } catch (e) { ko(e); }
+    });
+  }
+  function bd(mode, f) { return ouvrirBd().then(function (db) { return new Promise(function (ok, ko) { var tx = db.transaction('photos', mode), r = f(tx.objectStore('photos')); tx.oncomplete = function () { ok(r && r.result !== undefined ? r.result : r); }; tx.onerror = function () { ko(tx.error); }; }); }); }
+  function toutesPhotos() { return ouvrirBd().then(function (db) { return new Promise(function (ok) { var l = [], c = db.transaction('photos', 'readonly').objectStore('photos').openCursor(); c.onsuccess = function () { var x = c.result; if (x) { l.push(x.value); x.continue(); } else { ok(l); } }; c.onerror = function () { ok([]); }; }); }).catch(function () { return []; }); }
+  function photosDeForme(item) { return toutesPhotos().then(function (l) { return l.filter(function (p) { return p.cle === forme.cle && p.statut === 'brouillon' && (item === undefined || p.item === item); }); }); }
+  var LIMITE = 9.5 * 1024 * 1024;
+  function preparerPhoto(f) {
+    if (f.size <= LIMITE && ['image/jpeg', 'image/png', 'image/webp'].indexOf(f.type) >= 0) { return Promise.resolve(f); }
+    return new Promise(function (ok, ko) {
+      var u = URL.createObjectURL(f), im = new Image();
+      im.onload = function () { var k = 1, q = 0.92; var essai = function () { var c = document.createElement('canvas'); c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k); c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); c.toBlob(function (b) { if (!b) { ko(new Error('Photo illisible')); return; } if (b.size > LIMITE && k > 0.4) { k *= 0.85; essai(); return; } URL.revokeObjectURL(u); ok(b); }, 'image/jpeg', q); }; essai(); };
+      im.onerror = function () { ko(new Error('Photo illisible')); }; im.src = u;
+    });
+  }
+  function ajouterPhotos(fichiers, item, extra) {
+    var c = Promise.resolve();
+    Array.prototype.forEach.call(fichiers, function (f) {
+      c = c.then(function () { return Promise.all([preparerPhoto(f), positionPonctuelle()]); }).then(function (r) {
+        var p = { cle: forme ? forme.cle : 'reprise', item: item, statut: 'brouillon', blob: r[0], gps: r[1], heure: new Date().toISOString() };
+        if (extra) { for (var k in extra) { p[k] = extra[k]; } }
+        return bd('readwrite', function (st) { return st.add(p); });
+      }).catch(function (e) { alert('Photo non ajoutée : ' + (e && e.message ? e.message : e)); });
+    });
+    return c;
+  }
+  function serveurSession() { return new Promise(function (ok, ko) { try { api.getSession(function (c, s) { ok({ cred: { database: c.database, userName: c.userName, sessionId: c.sessionId }, serveur: s || c.server || 'my.geotab.com' }); }); } catch (e) { ko(e); } }); }
+  function envoyerPhotos() {
+    if (photosEnCours || !api || navigator.onLine === false) { return Promise.resolve(); }
+    photosEnCours = true;
+    return toutesPhotos().then(function (l) {
+      var a = l.filter(function (p) { return p.statut === 'attente' && p.fid; }); if (!a.length) { return; }
+      return serveurSession().then(function (ses) {
+        var c = Promise.resolve();
+        a.forEach(function (p) {
+          c = c.then(function () {
+            var ext = p.blob.type === 'image/png' ? '.png' : (p.blob.type === 'image/webp' ? '.webp' : '.jpg');
+            var nom = p.serie + ' - ' + p.code + ' - ' + (p.signature ? 'signature ' + p.itemTitre : 'photo ' + p.n) + ext;
+            var dep = p.mediaId ? Promise.resolve(p.mediaId) : G.appel('Add', { typeName: 'MediaFile', entity: { name: nom, solutionId: B.ADDIN_ID, mediaType: 'Image', fromDate: p.heure, toDate: p.heure,
+              metaData: JSON.stringify({ type: p.signature ? 'signatureFinition' : 'photoFinition', fid: p.fid, serie: p.serie, code: p.code, item: p.item || '', itemTitre: p.itemTitre || '', itemReponse: p.itemReponse || '', n: p.n, gps: p.gps, heure: p.heure, user: moi, auteur: monNom, remplace: p.remplace || '' }) } })
+              .then(function (id) { p.mediaId = id; return bd('readwrite', function (st) { return st.put(p); }).then(function () { return id; }); });
+            return dep.then(function (id) {
+              var fd = new FormData();
+              fd.append('JSON-RPC', JSON.stringify({ method: 'UploadMediaFile', params: { credentials: ses.cred, mediaFile: { id: id } } }));
+              fd.append('file', p.blob, nom);
+              return fetch('https://' + ses.serveur + '/apiv1', { method: 'POST', body: fd }).then(function (r) { if (!r.ok) { throw new Error('HTTP ' + r.status); } return r.text(); })
+                .then(function (t) { if (/"error"/.test(t)) { throw new Error(t.slice(0, 160)); } return bd('readwrite', function (st) { return st.delete(p.id); }); });
+            });
+          }).catch(function (e) { console.warn('Photo non envoyée', e); });
+        });
+        return c;
+      });
+    }).catch(function () {}).then(function () { photosEnCours = false; });
+  }
+  // ----- File d'envoi des formulaires (fonctionne sans réseau : envoi au retour)
+  function viderFile() {
+    if (envoiEnCours || !G || !fileEnvois.length || navigator.onLine === false) { return Promise.resolve(); }
+    envoiEnCours = true;
+    var e = fileEnvois[0];
+    var c = Promise.resolve();
+    e.records.forEach(function (rec, i) { if (i < e.fait) { return; } c = c.then(function () { return G.ajouter(rec); }).then(function () { e.fait = i + 1; ecrire('fd-file', fileEnvois); }); });
+    return c.then(function () {
+      fileEnvois.shift(); ecrire('fd-file', fileEnvois); envoiEnCours = false;
+      mesResumes.forEach(function (r) { if (r.d.fid === e.fid && !r.id) { r.id = 'envoye'; } }); ecrire('fd-resumes', mesResumes); if (ecran === 'formulaires') { rendre(); }
+      return toutesPhotos().then(function (l) { var c2 = Promise.resolve(); l.filter(function (p) { return p.fid === e.fid && p.statut === 'envoi'; }).forEach(function (p) { p.statut = 'attente'; c2 = c2.then(function () { return bd('readwrite', function (st) { return st.put(p); }); }); }); return c2; });
+    }).then(function () { envoyerPhotos(); if (fileEnvois.length) { return viderFile(); } }).catch(function () { envoiEnCours = false; });
+  }
+  setInterval(function () { try { viderFile(); envoyerPhotos(); } catch (e) {} }, 60000);
+  window.addEventListener('online', function () { setTimeout(function () { viderFile(); envoyerPhotos(); }, 2500); });
+
+  // ----- Ouverture d'un formulaire
+  function ouvrirForme(code, x) {
+    if (!defDe(code)) { message = { t: 'Les formulaires ne sont pas encore chargés sur ce téléphone : ouvre l’application une fois avec du réseau.', e: true }; rendre(); return; }
+    var d = x.b.d, c = chantierDe(x.b), cd = c ? c.d : {};
+    var cle = cleForme(d.serie, code), sauve = lire(cle);
+    forme = sauve || { cle: cle, code: code, bid: d.bid, cid: d.cid || '', serie: d.serie, ville: d.ville || '', client: cd.client || '', rep: {}, etape: 0, debut: new Date().toISOString() };
+    forme.cle = cle;
+    if (!forme.rep.compagnie) { forme.rep.compagnie = lire('fd-compagnie') || ''; }
+    ecran = 'forme'; message = null; rendre(); window.scrollTo(0, 0);
+  }
+  function sauverForme() { if (forme) { ecrire(forme.cle, forme); } }
+  function etapes() {
+    var l = [{ k: 'entete' }], def = defDe(forme.code);
+    def.sections.forEach(function (s) { s.items.forEach(function (i) { l.push({ k: 'item', s: s, i: i }); }); });
+    l.push({ k: 'photos' }); l.push({ k: 'recap' });
+    return l;
+  }
+  function repDe(id) { return forme.rep[id] || (forme.rep[id] = {}); }
+  function aNon(ids) { return (ids || []).some(function (id) { return forme.rep[id] && forme.rep[id].v === 'non'; }); }
+  // Validation d'un élément (avec le nombre de photos déjà prises pour lui)
+  function valide(i, nPhotos) {
+    var r = forme.rep[i.id] || {};
+    if (i.type === 'ok' || i.type === 'ouinon') {
+      if (!r.v) { return false; }
+      if (i.mesure && !String(r.mesure || '').trim()) { return false; }
+      if (r.v === 'non') { if (!String(r.expl || '').trim()) { return false; } if (i.photoSiNon && !nPhotos) { return false; } }
+      if (r.v === 'oui' && i.photoSiOui && nPhotos < i.photoSiOui) { return false; }
+      return true;
+    }
+    if (i.type === 'texte' || i.type === 'court' || i.type === 'nombre' || i.type === 'dateheure') { return !i.requis || !!String(r.v || '').trim(); }
+    if (i.type === 'choix') { return !i.requis || !!r.v; }
+    if (i.type === 'signature') { return !i.requis || !!r.v; }
+    if (i.type === 'calcul') { return i.lignes.every(function (l, k) { return String((r.v || [])[k] || '').trim() !== ''; }); }
+    if (i.type === 'table') {
+      var lignes = (r.lignes || []).filter(function (l) { return i.colonnes.some(function (c) { return String(l[c.id] || '').trim(); }); });
+      var complet = lignes.every(function (l) { return i.colonnes.every(function (c) { return String(l[c.id] || '').trim(); }); });
+      if (!complet) { return false; }
+      if (i.requis || (i.requisSiNon && aNon(i.requisSiNon))) { return lignes.length > 0; }
+      return true;
+    }
+    if (i.type === 'photos') { return nPhotos >= (i.min || 0); }
+    return true;
+  }
+  function totalCalcul(i) { var r = (forme.rep[i.id] || {}).v || []; var t = 0; i.lignes.forEach(function (l, k) { var n = parseFloat(String(r[k] || '0').replace(',', '.')) || 0; t += l[0] === '-' ? -n : n; }); return Math.round(t * 100) / 100; }
+  function boutonPhoto(item, libelle) { return '<button type="button" class="btn" data-photo="' + h(item) + '"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.5" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>' + h(libelle || 'Prendre une photo') + '</button>'; }
+  function zonePhotos(item) { return '<div class="vignettes" data-vignettes="' + h(item) + '"></div>'; }
+  function remplirVignettes() {
+    if (!forme) { return; }
+    photosDeForme().then(function (l) {
+      Array.prototype.forEach.call(document.querySelectorAll('[data-vignettes]'), function (z) {
+        var item = z.getAttribute('data-vignettes'), les = l.filter(function (p) { return p.item === item; });
+        z.innerHTML = '';
+        les.forEach(function (p) { var d = document.createElement('div'); d.className = 'vignette'; var im = document.createElement('img'); im.alt = 'Photo'; im.src = URL.createObjectURL(p.blob); var b = document.createElement('button'); b.type = 'button'; b.setAttribute('aria-label', 'Retirer la photo'); b.textContent = '×'; b.onclick = function () { bd('readwrite', function (st) { return st.delete(p.id); }).then(rendre); }; d.appendChild(im); d.appendChild(b); z.appendChild(d); });
+      });
+      var suiv = $('fd-suivant');
+      if (suiv && suiv.hasAttribute('data-item')) { var e = etapes()[forme.etape]; if (e && e.i) { suiv.disabled = !valide(e.i, l.filter(function (p) { return p.item === e.i.id; }).length); } }
+    });
+  }
+  function vueForme() {
+    var def = defDe(forme.code), l = etapes(), e = l[forme.etape], html = '';
+    var pct = Math.round(forme.etape / (l.length - 1) * 100);
+    html += '<div class="progression" role="progressbar" aria-valuenow="' + pct + '" aria-valuemin="0" aria-valuemax="100"><span style="width:' + pct + '%"></span></div>';
+    html += '<div class="aide-f">' + h(def.code + ' · ' + def.titre) + ' · étape ' + (forme.etape + 1) + ' de ' + l.length + '</div>';
+    if (e.k === 'entete') {
+      html += '<section class="carte"><b style="font-size:18px">' + h(def.code + ' – ' + def.titre) + '</b><span style="color:#4A5565">' + h(def.moment) + '</span>'
+        + '<div class="ligne-i"><span>Série</span><b class="mono">' + h(forme.serie) + '</b></div><div class="ligne-i"><span>Client</span><b>' + h(forme.client || '—') + '</b></div>'
+        + '<div class="ligne-i"><span>Date</span><b>' + h(dateCourte(B.jourIso())) + '</b></div><div class="ligne-i"><span>Chef d’équipe</span><b>' + h(monNom || moi) + '</b></div>'
+        + '<label class="champ-f">Compagnie<input type="text" id="ff-compagnie" value="' + h(forme.rep.compagnie || '') + '" autocomplete="organization"></label></section>'
+        + '<button type="button" class="btn bleu" id="fd-suivant" data-a="f-suiv">Commencer</button>';
+    } else if (e.k === 'item') {
+      var i = e.i, r = repDe(i.id);
+      html += '<div class="section-f">' + h(e.s.titre) + '</div>';
+      if (i.type === 'note') { html += '<section class="carte"><span style="font-size:16px;line-height:1.5">' + h(i.t) + '</span></section>'; }
+      else { html += '<div class="question">' + h(i.t) + (i.requis ? '' : (['texte', 'court'].indexOf(i.type) >= 0 ? ' <span class="facultatif">(facultatif)</span>' : '')) + '</div>'; }
+      if (i.type === 'ok' || i.type === 'ouinon') {
+        if (i.mesure) { html += '<label class="champ-f">' + h(i.mesure) + '<input type="text" inputmode="decimal" data-champ="mesure" value="' + h(r.mesure || '') + '"></label>'; }
+        html += '<div class="choix-on">' + '<button type="button" class="on oui' + (r.v === 'oui' ? ' actif' : '') + '" data-v="oui" aria-pressed="' + (r.v === 'oui') + '">Oui</button><button type="button" class="on non' + (r.v === 'non' ? ' actif' : '') + '" data-v="non" aria-pressed="' + (r.v === 'non') + '">Non</button>'
+          + (i.na ? '<button type="button" class="on na' + (r.v === 'na' ? ' actif' : '') + '" data-v="na" aria-pressed="' + (r.v === 'na') + '">' + h(i.na) + '</button>' : '') + '</div>';
+        if (r.v === 'non') { html += '<label class="champ-f">Explication (obligatoire)' + (i.aideNon ? '<small>' + h(i.aideNon) + '</small>' : '') + '<textarea data-champ="expl">' + h(r.expl || '') + '</textarea></label>' + (i.photoSiNon ? boutonPhoto(i.id, 'Prendre une photo (obligatoire)') + zonePhotos(i.id) : boutonPhoto(i.id, 'Ajouter une photo (facultatif)') + zonePhotos(i.id)); }
+        if (r.v === 'oui' && i.photoSiOui) { html += '<div class="aide-f">' + i.photoSiOui + ' photos minimum (les 4 côtés de la maison).</div>' + boutonPhoto(i.id) + zonePhotos(i.id); }
+      } else if (i.type === 'texte') { html += '<textarea data-champ="v" class="grand">' + h(r.v || '') + '</textarea>'; }
+      else if (i.type === 'court') { if (!r.v && i.auto === 'ville') { r.v = forme.ville || ''; } html += '<input type="text" data-champ="v" value="' + h(r.v || '') + '"' + (i.aide ? ' placeholder="' + h(i.aide) + '"' : '') + '>'; }
+      else if (i.type === 'nombre') { html += '<input type="text" inputmode="decimal" data-champ="v" value="' + h(r.v || '') + '">'; }
+      else if (i.type === 'dateheure') { html += '<input type="datetime-local" data-champ="v" value="' + h(r.v || '') + '">'; }
+      else if (i.type === 'choix') { html += '<div class="options-f">' + i.options.map(function (o) { return '<button type="button" class="on' + (r.v === o ? ' actif' : '') + '" data-v="' + h(o) + '" aria-pressed="' + (r.v === o) + '">' + h(o) + '</button>'; }).join('') + '</div>'; }
+      else if (i.type === 'calcul') {
+        html += '<section class="carte">' + i.lignes.map(function (l, k) { return '<label class="champ-f"><span><b>' + (l[0] === '-' ? '−' : (l[0] || '')) + '</b> ' + h(l[1]) + ' (' + i.unite + ')</span><input type="text" inputmode="decimal" data-calc="' + k + '" value="' + h((r.v || [])[k] || '') + '"></label>'; }).join('')
+          + '<div class="ligne-i" style="font-size:18px"><span>= Hauteur totale</span><b id="ff-total">' + h(String(totalCalcul(i)).replace('.', ',')) + ' ' + i.unite + '</b></div></section>';
+      } else if (i.type === 'table') {
+        var lignes = r.lignes || (r.lignes = []);
+        if (!lignes.length && (i.requis || (i.requisSiNon && aNon(i.requisSiNon)))) { lignes.push({}); }
+        html += (i.requisSiNon && aNon(i.requisSiNon) ? '<div class="aide-f" style="color:#9E1F27">Au moins une ligne est obligatoire, puisque tu as répondu Non.</div>' : '') + lignes.map(function (l, k) {
+          return '<section class="carte"><b>Ligne ' + (k + 1) + '</b>' + i.colonnes.map(function (c) {
+            if (c.type === 'choix') { return '<div class="champ-f">' + h(c.t) + '<div class="options-f">' + c.options.map(function (o) { return '<button type="button" class="on' + (l[c.id] === o ? ' actif' : '') + '" data-ligne="' + k + '" data-col="' + c.id + '" data-val="' + h(o) + '" aria-pressed="' + (l[c.id] === o) + '">' + h(o) + '</button>'; }).join('') + '</div></div>'; }
+            return '<label class="champ-f">' + h(c.t) + '<input type="text"' + (c.type === 'nombre' ? ' inputmode="decimal"' : '') + ' data-ligne="' + k + '" data-col="' + c.id + '" value="' + h(l[c.id] || '') + '"></label>';
+          }).join('') + (i.photoParLigne ? boutonPhoto(i.id + '#' + k, 'Photo de cette ligne') + zonePhotos(i.id + '#' + k) : '') + '<button type="button" class="lien-f" data-retirer-ligne="' + k + '">Retirer cette ligne</button></section>';
+        }).join('') + '<button type="button" class="btn" data-a="f-ligne">+ Ajouter une ligne</button>';
+      } else if (i.type === 'photos') { html += '<div class="aide-f">Minimum : ' + (i.min || 0) + ' photo' + ((i.min || 0) > 1 ? 's' : '') + '.</div>' + boutonPhoto(i.id) + zonePhotos(i.id); }
+      else if (i.type === 'signature') {
+        html += '<div class="aide-f">' + (i.client ? 'Remets le téléphone au client pour qu’il signe avec le doigt.' : 'Signe avec le doigt.') + '</div><canvas id="ff-sig" class="signature" width="640" height="260" aria-label="' + h(i.t) + '"></canvas>'
+          + '<button type="button" class="lien-f" data-a="f-effacer">Effacer la signature</button>' + (r.v ? '<div class="aide-f" style="color:#1E6B3A">Signature enregistrée.</div>' : '');
+      }
+      var auto = (i.type === 'ok' || i.type === 'ouinon' || i.type === 'choix');
+      html += '<div class="nav-f"><button type="button" class="btn" data-a="f-prec">Précédent</button><button type="button" class="btn bleu" id="fd-suivant" data-item="' + h(i.id) + '" data-a="f-suiv"' + (valide(i, 0) || ['ok', 'ouinon', 'table', 'photos'].indexOf(i.type) < 0 ? '' : ' disabled') + '>' + (auto && !r.v ? 'Choisis une réponse' : 'Suivant') + '</button></div>';
+    } else if (e.k === 'photos') {
+      html += '<div class="section-f">Photos supplémentaires</div><div class="question">Autres photos à joindre <span class="facultatif">(facultatif)</span></div><div class="aide-f">Chaque photo est enregistrée avec l’heure et la position GPS.</div>' + boutonPhoto('_general') + zonePhotos('_general')
+        + '<div class="nav-f"><button type="button" class="btn" data-a="f-prec">Précédent</button><button type="button" class="btn bleu" data-a="f-suiv">Suivant</button></div>';
+    } else {
+      var nonc = FF.nonConformites(forme.code, forme.rep), manquants = [];
+      FF.items(forme.code).forEach(function (i) { if (i.type !== 'note' && ['table', 'photos', 'ok', 'ouinon'].indexOf(i.type) < 0 && !valide(i, 0)) { manquants.push(i.t); } });
+      html += '<div class="section-f">Récapitulatif</div><section class="carte"><b style="font-size:18px">' + h(def.code + ' – ' + def.titre) + '</b><span class="mono">Série ' + h(forme.serie) + '</span>'
+        + '<span style="color:' + (nonc ? '#9E1F27' : '#1E6B3A') + ';font-weight:600">' + (nonc ? nonc + ' réponse' + (nonc > 1 ? 's' : '') + ' Non' : 'Aucune réponse Non') + '</span>'
+        + (manquants.length ? '<span style="color:#9E1F27">À compléter : ' + h(manquants.join(', ')) + '</span>' : '') + '<span style="color:#4A5565;font-size:14px">La position GPS et l’heure seront enregistrées à l’envoi. Sans réseau, le formulaire part dès le retour du réseau.</span></section>'
+        + '<div class="nav-f"><button type="button" class="btn" data-a="f-prec">Précédent</button><button type="button" class="btn bleu" data-a="f-envoyer"' + (manquants.length ? ' disabled' : '') + '>Envoyer le formulaire</button></div>';
+    }
+    html += '<button type="button" class="lien-f" data-a="f-quitter" style="align-self:center">Enregistrer et quitter (reprendre plus tard)</button>';
+    return html;
+  }
+  // Signature au doigt
+  function brancherSignature() {
+    var c = $('ff-sig'); if (!c) { return; }
+    var e = etapes()[forme.etape], r = repDe(e.i.id), ctx = c.getContext('2d'), dessine = false, a = null;
+    ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.strokeStyle = '#18202B'; ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+    if (r.v) { var im = new Image(); im.onload = function () { ctx.drawImage(im, 0, 0); }; im.src = r.v; }
+    var pos = function (ev) { var b = c.getBoundingClientRect(); return [(ev.clientX - b.left) * c.width / b.width, (ev.clientY - b.top) * c.height / b.height]; };
+    c.onpointerdown = function (ev) { dessine = true; a = pos(ev); try { c.setPointerCapture(ev.pointerId); } catch (x) {} ev.preventDefault(); };
+    c.onpointermove = function (ev) { if (!dessine) { return; } var p = pos(ev); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(p[0], p[1]); ctx.stroke(); a = p; ev.preventDefault(); };
+    c.onpointerup = c.onpointercancel = function () { if (!dessine) { return; } dessine = false; r.v = c.toDataURL('image/png'); sauverForme(); var s = $('fd-suivant'); if (s) { s.disabled = false; s.textContent = 'Suivant'; } };
+  }
+  function brancherForme() {
+    var z = $('fd-main');
+    var co = $('ff-compagnie'); if (co) { co.oninput = function () { forme.rep.compagnie = co.value; ecrire('fd-compagnie', co.value); sauverForme(); }; }
+    var e = etapes()[forme.etape]; if (!e || e.k !== 'item') { return; }
+    var i = e.i, r = repDe(i.id);
+    Array.prototype.forEach.call(z.querySelectorAll('[data-champ]'), function (c) { c.oninput = function () { r[c.getAttribute('data-champ')] = c.value; sauverForme(); remplirVignettes(); }; });
+    Array.prototype.forEach.call(z.querySelectorAll('[data-calc]'), function (c) { c.oninput = function () { r.v = r.v || []; r.v[+c.getAttribute('data-calc')] = c.value; sauverForme(); $('ff-total').textContent = String(totalCalcul(i)).replace('.', ',') + ' ' + i.unite; var s = $('fd-suivant'); if (s) { s.disabled = !valide(i, 0); } }; });
+    Array.prototype.forEach.call(z.querySelectorAll('input[data-ligne]'), function (c) { c.oninput = function () { r.lignes[+c.getAttribute('data-ligne')][c.getAttribute('data-col')] = c.value; sauverForme(); remplirVignettes(); }; });
+    brancherSignature();
+    remplirVignettes();
+  }
+  function avancer() {
+    var l = etapes(), e = l[forme.etape];
+    if (e.k === 'item') {
+      // Les éléments « table » et « Suivant » attendent une validation complète avec les photos
+      return photosDeForme(e.i.id).then(function (ph) {
+        if (!valide(e.i, ph.length)) { message = { t: 'Complète cette étape avant de continuer.', e: true }; rendre(); return; }
+        forme.etape = Math.min(l.length - 1, forme.etape + 1); sauverForme(); message = null; rendre(); window.scrollTo(0, 0);
+      });
+    }
+    forme.etape = Math.min(l.length - 1, forme.etape + 1); sauverForme(); message = null; rendre(); window.scrollTo(0, 0);
+  }
+  function choisir(v) {
+    var e = etapes()[forme.etape], i = e.i, r = repDe(i.id);
+    r.v = v; if (v !== 'non') { delete r.expl; }
+    sauverForme();
+    try { if (navigator.vibrate) { navigator.vibrate(30); } } catch (x) {}
+    // Passage automatique après OUI (sauf si une mesure ou des photos sont demandées)
+    if ((v === 'oui' && !i.mesure && !i.photoSiOui) || (v === 'na') || i.type === 'choix') { setTimeout(avancer, 180); }
+    rendre();
+  }
+  function envoyerForme() {
+    var f = forme, def = defDe(f.code);
+    message = { t: 'Préparation de l’envoi…' }; rendre();
+    positionPonctuelle().then(function (gps) {
+      var fid = 'f' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), date = new Date().toISOString();
+      var rep = JSON.parse(JSON.stringify(f.rep)), sigs = [];
+      FF.items(f.code).forEach(function (i) { if (i.type === 'signature' && rep[i.id] && rep[i.id].v) { sigs.push({ item: i.id, titre: i.t, data: rep[i.id].v, client: !!i.client }); rep[i.id] = { v: 'signée' }; } });
+      var texte = JSON.stringify({ rep: rep }), parts = [];
+      for (var k = 0; k < texte.length; k += 9000) { parts.push(texte.slice(k, k + 9000)); }
+      var nonc = FF.nonConformites(f.code, f.rep);
+      var resume = { type: 'finFormResume', fid: fid, serie: f.serie, code: f.code, titre: def.titre, bid: f.bid, cid: f.cid, user: moi, auteur: monNom, compagnie: f.rep.compagnie || '', client: f.client, date: date, gps: gps, nonConf: nonc,
+        signatures: sigs.map(function (s) { return s.client ? 'client' : 'chef'; }), statut: def.autorisation ? 'en_attente' : 'soumis', photos: {} };
+      var records = [resume].concat(parts.map(function (p, n) { return { type: 'finFormData', fid: fid, partie: n + 1, total: parts.length, data: p }; }));
+      // Correctifs après F5 confiés au Service : ils arrivent dans la file « Appels à planifier »
+      if (f.code === 'F5') {
+        var pts = ((f.rep.f5_points || {}).lignes || []).filter(function (l) { return l.resp === 'Service' && String(l.desc || '').trim(); });
+        if (pts.length) { records.push({ type: 'srvAppel', aid: 'a' + Date.now().toString(36), serie: f.serie, travail: 'Correctifs après F5', ville: f.ville, adresse: '', client: f.client, duree: 240, nbTech: 1, statut: 'a_planifier', cree: date, par: moi,
+          info: 'Créé depuis le F5 de Finition · ' + pts.length + ' item' + (pts.length > 1 ? 's' : ''), items: pts.map(function (l) { return l.desc; }), origine: { fid: fid } }); }
+      }
+      // Photos : rattachées au formulaire, numérotées ; signatures ajoutées comme images
+      return toutesPhotos().then(function (l) {
+        var mes = l.filter(function (p) { return p.cle === f.cle && p.statut === 'brouillon'; }), c = Promise.resolve(), n = 0;
+        var titres = {}; FF.items(f.code).forEach(function (i) { titres[i.id] = i.t; });
+        mes.forEach(function (p) { n++; p.statut = 'envoi'; p.fid = fid; p.n = n; p.serie = f.serie; p.code = f.code; p.itemReponse = (f.rep[String(p.item).split('#')[0]] || {}).v || ''; p.itemTitre = titres[String(p.item).split('#')[0]] || (p.item === '_general' ? 'Photo supplémentaire' : ''); c = c.then(function () { return bd('readwrite', function (st) { return st.put(p); }); }); });
+        sigs.forEach(function (s) { c = c.then(function () { return fetch(s.data).then(function (r) { return r.blob(); }); }).then(function (blob) { return bd('readwrite', function (st) { return st.add({ cle: f.cle, item: s.item, itemTitre: s.titre, statut: 'envoi', fid: fid, n: 0, serie: f.serie, code: f.code, blob: blob, gps: gps, heure: date, signature: true }); }); }); });
+        resume.nbPhotos = n;
+        return c;
+      }).then(function () {
+        fileEnvois.push({ fid: fid, records: records, fait: 0 }); ecrire('fd-file', fileEnvois);
+        mesResumes.push({ id: null, d: resume }); ecrire('fd-resumes', mesResumes);
+        try { localStorage.removeItem(f.cle); } catch (x) {}
+        forme = null; ecran = 'formulaires';
+        message = { t: def.code + ' enregistré' + (navigator.onLine === false ? ' : il partira dès le retour du réseau.' : ' : envoi en cours.') + (def.autorisation ? ' Attends l’autorisation du coordonnateur avant de débuter les travaux en extra.' : '') };
+        rendre(); viderFile();
+      });
+    });
+  }
+  // ----- Mes formulaires : états, photos refusées à reprendre
+  function chargerResumes() {
+    return G.lireChamp('finFormResume', 'user', moi).then(function (l) {
+      var envoyes = l.map(function (x) { return { id: x.id, d: x.details }; });
+      var ids = {}; envoyes.forEach(function (r) { ids[r.d.fid] = true; });
+      mesResumes = envoyes.concat(mesResumes.filter(function (r) { return !r.id && !ids[r.d.fid]; }));
+      ecrire('fd-resumes', mesResumes);
+    });
+  }
+  function etatResume(r) {
+    var d = r.d, ph = d.photos || {}, k = Object.keys(ph);
+    var ref = k.filter(function (m) { return ph[m].etat === 'refusee' && !ph[m].remplacee; }).length, app = k.filter(function (m) { return ph[m].etat === 'approuvee'; }).length;
+    if (!r.id) { return ['Envoi en attente du réseau', '#8A5A00']; }
+    if (d.code === 'F3') { return d.statut === 'autorise' ? ['Travaux en extra autorisés', '#1E6B3A'] : (d.statut === 'refuse' ? ['Refusé · ' + (d.raison || ''), '#9E1F27'] : ['En attente d’autorisation', '#8A5A00']); }
+    if (ref) { return [ref + ' photo' + (ref > 1 ? 's' : '') + ' refusée' + (ref > 1 ? 's' : '') + ' : à reprendre', '#9E1F27']; }
+    if (d.approuve) { return ['Approuvé', '#1E6B3A']; }
+    return [app ? app + ' photo' + (app > 1 ? 's' : '') + ' approuvée' + (app > 1 ? 's' : '') + ', le reste en attente' : 'Envoyé · en attente d’approbation', '#4A5565'];
+  }
+  function vueMesFormulaires() {
+    var html = '';
+    if (!FF) { return '<section class="carte"><span style="color:#4A5565">Les formulaires se chargent : ouvre l’application avec du réseau.</span></section>'; }
+    var brouillons = []; FF.CODES.forEach(function (c) { mesBlocs().forEach(function (x) { var s = lire(cleForme(x.b.d.serie, c)); if (s && brouillons.every(function (b) { return b.cle !== s.cle; })) { brouillons.push(s); } }); });
+    if (brouillons.length) { html += '<div class="section-f">À terminer</div>' + brouillons.map(function (s) { return '<button type="button" class="chantier" data-reprendre="' + h(s.cle) + '"><span style="flex:1;display:flex;flex-direction:column;gap:2px"><span class="l1 mono">Série ' + h(s.serie) + '</span><span class="l2">' + h(s.code + ' · ' + defDe(s.code).titre) + '</span><span class="l3">Commencé · étape ' + (s.etape + 1) + '</span></span></button>'; }).join(''); }
+    var tri = mesResumes.slice().sort(function (a, b) { return String(b.d.date).localeCompare(String(a.d.date)); });
+    html += '<div class="section-f">Envoyés</div>';
+    if (!tri.length) { html += '<section class="carte"><span style="color:#4A5565">Aucun formulaire envoyé. Ouvre un chantier dans ton horaire pour remplir ses formulaires.</span></section>'; }
+    tri.slice(0, 30).forEach(function (r) {
+      var e = etatResume(r), d = r.d, ph = d.photos || {};
+      var refusees = Object.keys(ph).filter(function (m) { return ph[m].etat === 'refusee' && !ph[m].remplacee; });
+      html += '<section class="carte"><span class="mono" style="color:#4A5565">Série ' + h(d.serie) + ' · ' + h(dateCourte(String(d.date).slice(0, 10))) + '</span><b>' + h(d.code + ' · ' + (d.titre || '')) + '</b><span style="color:' + e[1] + ';font-weight:600">' + h(e[0]) + '</span>'
+        + refusees.map(function (m) { return '<div class="refus-f"><span>' + h(ph[m].titre || 'Photo') + ' · refusée : ' + h(ph[m].raison || '') + '</span>' + '<button type="button" class="btn" data-reprise="' + h(r.d.fid) + '|' + h(m) + '">Reprendre la photo</button></div>'; }).join('') + '</section>';
+    });
+    return html;
+  }
+  function reprendrePhoto(fid, mediaId) {
+    var r = mesResumes.filter(function (x) { return x.d.fid === fid; })[0]; if (!r) { return; }
+    var info = (r.d.photos || {})[mediaId] || {};
+    var entree = document.createElement('input'); entree.type = 'file'; entree.accept = 'image/*'; entree.setAttribute('capture', 'environment');
+    entree.onchange = function () {
+      ajouterPhotos(entree.files, info.item || '_general', { statut: 'attente', fid: fid, serie: r.d.serie, code: r.d.code, n: Date.now() % 1000, itemTitre: (info.titre || 'Photo') + ' (reprise)', remplace: mediaId }).then(function () {
+        info.remplacee = true; r.d.photos[mediaId] = info;
+        return G.lireChamp('finFormResume', 'fid', fid).then(function (l) { var rec = l[0]; if (rec) { var dd = rec.details; dd.photos = dd.photos || {}; dd.photos[mediaId] = Object.assign({}, dd.photos[mediaId] || {}, { remplacee: true }); return G.modifier(rec.id, dd).then(function () { r.d = dd; }); } });
+      }).then(function () { ecrire('fd-resumes', mesResumes); envoyerPhotos(); message = { t: 'Nouvelle photo envoyée au bureau.' }; rendre(); })
+        .catch(function () { message = { t: 'La photo partira dès le retour du réseau.', e: true }; rendre(); });
+    };
+    entree.click();
+  }
+  // Rappel F0 : chantier qui commence le prochain jour ouvrable, sans F0 envoyé
+  function rappelsF0() {
+    if (!FF) { return ''; }
+    var auj = B.jourIso(), demain = B.ajouterJours(auj, 1); while (!ouvrable(demain)) { demain = B.ajouterJours(demain, 1); }
+    return mesBlocs().filter(function (x) { return x.v.du > auj && x.v.du <= demain && !resumeDe(x.b.d.serie, 'F0'); }).map(function (x) {
+      return '<button type="button" class="rappel-f" data-ouvrir-f="F0" data-bloc-f="' + h(x.b.d.bid) + '"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v14H5z M8 12l3 3 5-6" fill="none" stroke="#4A3000" stroke-width="1.8" stroke-linejoin="round"/></svg><span><b>F0 à remplir</b> pour la Série ' + h(x.b.d.serie) + ' (chantier ' + (x.v.du === B.ajouterJours(auj, 1) ? 'de demain' : 'du ' + dateCourte(x.v.du)) + ')</span></button>';
+    }).join('');
   }
 
   // ---------- Actions
@@ -231,7 +617,7 @@
   }
   function actualiser() {
     message = null;
-    return charger().then(rendre).catch(function () { message = { t: 'Sans réseau : horaire gardé sur le téléphone.', e: true }; rendre(); });
+    return charger().then(function () { return chargerResumes().catch(function () {}); }).then(rendre).then(viderFile).catch(function () { message = { t: 'Sans réseau : horaire gardé sur le téléphone.', e: true }; rendre(); });
   }
   function surClic(e) {
     var t = e.target.closest('button'); if (!t || !$('fd').contains(t)) { return; }
@@ -244,20 +630,39 @@
     if (t.hasAttribute('data-ack')) { accuser(t.getAttribute('data-ack')); return; }
     if (t.hasAttribute('data-confirmer')) { confirmerBloc(t.getAttribute('data-confirmer')); return; }
     if (t.hasAttribute('data-bloc')) { var x = mesBlocs().filter(function (y) { return y.b.d.bid === t.getAttribute('data-bloc'); })[0]; if (x) { chantierOuvert = x; ecran = 'chantier'; message = null; rendre(); window.scrollTo(0, 0); } return; }
-    if (t.hasAttribute('data-form')) { message = { t: 'Le formulaire ' + t.getAttribute('data-form') + ' sera disponible ici bientôt.' }; rendre(); return; }
+    if (t.hasAttribute('data-form')) { ouvrirForme(t.getAttribute('data-form'), chantierOuvert); return; }
+    if (t.hasAttribute('data-ouvrir-f')) { var xb = mesBlocs().filter(function (y) { return y.b.d.bid === t.getAttribute('data-bloc-f'); })[0]; if (xb) { chantierOuvert = xb; ouvrirForme(t.getAttribute('data-ouvrir-f'), xb); } return; }
+    if (t.hasAttribute('data-reprendre')) { forme = lire(t.getAttribute('data-reprendre')); if (forme) { ecran = 'forme'; rendre(); } return; }
+    if (t.hasAttribute('data-reprise')) { var pr = t.getAttribute('data-reprise').split('|'); reprendrePhoto(pr[0], pr[1]); return; }
+    if (forme && ecran === 'forme') {
+      if (t.hasAttribute('data-v')) { choisir(t.getAttribute('data-v')); return; }
+      if (t.hasAttribute('data-val')) { var et = etapes()[forme.etape], rr = repDe(et.i.id); rr.lignes[+t.getAttribute('data-ligne')][t.getAttribute('data-col')] = t.getAttribute('data-val'); sauverForme(); rendre(); return; }
+      if (t.hasAttribute('data-retirer-ligne')) { var et2 = etapes()[forme.etape]; repDe(et2.i.id).lignes.splice(+t.getAttribute('data-retirer-ligne'), 1); sauverForme(); rendre(); return; }
+      if (t.hasAttribute('data-photo')) {
+        var it = t.getAttribute('data-photo'), inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*'; inp.setAttribute('capture', 'environment'); inp.multiple = true;
+        inp.onchange = function () { ajouterPhotos(inp.files, it).then(rendre); }; inp.click(); return;
+      }
+      if (a === 'f-suiv') { avancer(); return; }
+      if (a === 'f-prec') { forme.etape = Math.max(0, forme.etape - 1); sauverForme(); message = null; rendre(); return; }
+      if (a === 'f-ligne') { var et3 = etapes()[forme.etape]; var r3 = repDe(et3.i.id); (r3.lignes = r3.lignes || []).push({}); sauverForme(); rendre(); return; }
+      if (a === 'f-effacer') { var et4 = etapes()[forme.etape]; delete repDe(et4.i.id).v; sauverForme(); rendre(); return; }
+      if (a === 'f-envoyer') { envoyerForme(); return; }
+      if (a === 'f-quitter') { sauverForme(); forme = null; ecran = chantierOuvert ? 'chantier' : 'horaire'; message = { t: 'Formulaire enregistré sur le téléphone : tu pourras le reprendre.' }; rendre(); return; }
+    }
     if (a === 'retour') { ecran = 'horaire'; chantierOuvert = null; rendre(); return; }
     if (a === 'prec' || a === 'suiv') { lundi = B.ajouterJours(lundi, a === 'prec' ? -7 : 7); rendre(); return; }
     if (a === 'actualiser') { actualiser(); return; }
   }
   function demarrer(a) {
     api = a; B = window.Bonneville; G = B.creerApi(a);
+    chargerDefinitions();
     if (!lundi) { var auj = B.jourIso(); lundi = lundiDe([0, 6].indexOf(B.dateDe(auj).getDay()) >= 0 ? B.ajouterJours(auj, 2) : auj); }
     if (!branche) { document.addEventListener('click', surClic); branche = true; setInterval(function () { if (navigator.onLine !== false && G) { charger().then(rendre).catch(function () {}); } }, 120000); }
     rendre();
     G.session().then(function (s) {
       moi = s.userName || ''; monNom = lire('fd-nom') || '';
       return G.appel('Get', { typeName: 'User', search: { name: moi } }).then(function (u) { if (u && u[0]) { monNom = ((u[0].firstName || '') + ' ' + (u[0].lastName || '')).trim() || moi; ecrire('fd-nom', monNom); } }).catch(function () {});
-    }).then(charger).then(rendre).catch(function () { rendre(); });
+    }).then(charger).then(function () { return chargerResumes().catch(function () {}); }).then(function () { rendre(); viderFile(); envoyerPhotos(); }).catch(function () { rendre(); });
   }
   var fabrique = function () {
     return {
@@ -267,9 +672,9 @@
     };
   };
   window.BonnevilleModule = {
-    aller: function (nom) { ecran = nom === 'formulaires' ? 'formulaires' : 'horaire'; chantierOuvert = null; if (B) { rendre(); } },
+    aller: function (nom) { if (forme) { sauverForme(); forme = null; } ecran = nom === 'formulaires' ? 'formulaires' : 'horaire'; chantierOuvert = null; if (B) { rendre(); } },
     theme: function () {},
-    etat: function () { return { avis: avisNonLus().length, cetteSemaine: mesBlocs().filter(function (x) { var l = lundiDe(B.jourIso()); return x.v.au >= l && x.v.du <= B.ajouterJours(l, 4); }).length }; }
+    etat: function () { return { refusees: mesResumes.reduce(function (s, r) { var ph = r.d.photos || {}; return s + Object.keys(ph).filter(function (m) { return ph[m].etat === 'refusee' && !ph[m].remplacee; }).length; }, 0), avis: avisNonLus().length, cetteSemaine: mesBlocs().filter(function (x) { var l = lundiDe(B.jourIso()); return x.v.au >= l && x.v.du <= B.ajouterJours(l, 4); }).length }; }
   };
   window.geotab = window.geotab || {}; window.geotab.addin = window.geotab.addin || {};
   ['finitionDrive', 'FinitionDrive', 'finition-drive', 'bonnevilleFinition'].forEach(function (n) { window.geotab.addin[n] = fabrique; });
