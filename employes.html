@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Bonneville - Employés</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="https://ericgloutnez.github.io/LFS/bonneville-commun.js?v=1.1.0"></script>
+<script src="https://ericgloutnez.github.io/LFS/bonneville-commun.js?v=1.2.0"></script>
 </head>
 <body>
 <div id="be">
@@ -97,7 +97,7 @@
 geotab.addin.employes = function () {
   'use strict';
   var B = window.Bonneville;
-  var VERSION = '1.1.2';
+  var VERSION = '1.2.0';
   var G = null, moi = '', onglet = 'employes';
   var users = [], employes = {}, profils = [], paies = {}, param = null, groupesGeotab = [];
   var modifies = {}, filtre = { texte: '', profil: '', inactifs: false, masques: false }, message = null, notes = {}, selection = {};
@@ -135,18 +135,26 @@ geotab.addin.employes = function () {
         .sort(function (a, b) { return a.nom.localeCompare(b.nom, 'fr'); });
       if (!profils.length) { return creerProfilsDefaut().then(charger); }
       var ancienAdmin = profils.filter(function (p) { return /Tempo/.test(p.d.nom || '') || (p.d.pid === 'administrateur' && p.d.nom === 'Administrateur'); })[0];
-      if (ancienAdmin) {
+      if (ancienAdmin && !creeAdmin) {
+        creeAdmin = true;
         var na = JSON.parse(JSON.stringify(ancienAdmin.d)); na.nom = /Tempo/.test(na.nom || '') ? na.nom.replace(/Tempo/g, 'Heures & Dépenses') : 'Administrateur Heures & Dépenses';
         return G.modifier(ancienAdmin.id, na).then(charger);
       }
-      if (!profils.some(function (p) { return p.d.pid === 'administrateur' || p.d.role === 'administrateur'; })) {
-        var pa = B.PROFILS_DEFAUT[0];
+      if (!creeEntrepreneur && !profils.some(function (p) { return p.d.pid === 'entrepreneur' || p.d.role === 'entrepreneur'; })) {
+        creeEntrepreneur = true;
+        var pe = B.PROFILS_DEFAUT.filter(function (x) { return x.pid === 'entrepreneur'; })[0];
+        return G.ajouter({ type: 'profil', pid: pe.pid, nom: pe.nom, role: pe.role, droits: pe.droits }).then(charger);
+      }
+      if (!creeAdmin && !profils.some(function (p) { return p.d.pid === 'administrateur' || p.d.role === 'administrateur'; })) {
+        creeAdmin = true;
+        var pa = B.PROFILS_DEFAUT.filter(function (x) { return x.pid === 'administrateur'; })[0];
         return G.ajouter({ type: 'profil', pid: pa.pid, nom: pa.nom, role: pa.role, droits: pa.droits }).then(charger);
       }
       modifies = {};
       rendre();
     });
   }
+  var creeEntrepreneur = false, creeAdmin = false;
   var ancienAcces = null, reglesRec = null, reglesEdition = null, reglesDepuis = '';
   function creerProfilsDefaut() {
     var c = Promise.resolve();

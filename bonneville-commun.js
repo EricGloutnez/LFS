@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   var ADDIN_ID = 'aXdeNEZ7tQ7eMPNywYFFKrA';
-  var VERSION = '1.1.0';
+  var VERSION = '1.2.0';
   var TELEPHONE = '(438) 978-2162';
 
   // ---------- Accès à Geotab
@@ -86,13 +86,15 @@
     { cle: 'formEvaluation', nom: 'Auto-évaluation (L6)' },
     { cle: 'heures', nom: 'Heures & Dépenses' },
     { cle: 'chef', nom: 'Chef d’équipe (approuve son équipe)' },
-    { cle: 'tousVoyages', nom: 'Commissionnaire (voit tous les voyages, répartit ses heures)' }
+    { cle: 'tousVoyages', nom: 'Commissionnaire (voit tous les voyages, répartit ses heures)' },
+    { cle: 'finition', nom: 'Finition (entrepreneur : Mon horaire, formulaires F0 à F5)' }
   ];
   var ROLES = [
     { cle: 'chauffeur', nom: 'Chauffeur' }, { cle: 'escorte', nom: 'Escorte' }, { cle: 'chef', nom: 'Chef d’équipe' },
-    { cle: 'installation', nom: 'Installation' }, { cle: 'commissionnaire', nom: 'Commissionnaire' }, { cle: 'bureau', nom: 'Bureau' }, { cle: 'administrateur', nom: 'Administrateur Heures & Dépenses' }
+    { cle: 'installation', nom: 'Installation' }, { cle: 'commissionnaire', nom: 'Commissionnaire' }, { cle: 'bureau', nom: 'Bureau' }, { cle: 'administrateur', nom: 'Administrateur Heures & Dépenses' }, { cle: 'entrepreneur', nom: 'Entrepreneur (Finition)' }
   ];
   var PROFILS_DEFAUT = [
+    { pid: 'entrepreneur', nom: 'Entrepreneur (Finition)', role: 'entrepreneur', droits: { finition: true } },
     { pid: 'administrateur', nom: 'Administrateur Heures & Dépenses', role: 'administrateur', droits: { admin: true, heures: true } },
     { pid: 'chauffeur', nom: 'Chauffeur', role: 'chauffeur', droits: { gps: true, formTransport: true, heures: true } },
     { pid: 'escorte', nom: 'Escorte', role: 'escorte', droits: { gps: true, heures: true } },
@@ -296,6 +298,24 @@
   }
   function pointDe(p) { if (!p) { return null; } var lat = p.lat !== undefined ? p.lat : p.latitude, lon = p.lon !== undefined ? p.lon : (p.lng !== undefined ? p.lng : p.longitude); return (lat === undefined || lon === undefined) ? null : { lat: Number(lat), lon: Number(lon) }; }
 
+  // ---------- Jours fériés du Québec
+  function paques(an) {
+    var a = an % 19, b = Math.floor(an / 100), c = an % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
+    var h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+    var mois = Math.floor((h + l - 7 * m + 114) / 31), jour = ((h + l - 7 * m + 114) % 31) + 1;
+    return jourIso(new Date(an, mois - 1, jour));
+  }
+  function nIemeLundi(an, mois, n) { var d = new Date(an, mois, 1); while (d.getDay() !== 1) { d.setDate(d.getDate() + 1); } d.setDate(d.getDate() + 7 * (n - 1)); return jourIso(d); }
+  function feriesQuebec(an) {
+    var p = paques(an), patriotes = new Date(an, 4, 24); while (patriotes.getDay() !== 1) { patriotes.setDate(patriotes.getDate() - 1); }
+    var l = [
+      [an + '-01-01', 'Jour de l’An'], [ajouterJours(p, -2), 'Vendredi saint'], [ajouterJours(p, 1), 'Lundi de Pâques'],
+      [jourIso(patriotes), 'Journée nationale des patriotes'], [an + '-06-24', 'Fête nationale'], [an + '-07-01', 'Fête du Canada'],
+      [nIemeLundi(an, 8, 1), 'Fête du Travail'], [nIemeLundi(an, 9, 2), 'Action de grâce'], [an + '-12-25', 'Noël']
+    ];
+    var o = {}; l.forEach(function (x) { o[x[0]] = x[1]; }); return o;
+  }
+
   window.Bonneville = {
     ADDIN_ID: ADDIN_ID, VERSION: VERSION, TELEPHONE: TELEPHONE,
     creerApi: creerApi,
@@ -305,6 +325,7 @@
     heureMaintenant: heureMaintenant, minutesDe: minutesDe, hhmm: hhmm, duree: duree, heureFr: heureFr,
     JOURS: JOURS, JOURS_COURTS: JOURS_COURTS, MOIS: MOIS, dateCourte: dateCourte, argent: argent,
     tauxA: tauxA, tauxHoraireA: tauxHoraireA, calculer: calculer, STATUTS: STATUTS, modifiable: modifiable, chefDe: chefDe,
-    REGLES_DEFAUT: REGLES_DEFAUT, reglesA: reglesA, remunA: remunA, tauxRegles: tauxRegles, calculerPaie: calculerPaie, typeSortie: typeSortie, NOMS_SORTIE: NOMS_SORTIE, distanceM: distanceM, pointDe: pointDe
+    REGLES_DEFAUT: REGLES_DEFAUT, reglesA: reglesA, remunA: remunA, tauxRegles: tauxRegles, calculerPaie: calculerPaie, typeSortie: typeSortie, NOMS_SORTIE: NOMS_SORTIE, distanceM: distanceM, pointDe: pointDe,
+    feriesQuebec: feriesQuebec
   };
 })();

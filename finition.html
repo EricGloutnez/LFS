@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Bonneville - Finition</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<script src="https://ericgloutnez.github.io/LFS/bonneville-commun.js?v=1.2.0"></script>
+</head>
+<body style="margin:0">
+<div id="fi">
+<style>
+  #fi { --encre: #18202B; --t2: #4A5565; --t3: #6B7584; --fond: #F3F4F6; --surf: #FFFFFF; --surf2: #F8F9FB; --bord: #DDE1E7; --ligne: #E8EBEF; --champ: #C8CED7;
+    --rouge: #9E1F27; --bleu: #1F5FA8; --bleuPale: #DCE8F7; --bleuTexte: #173F70; --sel: #EAF1FA; --ambre: #FFF4DC; --ambreBord: #B7791F; --ambreTexte: #5C3B00; --ambrePastille: #8A5A00;
+    --vert: #1E6B3A; --vertPale: #E5F2EA;
+    font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif; color: var(--encre); background: var(--fond); min-height: 100vh; font-size: 14px; }
+  #fi * { box-sizing: border-box; font-family: inherit; }
+  #fi .mono { font-family: 'IBM Plex Mono', Consolas, monospace; font-weight: 500; }
+  #fi button, #fi input, #fi select, #fi textarea { font-size: 14px; color: var(--encre); }
+  #fi .entete { height: 64px; background: var(--encre); color: #fff; display: flex; align-items: center; gap: 12px; padding: 0 28px; }
+  #fi .logo { width: 30px; height: 30px; border-radius: 6px; background: var(--rouge); color: #fff; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  #fi .entete small { display: block; font-size: 12px; color: #C9D1DC; } #fi .entete b { font-size: 17px; font-weight: 600; }
+  #fi .sous { height: 48px; background: var(--surf); border-bottom: 1px solid var(--bord); display: flex; gap: 8px; padding: 0 28px; }
+  #fi .sous button { height: 48px; border: none; background: none; padding: 0 16px; font-weight: 600; color: var(--t2); cursor: pointer; display: inline-flex; align-items: center; gap: 8px; border-bottom: 3px solid transparent; }
+  #fi .sous button[aria-current="page"] { color: var(--encre); border-bottom-color: var(--rouge); }
+  #fi .compte[hidden] { display: none; }
+  #fi .compte { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--ambrePastille); color: #fff; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+  #fi .bandeau { background: var(--ambre); border-bottom: 1px solid #E8C77A; padding: 12px 28px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  #fi .bandeau b { color: var(--ambreTexte); font-size: 15px; } #fi .bandeau span { color: var(--ambreTexte); font-size: 13px; }
+  #fi .page { padding: 16px 28px 28px; display: flex; flex-direction: column; gap: 16px; }
+  #fi .outils { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  #fi .outils h1 { margin: 0; font-size: 20px; font-weight: 600; }
+  #fi .btn { min-height: 44px; padding: 0 16px; border-radius: 6px; border: 1px solid var(--champ); background: var(--surf); font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+  #fi .btn.carre { width: 44px; padding: 0; }
+  #fi .btn.principal { background: var(--rouge); border-color: var(--rouge); color: #fff; }
+  #fi .btn.vert { background: var(--vert); border-color: var(--vert); color: #fff; }
+  #fi .btn.refus { color: var(--rouge); border-color: var(--rouge); }
+  #fi .btn.ambre { border-color: var(--ambreBord); color: var(--ambreTexte); background: #fff; }
+  #fi .btn:disabled { opacity: .45; cursor: default; }
+  #fi .vues { display: inline-flex; border: 1px solid var(--champ); border-radius: 6px; overflow: hidden; }
+  #fi .vues button { min-height: 44px; padding: 0 16px; border: none; background: var(--surf); cursor: pointer; font-weight: 500; }
+  #fi .vues button[aria-pressed="true"] { background: var(--encre); color: #fff; font-weight: 600; }
+  #fi label.champ { display: flex; align-items: center; gap: 8px; color: var(--t2); font-size: 13px; }
+  #fi input[type=text], #fi input[type=date], #fi input[type=number], #fi input[type=datetime-local], #fi select, #fi textarea { min-height: 44px; border: 1px solid var(--champ); border-radius: 6px; padding: 0 12px; background: #fff; }
+  #fi textarea { padding: 10px 12px; min-height: 90px; resize: vertical; width: 100%; }
+  #fi .corps { display: flex; gap: 20px; align-items: flex-start; }
+  #fi .file { width: 260px; flex: 0 0 auto; background: var(--surf); border: 1px solid var(--bord); border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  #fi .file h2 { margin: 0; font-size: 16px; font-weight: 600; display: flex; justify-content: space-between; align-items: baseline; }
+  #fi .file h2 small { font-size: 12px; font-weight: 400; color: var(--t2); }
+  #fi .aide { font-size: 12px; color: var(--t2); line-height: 1.4; }
+  #fi .carte-file { border: 1px solid var(--bord); border-radius: 6px; padding: 10px 12px; background: var(--surf2); display: flex; gap: 8px; cursor: grab; text-align: left; width: 100%; }
+  #fi .carte-file.choisie { border: 3px solid var(--bleu); background: var(--sel); }
+  #fi .carte-file .poignee { color: var(--t3); font-size: 16px; line-height: 1; padding-top: 2px; }
+  #fi .carte-file b { display: block; font-size: 14px; } #fi .carte-file .s { font-size: 12px; color: var(--t2); display: block; }
+  #fi .grille-boite { flex: 1; min-width: 0; background: var(--surf); border: 1px solid var(--bord); border-radius: 8px; overflow-x: auto; }
+  #fi .grille { display: grid; min-width: 860px; }
+  #fi .tete { background: var(--surf2); border-bottom: 1px solid var(--bord); padding: 10px 12px; font-size: 12px; color: var(--t2); }
+  #fi .tete b { display: block; font-size: 14px; color: var(--encre); font-weight: 600; }
+  #fi .tete.ferie b { color: var(--t3); } #fi .tete .complet { color: var(--rouge); font-weight: 600; }
+  #fi .ent { border-bottom: 1px solid var(--ligne); padding: 12px; display: flex; flex-direction: column; justify-content: center; }
+  #fi .ent b { font-weight: 600; } #fi .ent span { font-size: 12px; color: var(--t2); }
+  #fi .cellule { border-bottom: 1px solid var(--ligne); border-left: 1px solid var(--ligne); min-height: 82px; }
+  #fi .cellule.ferie { background: repeating-linear-gradient(135deg, #E2E5EA 0 8px, #F7F8FA 8px 16px); }
+  #fi .cellule.cible { background: var(--sel); outline: 2px dashed var(--bleu); outline-offset: -3px; }
+  #fi .cellule button.poser { width: 100%; height: 100%; min-height: 80px; border: none; background: transparent; cursor: pointer; color: var(--bleu); font-weight: 600; }
+  #fi .bloc { margin: 6px 4px; border-radius: 6px; padding: 8px 10px; position: relative; z-index: 1; cursor: pointer; text-align: left; border: 2px solid transparent; display: flex; flex-direction: column; gap: 2px; min-height: 66px; overflow: hidden; }
+  #fi .bloc .l1 { font-size: 12px; } #fi .bloc .l2 { font-weight: 600; font-size: 14px; } #fi .bloc .l3 { font-size: 12px; }
+  #fi .bloc.confirme { background: var(--bleu); color: #fff; }
+  #fi .bloc.attente { background: var(--bleuPale); color: var(--bleuTexte); border-color: var(--bleu); }
+  #fi .bloc.brouillon { background: repeating-linear-gradient(135deg, #FFF4DC 0 10px, #FCE9C0 10px 20px); color: var(--ambreTexte); border: 2px dashed var(--ambreBord); }
+  #fi .bloc.retire { opacity: .55; text-decoration: line-through; }
+  #fi .bloc.trouve { box-shadow: 0 0 0 3px #F2A900; }
+  #fi .pastille { position: absolute; top: 6px; right: 6px; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 3px; text-transform: uppercase; }
+  #fi .pastille.ambre { background: var(--ambrePastille); color: #fff; } #fi .pastille.bleu { background: var(--bleu); color: #fff; }
+  #fi .alerte { color: var(--rouge); font-weight: 600; }
+  #fi .legende { display: flex; gap: 20px; flex-wrap: wrap; padding: 12px 14px; background: var(--surf2); border-top: 1px solid var(--bord); font-size: 13px; }
+  #fi .legende span { display: inline-flex; align-items: center; gap: 8px; }
+  #fi .ech { width: 28px; height: 16px; border-radius: 3px; display: inline-block; }
+  #fi .panneau { background: var(--surf); border: 1px solid var(--bord); border-radius: 8px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+  #fi .panneau h2 { margin: 0; font-size: 16px; font-weight: 600; }
+  #fi .rang { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+  #fi .rang label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--t2); }
+  #fi .message { border-radius: 6px; padding: 10px 14px; font-weight: 600; }
+  #fi .message.ok { background: var(--vertPale); color: var(--vert); } #fi .message.erreur { background: #FFF7F7; color: var(--rouge); }
+  #fi .changement { display: flex; gap: 14px; padding: 14px 16px; border-top: 1px solid var(--ligne); align-items: flex-start; }
+  #fi .changement.alerteFond { background: #FFF7F7; }
+  #fi .changement input[type=checkbox] { width: 24px; height: 24px; margin: 2px 0 0; accent-color: var(--bleu); flex: 0 0 auto; }
+  #fi .etiquette { font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 3px; color: #fff; text-transform: uppercase; }
+  #fi .fond-modale { position: fixed; inset: 0; background: rgba(24,32,43,.45); z-index: 50; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  #fi .modale { background: var(--surf); border-radius: 8px; width: min(560px, 100%); max-height: 92vh; overflow: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+  #fi .modale h2 { margin: 0; font-size: 18px; font-weight: 600; }
+  #fi .mois { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  #fi .mois .jour { min-height: 110px; border-bottom: 1px solid var(--ligne); border-left: 1px solid var(--ligne); padding: 6px; display: flex; flex-direction: column; gap: 4px; }
+  #fi .mois .jour .n { font-size: 12px; color: var(--t2); font-weight: 600; }
+  #fi .mois .puce { font-size: 11px; border-radius: 4px; padding: 2px 6px; }
+  #fi .lien { color: var(--bleu); background: none; border: none; text-decoration: underline; cursor: pointer; padding: 0; font-weight: 600; }
+  @media (max-width: 1000px) { #fi .corps { flex-direction: column; } #fi .file { width: 100%; } }
+</style>
+<header class="entete fi-entete"><span class="logo" aria-hidden="true">B</span><span><small>Bonneville</small><b>Finition</b></span></header>
+<nav class="sous" aria-label="Finition">
+  <button type="button" data-o="horaire" aria-current="page">Horaire <span class="compte" id="fi-compte" hidden></span></button>
+  <button type="button" data-o="formulaires">Formulaires F0 à F5</button>
+</nav>
+<div id="fi-contenu"><div class="page"><div class="aide">Chargement…</div></div></div>
+</div>
+
+<script>
+geotab.addin.finition = function () {
+  'use strict';
+  var VERSION = '1.0.0';
+  var B = window.Bonneville, G = null, api = null, moi = '';
+  var TRAVAUX = ['Raccordement', 'Raccordement de menuiserie', 'Correctifs après F5', 'F3 · Travaux en extra', 'Autre'];
+  var onglet = 'horaire', vue = 'horaire', mode = 'semaine', lundi = null, jourSel = null, afficher = 'brouillon', recherche = '';
+  var users = [], employes = {}, profils = [], entrepreneurs = [], blocs = [], chantiers = [], publications = [], voyages = {}, formsRes = [], param = null;
+  var carteChoisie = null, message = null, glisse = null, choixPublier = {};
+
+  var IC_ALERTE = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" style="vertical-align:-2px"><path d="M12 3 L22 20 H2 Z M12 9 v5 M12 17 v.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>';
+  var IC_OK = '<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5 L10 17 L19 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  function $(id) { return document.getElementById(id); }
+  function h(t) { return String(t === undefined || t === null ? '' : t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function nomUser(u) { var x = users.filter(function (y) { return y.user === u; })[0]; return x ? x.nom : u; }
+  function lundiDe(iso) { var d = B.dateDe(iso), j = d.getDay(); d.setDate(d.getDate() - (j === 0 ? 6 : j - 1)); return B.jourIso(d); }
+  function feries(iso) {
+    var an = +String(iso).slice(0, 4), f = B.feriesQuebec(an);
+    ((param && param.d.feries) || []).forEach(function (x) { if (x.date) { f[x.date] = x.nom || 'Férié'; } });
+    return f[iso] || null;
+  }
+  function ouvrable(iso) { var j = B.dateDe(iso).getDay(); return j !== 0 && j !== 6 && !feries(iso); }
+  function finApres(debut, jours) { var d = debut, n = 1; while (n < Math.max(1, jours)) { d = B.ajouterJours(d, 1); if (ouvrable(d)) { n++; } } return d; }
+  function joursOuvrables(du, au) { var n = 0, d = du; while (d <= au) { if (ouvrable(d)) { n++; } d = B.ajouterJours(d, 1); } return Math.max(1, n); }
+  function jourCourt(iso) { var d = B.dateDe(iso); return B.JOURS_COURTS[d.getDay()] + ' ' + d.getDate(); }
+  var MOIS_LONGS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+  function dateLongue(iso) { var d = B.dateDe(iso); return B.JOURS_COURTS[d.getDay()].toLowerCase() + '. ' + d.getDate() + ' ' + B.MOIS[d.getMonth()]; }
+  function periode(du, au) { return du === au ? dateLongue(du) : (dateLongue(du) + ' au ' + dateLongue(au)); }
+  function dire(t, erreur) { message = { t: t, e: !!erreur }; rendre(); }
+
+  // ---------- Données
+  function charger() {
+    return Promise.all([
+      G.lireTypes(['employe', 'profil', 'finBloc', 'finChantier', 'finPublication', 'finParametres', 'voyage', 'formresume']),
+      G.utilisateurs().catch(function () { return []; })
+    ]).then(function (r) {
+      employes = {}; profils = []; blocs = []; chantiers = []; publications = []; voyages = {}; formsRes = []; param = null;
+      users = r[1];
+      r[0].forEach(function (l) {
+        var d = l.details;
+        if (d.type === 'employe' && d.user) { employes[d.user] = d; }
+        else if (d.type === 'profil') { profils.push(d); }
+        else if (d.type === 'finBloc') { blocs.push({ id: l.id, d: d }); }
+        else if (d.type === 'finChantier') { chantiers.push({ id: l.id, d: d }); }
+        else if (d.type === 'finPublication') { publications.push({ id: l.id, d: d }); }
+        else if (d.type === 'finParametres') { param = { id: l.id, d: d }; }
+        else if (d.type === 'voyage' && d.ref) { var s = String(d.ref).split('-')[0]; if (!voyages[s] || String(d.date) > String(voyages[s].date)) { voyages[s] = d; } }
+        else if (d.type === 'formresume') { formsRes.push(d); }
+      });
+      entrepreneurs = Object.keys(employes).filter(function (u) { return !employes[u].masque && B.droitsEffectifs(employes[u], profils).finition; })
+        .map(function (u) { var p = profils.filter(function (x) { return x.pid === employes[u].profil; })[0]; return { user: u, nom: nomUser(u), specialite: employes[u].specialiteFinition || (p ? p.nom.replace(/\s*\(Finition\)/, '') : 'Entrepreneur') }; })
+        .sort(function (a, b) { return a.nom.localeCompare(b.nom, 'fr'); });
+      publications.sort(function (a, b) { return String(b.d.le).localeCompare(String(a.d.le)); });
+    });
+  }
+  // Livraison des modules (Logistique) : confirmée quand chaque module a son L2 (déchargement)
+  function livraison(serie) {
+    var v = voyages[serie], n = v ? (v.nbModules || 1) : 0;
+    var l2 = formsRes.filter(function (f) { return String(f.serie) === String(serie) && f.code === 'L2'; });
+    var mods = {}; l2.forEach(function (f) { mods[f.module || '1'] = f.date; });
+    var faits = Object.keys(mods).length, derniere = l2.map(function (f) { return String(f.date).slice(0, 10); }).sort().pop();
+    if (v && faits >= n) { return { ok: true, texte: 'Modules livrés le ' + dateLongue(derniere), date: derniere }; }
+    if (v && v.departDate) { return { ok: false, texte: 'Livraison prévue le ' + dateLongue(v.departDate), date: v.departDate }; }
+    return { ok: false, texte: v ? 'Livraison non confirmée' : 'Aucun voyage dans Logistique', date: null };
+  }
+  function chantierDe(serie, cid) { return chantiers.filter(function (c) { return cid ? c.d.cid === cid : c.d.serie === serie; })[0]; }
+  function vueBloc(b) {
+    var d = b.d;
+    if (afficher === 'publie') { return d.publie ? { ent: d.publie.ent, du: d.publie.du, au: d.publie.au, etat: d.confirme ? 'confirme' : 'attente' } : null; }
+    if (d.retrait) { return d.publie ? { ent: d.publie.ent, du: d.publie.du, au: d.publie.au, etat: 'retire' } : null; }
+    if (d.brouillon) { return { ent: d.brouillon.ent, du: d.brouillon.du, au: d.brouillon.au, etat: 'brouillon', nouveau: !d.publie }; }
+    if (d.publie) { return { ent: d.publie.ent, du: d.publie.du, au: d.publie.au, etat: d.confirme ? 'confirme' : 'attente' }; }
+    return null;
+  }
+  function changements() { return blocs.filter(function (b) { return b.d.brouillon || b.d.retrait; }); }
+  function sauverBloc(b) { return G.enregistrer(b.id ? b : null, b.d).then(function (id) { b.id = id; return b; }); }
+
+  // ---------- Rendu
+  function rendre() {
+    Array.prototype.forEach.call(document.querySelectorAll('#fi .sous button'), function (x) { if (x.getAttribute('data-o') === onglet) { x.setAttribute('aria-current', 'page'); } else { x.removeAttribute('aria-current'); } });
+    var n = changements().length, c = $('fi-compte'); c.hidden = !n; c.textContent = n;
+    var html = '';
+    if (onglet === 'formulaires') { html = vueFormulaires(); }
+    else if (vue === 'publier') { html = vuePublier(); }
+    else { html = vueHoraire(); }
+    $('fi-contenu').innerHTML = html;
+    brancher();
+  }
+  function bandeau() {
+    var n = changements().length; if (!n || afficher === 'publie') { return ''; }
+    var derniere = publications[0];
+    return '<div class="bandeau" role="status"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z M14 6l4 4" fill="none" stroke="#5C3B00" stroke-width="1.8" stroke-linejoin="round"/></svg>'
+      + '<div style="flex:1;min-width:240px"><b>Finition · mode brouillon · ' + n + ' changement' + (n > 1 ? 's' : '') + ' non publié' + (n > 1 ? 's' : '') + '</b><br><span>'
+      + (derniere ? 'Les entrepreneurs voient encore l’horaire publié le ' + h(dateLongue(String(derniere.d.le).slice(0, 10))) + ' à ' + h(new Date(derniere.d.le).toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' }).replace(':', ' h ')) + '.' : 'Rien n’a encore été publié : les entrepreneurs ne voient aucun chantier.') + '</span></div>'
+      + '<button type="button" class="btn ambre" data-a="annuler">Annuler les changements</button>'
+      + '<button type="button" class="btn principal" data-a="reviser">Réviser et publier (' + n + ') →</button></div>';
+  }
+  function rappels() {
+    var lim = Date.now() - 24 * 3600000, l = [];
+    publications.forEach(function (p) {
+      if (!p.d.rappel || new Date(p.d.visibleLe || p.d.le).getTime() > lim) { return; }
+      (p.d.destinataires || []).forEach(function (u) { if (!(p.d.accuses || {})[u]) { l.push(nomUser(u) + ' n’a pas confirmé la publication du ' + dateLongue(String(p.d.le).slice(0, 10))); } });
+    });
+    return l.length ? '<div class="message erreur" role="alert">' + l.map(h).join('<br>') + '</div>' : '';
+  }
+  function jours() {
+    if (mode === 'jour') { return [jourSel]; }
+    var l = []; for (var i = 0; i < 5; i++) { l.push(B.ajouterJours(lundi, i)); } return l;
+  }
+  function titrePeriode() {
+    if (mode === 'jour') { var d = B.dateDe(jourSel); return B.JOURS[d.getDay()] + ' ' + d.getDate() + ' ' + MOIS_LONGS[d.getMonth()] + ' ' + d.getFullYear(); }
+    if (mode === 'mois') { var m = B.dateDe(jourSel || lundi); return MOIS_LONGS[m.getMonth()].charAt(0).toUpperCase() + MOIS_LONGS[m.getMonth()].slice(1) + ' ' + m.getFullYear(); }
+    var a = B.dateDe(lundi), v = B.dateDe(B.ajouterJours(lundi, 4));
+    return 'Semaine du ' + a.getDate() + (a.getMonth() !== v.getMonth() ? ' ' + MOIS_LONGS[a.getMonth()] : '') + ' au ' + v.getDate() + ' ' + MOIS_LONGS[v.getMonth()] + ' ' + v.getFullYear();
+  }
+  function vueHoraire() {
+    var html = bandeau() + '<div class="page">';
+    if (message) { html += '<div class="message ' + (message.e ? 'erreur' : 'ok') + '" role="status">' + h(message.t) + '</div>'; }
+    html += rappels();
+    html += '<div class="outils"><button type="button" class="btn carre" data-a="prec" aria-label="Période précédente">‹</button><h1>' + h(titrePeriode()) + '</h1><button type="button" class="btn carre" data-a="suiv" aria-label="Période suivante">›</button>'
+      + '<button type="button" class="btn" data-a="aujourdhui">Aujourd’hui</button><span style="flex:1"></span>'
+      + '<div class="vues" role="group" aria-label="Vue">' + [['jour', 'Jour'], ['semaine', 'Semaine'], ['mois', 'Mois']].map(function (x) { return '<button type="button" data-mode="' + x[0] + '" aria-pressed="' + (mode === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div>'
+      + '<label class="champ">Afficher<select id="fi-afficher"><option value="brouillon"' + (afficher === 'brouillon' ? ' selected' : '') + '>Brouillon (avec changements)</option><option value="publie"' + (afficher === 'publie' ? ' selected' : '') + '>Publié (ce que voient les entrepreneurs)</option></select></label>'
+      + '<label class="champ">Rechercher<input type="text" id="fi-recherche" value="' + h(recherche) + '" placeholder="Série, ville…"></label></div>';
+    html += '<div class="corps">' + vueFile() + '<div class="grille-boite">' + (mode === 'mois' ? grilleMois() : grilleSemaine()) + legende() + '</div></div></div>';
+    return html;
+  }
+  function vueFile() {
+    var file = chantiers.filter(function (c) { return c.d.statut !== 'planifie' && !c.d.archive; });
+    var html = '<aside class="file" aria-label="À planifier"><h2>À planifier <small>' + file.length + ' chantier' + (file.length > 1 ? 's' : '') + '</small></h2>'
+      + '<div class="aide">' + (carteChoisie ? 'Choisis maintenant la case de l’entrepreneur et du jour de début.' : 'Glissez une carte sur la ligne d’un entrepreneur, ou touchez-la puis touchez la case du jour. Elle arrive en brouillon.') + '</div>';
+    file.forEach(function (c) {
+      var d = c.d, lv = livraison(d.serie);
+      html += '<button type="button" class="carte-file' + (carteChoisie === d.cid ? ' choisie' : '') + '" draggable="true" data-carte="' + h(d.cid) + '" aria-pressed="' + (carteChoisie === d.cid) + '"><span class="poignee" aria-hidden="true"><svg width="12" height="18" viewBox="0 0 12 18"><g fill="currentColor"><circle cx="3" cy="3" r="1.6"/><circle cx="9" cy="3" r="1.6"/><circle cx="3" cy="9" r="1.6"/><circle cx="9" cy="9" r="1.6"/><circle cx="3" cy="15" r="1.6"/><circle cx="9" cy="15" r="1.6"/></g></svg></span><span>'
+        + '<span class="mono">Série ' + h(d.serie) + '</span><b>' + h(d.travail) + '</b><span class="s">' + h(d.ville || '') + ' · ' + d.duree + ' jour' + (d.duree > 1 ? 's' : '') + '</span>'
+        + '<span class="s" style="' + (lv.ok ? 'color:#1E6B3A' : '') + '">' + h(d.info || lv.texte) + '</span></span></button>';
+    });
+    html += '<button type="button" class="btn" data-a="nouveau-chantier">+ Ajouter un chantier</button>'
+      + (carteChoisie ? '<button type="button" class="lien" data-a="annuler-choix">Annuler le choix</button>' : '') + '</aside>';
+    return html;
+  }
+  function correspond(b) {
+    if (!recherche) { return false; }
+    var q = recherche.toLowerCase();
+    return String(b.d.serie).indexOf(q) === 0 || String(b.d.ville || '').toLowerCase().indexOf(q) >= 0;
+  }
+  function grilleSemaine() {
+    var js = jours(), n = js.length;
+    var col = '200px repeat(' + n + ', minmax(' + (n === 1 ? 360 : 130) + 'px, 1fr))';
+    var html = '<div class="grille" style="grid-template-columns:' + col + '"><div class="tete" style="grid-row:1;grid-column:1">Entrepreneur</div>';
+    js.forEach(function (j) {
+      var f = feries(j), occ = entrepreneurs.filter(function (e) { return blocs.some(function (b) { var v = vueBloc(b); return v && v.etat !== 'retire' && v.ent === e.user && v.du <= j && v.au >= j; }); }).length;
+      var total = entrepreneurs.length;
+      html += '<div class="tete' + (f ? ' ferie' : '') + '" style="grid-row:1;grid-column:' + (js.indexOf(j) + 2) + '"><b>' + h(jourCourt(j)) + '</b>' + (f ? h(f) + ' · férié' : (total ? (occ >= total ? '<span class="complet">' + occ + ' / ' + total + ' · complet</span>' : occ + ' / ' + total + ' équipes') : '')) + '</div>';
+    });
+    if (!entrepreneurs.length) {
+      return html + '</div><div class="aide" style="padding:16px">Aucun entrepreneur. Dans Employés, donne le profil « Entrepreneur (Finition) » aux comptes des entrepreneurs.</div>';
+    }
+    var rangee = 2;
+    entrepreneurs.forEach(function (e, ri) {
+      // Blocs de l'entrepreneur visibles dans la période, répartis en couloirs s'ils se chevauchent
+      var mes = blocs.map(function (b) { return { b: b, v: vueBloc(b) }; }).filter(function (x) { return x.v && x.v.ent === e.user && x.v.au >= js[0] && x.v.du <= js[n - 1]; })
+        .sort(function (a, b) { return a.v.du.localeCompare(b.v.du); });
+      var couloirs = [];
+      mes.forEach(function (x) { var k = 0; while (couloirs[k] && couloirs[k] >= x.v.du) { k++; } couloirs[k] = x.v.au; x.k = k; });
+      var nb = Math.max(1, couloirs.length);
+      var r0 = rangee; rangee += nb;
+      html += '<div class="ent" style="grid-column:1;grid-row:' + r0 + ' / span ' + nb + '"><b>' + h(e.nom) + '</b><span>' + h(e.specialite) + '</span></div>';
+      for (var k = 0; k < nb; k++) {
+        js.forEach(function (j, ci) {
+          var f = feries(j);
+          html += '<div class="cellule' + (f ? ' ferie' : '') + '" data-ent="' + h(e.user) + '" data-jour="' + j + '" style="grid-column:' + (ci + 2) + ';grid-row:' + (r0 + k) + (k < nb - 1 ? ';border-bottom:none' : '') + '">'
+            + (carteChoisie && !f && k === 0 ? '<button type="button" class="poser" data-poser="' + h(e.user) + '|' + j + '">Placer ici</button>' : '') + '</div>';
+        });
+      }
+      // Les blocs par-dessus les cellules
+      mes.forEach(function (x) {
+        var a = Math.max(0, js.indexOf(x.v.du < js[0] ? js[0] : x.v.du)), z = js.indexOf(x.v.au > js[n - 1] ? js[n - 1] : x.v.au);
+        if (a < 0) { a = 0; } if (z < 0) { z = n - 1; }
+        html += blocHtml(x.b, x.v, 'grid-column:' + (a + 2) + ' / ' + (z + 3) + ';grid-row:' + (r0 + x.k));
+      });
+    });
+    return html + '</div>';
+  }
+  function blocHtml(b, v, style) {
+    var d = b.d, cls = v.etat, pastille = '', l3 = '';
+    var tot = joursOuvrables(v.du, v.au);
+    if (v.etat === 'brouillon') {
+      pastille = '<span class="pastille ambre">' + (v.nouveau ? 'Nouveau' : 'Déplacé') + '</span>';
+      l3 = v.nouveau ? 'Brouillon' : 'Brouillon · était du ' + periode(d.publie.du, d.publie.au);
+    } else if (v.etat === 'retire') { pastille = '<span class="pastille ambre">Retiré</span>'; l3 = 'Brouillon · retiré de l’horaire'; }
+    else if (v.etat === 'confirme') { pastille = '<span class="pastille" aria-hidden="true">' + IC_OK + '</span>'; l3 = 'Publié · confirmé' + (d.confirme && d.confirme.par ? ' par l’entrepreneur' : ''); }
+    else { pastille = '<span class="pastille" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 2" fill="none" stroke="currentColor" stroke-width="2"/></svg></span>'; l3 = 'Publié · en attente de confirmation'; }
+    var lv = livraison(d.serie), alerte = (v.etat === 'brouillon' && !lv.ok && (!lv.date || lv.date >= v.du)) ? '<span class="l3 alerte">' + IC_ALERTE + ' Livraison des modules non confirmée</span>' : '';
+    return '<button type="button" class="bloc ' + cls + (correspond(b) ? ' trouve' : '') + '" style="' + style + '" draggable="' + (afficher === 'brouillon') + '" data-bloc="' + h(d.bid) + '" aria-label="Série ' + h(d.serie) + ', ' + h(d.travail) + ', ' + h(periode(v.du, v.au)) + ', ' + h(l3) + '">'
+      + pastille + '<span class="l1 mono">Série ' + h(d.serie) + (tot > 1 ? ' · ' + tot + ' jours' : '') + '</span><span class="l2">' + h(d.travail) + ' · ' + h(d.ville || '') + '</span>'
+      + (alerte || '<span class="l3">' + h(l3) + '</span>') + '</button>';
+  }
+  function grilleMois() {
+    var base = B.dateDe(jourSel || lundi), premier = new Date(base.getFullYear(), base.getMonth(), 1), dernier = new Date(base.getFullYear(), base.getMonth() + 1, 0);
+    var d = lundiDe(B.jourIso(premier)), fin = B.jourIso(dernier), html = '<div class="mois">' + ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven'].map(function (x) { return '<div class="tete"><b>' + x + '</b></div>'; }).join('');
+    while (d <= fin || B.dateDe(d).getDay() !== 1) {
+      var w = B.dateDe(d).getDay();
+      if (w >= 1 && w <= 5) {
+        var f = feries(d), dans = d.slice(0, 7) === fin.slice(0, 7);
+        var les = blocs.map(function (b) { return { b: b, v: vueBloc(b) }; }).filter(function (x) { return x.v && x.v.etat !== 'retire' && x.v.du <= d && x.v.au >= d; });
+        html += '<div class="jour' + (f ? ' ferie' : '') + '" style="' + (dans ? '' : 'opacity:.45;') + (f ? 'background:repeating-linear-gradient(135deg,#E2E5EA 0 8px,#F7F8FA 8px 16px)' : '') + '"><span class="n">' + B.dateDe(d).getDate() + (f ? ' · ' + h(f) : '') + '</span>'
+          + les.map(function (x) { return '<span class="puce mono" style="' + (x.v.etat === 'brouillon' ? 'background:#FFF4DC;color:#5C3B00;border:1px dashed #B7791F' : (x.v.etat === 'confirme' ? 'background:#1F5FA8;color:#fff' : 'background:#DCE8F7;color:#173F70')) + '">' + h(x.b.d.serie) + ' · ' + h(nomUser(x.v.ent).split(' ')[0]) + '</span>'; }).join('') + '</div>';
+      }
+      d = B.ajouterJours(d, 1);
+      if (d > fin && B.dateDe(d).getDay() === 1) { break; }
+    }
+    return html + '</div>';
+  }
+  function legende() {
+    return '<div class="legende"><span><i class="ech" style="background:#FFF4DC;border:2px dashed #B7791F"></i>Brouillon (invisible pour l’entrepreneur)</span><span><i class="ech" style="background:#DCE8F7;border:2px solid #1F5FA8"></i>Publié · en attente de confirmation</span>'
+      + '<span><i class="ech" style="background:#1F5FA8"></i>Publié · confirmé</span><span><i class="ech" style="background:repeating-linear-gradient(135deg,#E2E5EA 0 4px,#F7F8FA 4px 8px);border:1px solid #DDE1E7"></i>Férié / indisponible</span></div>';
+  }
+
+  // ---------- Réviser et publier
+  function typeChangement(b) { return b.d.retrait ? 'retrait' : (b.d.publie ? 'deplacement' : 'ajout'); }
+  function vuePublier() {
+    var ch = changements();
+    var touches = {}; ch.forEach(function (b) { if (b.d.brouillon) { touches[b.d.brouillon.ent] = true; } if (b.d.publie) { touches[b.d.publie.ent] = true; } });
+    var sans = entrepreneurs.filter(function (e) { return !touches[e.user]; }).map(function (e) { return e.nom; });
+    ch.forEach(function (b) { if (choixPublier[b.d.bid] === undefined) { var lv = livraison(b.d.serie); choixPublier[b.d.bid] = !(b.d.brouillon && !lv.ok && (!lv.date || lv.date >= b.d.brouillon.du)); } });
+    var html = '<div class="page" style="max-width:1120px;margin:0 auto;width:100%"><button type="button" class="lien" data-a="retour" style="align-self:flex-start">← Retour au brouillon</button>'
+      + '<div><h1 style="margin:0;font-size:24px;font-weight:600">Horaire Finition · ' + h(titrePeriode().replace(/^S/, 's')) + '</h1><div class="aide" style="font-size:14px">' + ch.length + ' changement' + (ch.length > 1 ? 's' : '') + ' touche' + (ch.length > 1 ? 'nt ' : ' ') + Object.keys(touches).length + ' entrepreneur' + (Object.keys(touches).length > 1 ? 's' : '') + '.'
+      + (sans.length ? ' ' + h(sans.join(', ')) + (sans.length > 1 ? ' n’ont' : ' n’a') + ' aucun changement : ' + (sans.length > 1 ? 'ils ne recevront' : 'il ne recevra') + ' rien.' : '') + '</div></div>'
+      + '<div class="corps"><section class="panneau" style="flex:1;padding:0;gap:0"><div style="display:flex;justify-content:space-between;padding:14px 16px;background:#F8F9FB;border-bottom:1px solid #DDE1E7;border-radius:8px 8px 0 0"><h2>Changements à publier</h2><span class="aide">Décochez un changement pour le garder en brouillon</span></div>';
+    if (!ch.length) { html += '<div class="aide" style="padding:16px">Aucun changement à publier.</div>'; }
+    ch.forEach(function (b) {
+      var t = typeChangement(b), d = b.d, n = d.brouillon || d.publie, lv = livraison(d.serie), alerte = d.brouillon && !lv.ok && (!lv.date || lv.date >= d.brouillon.du);
+      var etiq = { ajout: ['Ajout', '#1E6B3A'], deplacement: ['Déplacement', '#8A5A00'], retrait: ['Retrait', '#9E1F27'] }[t];
+      html += '<label class="changement' + (alerte ? ' alerteFond' : '') + '"><input type="checkbox" data-choix="' + h(d.bid) + '"' + (choixPublier[d.bid] ? ' checked' : '') + '><span style="display:flex;flex-direction:column;gap:3px">'
+        + '<span><span class="etiquette" style="background:' + etiq[1] + '">' + etiq[0] + '</span> <b>' + h(nomUser(n.ent)) + '</b>' + (t === 'deplacement' && d.publie.ent !== d.brouillon.ent ? ' <span class="aide">(était ' + h(nomUser(d.publie.ent)) + ')</span>' : '') + '</span>'
+        + '<span><span class="mono">Série ' + h(d.serie) + '</span> · ' + h(d.travail) + ' · ' + h(d.ville || '') + '</span>'
+        + '<span class="aide">' + (t === 'deplacement' ? '<s>' + h(periode(d.publie.du, d.publie.au)) + '</s> → ' + h(periode(d.brouillon.du, d.brouillon.au)) + (d.confirme ? ' · L’entrepreneur avait déjà confirmé l’ancienne date' : '') : (t === 'retrait' ? 'Retiré de l’horaire (était ' + h(periode(d.publie.du, d.publie.au)) + ')' : h(periode(n.du, n.au)) + ' · ' + joursOuvrables(n.du, n.au) + ' jour' + (joursOuvrables(n.du, n.au) > 1 ? 's' : ''))) + '</span>'
+        + (alerte ? '<span class="alerte">' + IC_ALERTE + ' La livraison des modules n’est pas confirmée dans Logistique. Décoché par défaut.</span>' : '') + '</span></label>';
+    });
+    var sel = ch.filter(function (b) { return choixPublier[b.d.bid]; }), avises = {};
+    sel.forEach(function (b) { if (b.d.brouillon) { avises[b.d.brouillon.ent] = true; } if (b.d.publie) { avises[b.d.publie.ent] = true; } });
+    var demain = new Date(Date.now() + 86400000); demain.setHours(16, 0, 0, 0);
+    var progDefaut = B.jourIso(demain) + 'T16:00';
+    html += '</section><aside class="panneau" style="width:300px;flex:0 0 auto"><h2>Envoi aux entrepreneurs</h2>'
+      + '<fieldset style="border:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px"><legend style="font-weight:600;margin-bottom:6px">Quand publier</legend>'
+      + '<label style="display:flex;gap:10px;align-items:center;min-height:44px"><input type="radio" name="fi-quand" value="maintenant" checked style="width:20px;height:20px"> Maintenant</label>'
+      + '<label style="display:flex;gap:10px;align-items:center;min-height:44px"><input type="radio" name="fi-quand" value="programmer" style="width:20px;height:20px"> Programmer :</label><input type="datetime-local" id="fi-prog" value="' + progDefaut + '" aria-label="Date et heure de publication"></fieldset>'
+      + '<fieldset style="border:none;padding:0;margin:0;display:flex;flex-direction:column;gap:4px"><legend style="font-weight:600;margin-bottom:6px">Avis</legend>'
+      + ['Notification dans Geotab Drive|fi-notif|1', 'Exiger une confirmation de réception|fi-exiger|1', 'Me rappeler si non confirmé après 24 h|fi-rappel|0'].map(function (x) { var p = x.split('|'); return '<label style="display:flex;gap:10px;align-items:center;min-height:44px"><input type="checkbox" id="' + p[1] + '"' + (p[2] === '1' ? ' checked' : '') + ' style="width:22px;height:22px;accent-color:#1F5FA8"> ' + p[0] + '</label>'; }).join('') + '</fieldset>'
+      + '<label style="display:flex;flex-direction:column;gap:6px;font-weight:600">Message joint (facultatif)<textarea id="fi-msg" placeholder="Ex. : Merci de valider la feuille de chargement avant mercredi."></textarea></label>'
+      + '<div class="aide" style="border-top:1px solid #E8EBEF;padding-top:10px">' + sel.length + ' changement' + (sel.length > 1 ? 's' : '') + ' sélectionné' + (sel.length > 1 ? 's' : '') + ' · ' + Object.keys(avises).length + ' entrepreneur' + (Object.keys(avises).length > 1 ? 's' : '') + ' avisé' + (Object.keys(avises).length > 1 ? 's' : '') + '</div>'
+      + '<button type="button" class="btn principal" data-a="publier"' + (sel.length ? '' : ' disabled') + '>Publier ' + sel.length + ' changement' + (sel.length > 1 ? 's' : '') + '</button>'
+      + '<button type="button" class="btn" data-a="retour">Continuer à modifier</button></aside></div></div>';
+    return html;
+  }
+  function publier() {
+    var sel = changements().filter(function (b) { return choixPublier[b.d.bid]; }); if (!sel.length) { return; }
+    var quand = (document.querySelector('input[name=fi-quand]:checked') || {}).value, maintenant = new Date().toISOString();
+    var visible = quand === 'programmer' && $('fi-prog').value ? new Date($('fi-prog').value).toISOString() : maintenant;
+    var pid = 'p' + Date.now().toString(36);
+    var pub = { type: 'finPublication', pid: pid, le: maintenant, visibleLe: visible, par: moi, message: $('fi-msg').value.trim(), notif: $('fi-notif').checked, exiger: $('fi-exiger').checked, rappel: $('fi-rappel').checked, changements: [], destinataires: [], accuses: {} };
+    var dest = {}, c = Promise.resolve();
+    sel.forEach(function (b) {
+      var d = b.d, t = typeChangement(b);
+      pub.changements.push({ bid: d.bid, type: t, serie: d.serie, travail: d.travail, ville: d.ville, ent: (d.brouillon || d.publie).ent, du: (d.brouillon || d.publie).du, au: (d.brouillon || d.publie).au, avant: d.publie ? { ent: d.publie.ent, du: d.publie.du, au: d.publie.au } : null });
+      if (d.brouillon) { dest[d.brouillon.ent] = true; } if (d.publie) { dest[d.publie.ent] = true; }
+      d.avant = d.publie || null; d.visibleLe = visible; d.publication = pid;
+      if (d.retrait) { d.publie = null; d.retire = true; } else { d.publie = d.brouillon; }
+      d.brouillon = null; d.retrait = false; d.confirme = null;
+      c = c.then(function () { return sauverBloc(b); });
+    });
+    pub.destinataires = Object.keys(dest);
+    c.then(function () { return G.ajouter(pub); }).then(function (id) {
+      publications.unshift({ id: id, d: pub }); choixPublier = {}; vue = 'horaire';
+      dire(sel.length + ' changement' + (sel.length > 1 ? 's' : '') + ' publié' + (sel.length > 1 ? 's' : '') + (visible > maintenant ? ' (visible' + (sel.length > 1 ? 's' : '') + ' le ' + new Date(visible).toLocaleString('fr-CA') + ')' : '') + '. ' + pub.destinataires.length + ' entrepreneur' + (pub.destinataires.length > 1 ? 's' : '') + ' avisé' + (pub.destinataires.length > 1 ? 's' : '') + ' dans Drive.');
+    }).catch(function (e) { dire('Publication impossible : ' + (e && e.message ? e.message : e), true); });
+  }
+
+  // ---------- Formulaires F0 à F5
+  function vueFormulaires() {
+    return '<div class="page"><section class="panneau" style="max-width:760px"><h2>Formulaires F0 à F5</h2><div class="aide" style="font-size:14px">Les formulaires de Finition (F0 Pré-évaluation, F1 Inspection des biens, F2 Vérification du matériel, F3 Demande de travaux en extra, F4 Auto-inspection, F5 Inspection de fin des travaux) seront ajoutés ici dès que leur contenu sera fourni : remplissage dans Drive, signature du client sur F1 et F5, photos approuvées une par une.</div></section></div>';
+  }
+
+  // ---------- Chantier : ajout et modification
+  function fenetre(titre, corps, actions) {
+    var f = document.createElement('div'); f.className = 'fond-modale'; f.id = 'fi-modale';
+    f.innerHTML = '<section class="modale" role="dialog" aria-modal="true" aria-label="' + h(titre) + '"><h2>' + h(titre) + '</h2>' + corps + '<div class="rang" style="justify-content:flex-end">' + actions + '</div></section>';
+    $('fi').appendChild(f);
+    f.addEventListener('click', function (e) { if (e.target === f || e.target.getAttribute('data-f') === 'fermer') { fermerFenetre(); } });
+    var premier = f.querySelector('input, select, textarea'); if (premier) { premier.focus(); }
+    return f;
+  }
+  function fermerFenetre() { var f = $('fi-modale'); if (f) { f.parentNode.removeChild(f); } }
+  function formChantier(c) {
+    var d = c ? c.d : { serie: '', travail: TRAVAUX[0], ville: '', duree: 1, adresse: '', client: '', info: '', documents: [] };
+    var corps = '<div class="rang"><label>Série (5 chiffres)<input type="text" id="fc-serie" inputmode="numeric" maxlength="5" value="' + h(d.serie) + '" class="mono" style="width:120px"></label>'
+      + '<label>Travail<select id="fc-travail">' + TRAVAUX.map(function (t) { return '<option' + (t === d.travail ? ' selected' : '') + '>' + h(t) + '</option>'; }).join('') + '</select></label>'
+      + '<label>Durée (jours)<input type="number" id="fc-duree" min="1" max="20" value="' + h(d.duree) + '" style="width:90px"></label></div>'
+      + '<div class="rang"><label style="flex:1">Ville<input type="text" id="fc-ville" value="' + h(d.ville) + '"></label><label style="flex:2">Adresse du chantier<input type="text" id="fc-adresse" value="' + h(d.adresse) + '"></label></div>'
+      + '<div class="rang"><label style="flex:1">Client<input type="text" id="fc-client" value="' + h(d.client) + '"></label><label style="flex:2">Information (facultatif)<input type="text" id="fc-info" value="' + h(d.info) + '"></label></div>'
+      + '<label style="display:flex;flex-direction:column;gap:4px;font-size:13px;color:#4A5565">Documents du bureau (un par ligne : Nom | lien)<textarea id="fc-docs">' + h((d.documents || []).map(function (x) { return x.nom + ' | ' + x.url; }).join('\n')) + '</textarea></label>'
+      + '<div class="aide">Si la Série existe dans Logistique, la ville et l’adresse sont reprises du voyage quand ces champs sont vides.</div>';
+    fenetre(c ? 'Modifier le chantier' : 'Ajouter un chantier à planifier', corps, (c ? '<button type="button" class="btn refus" data-f="suppr">Retirer de la file</button>' : '') + '<button type="button" class="btn" data-f="fermer">Annuler</button><button type="button" class="btn principal" data-f="ok">Enregistrer</button>');
+    $('fi-modale').querySelector('[data-f=ok]').onclick = function () {
+      var serie = $('fc-serie').value.trim(); if (!/^\d{5}$/.test(serie)) { alert('La Série doit avoir 5 chiffres.'); return; }
+      var v = voyages[serie], arr = v && v.arrivee ? v.arrivee.label || '' : '';
+      var nd = c ? JSON.parse(JSON.stringify(c.d)) : { type: 'finChantier', cid: 'c' + Date.now().toString(36), statut: 'a_planifier', cree: new Date().toISOString(), par: moi };
+      nd.serie = serie; nd.travail = $('fc-travail').value; nd.duree = Math.max(1, parseInt($('fc-duree').value, 10) || 1);
+      nd.ville = $('fc-ville').value.trim() || (arr ? arr.split(',').slice(-3, -2)[0] || arr.split(',')[0] : '').trim();
+      nd.adresse = $('fc-adresse').value.trim() || arr; nd.client = $('fc-client').value.trim(); nd.info = $('fc-info').value.trim();
+      nd.documents = $('fc-docs').value.split('\n').map(function (l) { var p = l.split('|'); return p.length > 1 ? { nom: p[0].trim(), url: p.slice(1).join('|').trim() } : null; }).filter(Boolean);
+      G.enregistrer(c, nd).then(function (id) { if (c) { c.d = nd; } else { chantiers.push({ id: id, d: nd }); } blocs.forEach(function (b) { if (b.d.cid === nd.cid) { b.d.serie = nd.serie; b.d.travail = nd.travail; b.d.ville = nd.ville; } }); fermerFenetre(); dire('Chantier de la Série ' + serie + ' enregistré.'); });
+    };
+    var s = $('fi-modale').querySelector('[data-f=suppr]');
+    if (s) { s.onclick = function () { if (!confirm('Retirer ce chantier de la file « À planifier » ?')) { return; } G.retirer(c.id).then(function () { chantiers = chantiers.filter(function (x) { return x !== c; }); fermerFenetre(); rendre(); }); }; }
+  }
+  function formBloc(b) {
+    var v = vueBloc(b); if (!v) { return; }
+    var d = b.d, c = chantierDe(d.serie, d.cid);
+    var corps = '<div class="aide" style="font-size:14px"><span class="mono">Série ' + h(d.serie) + '</span> · ' + h(d.travail) + ' · ' + h(d.ville || '') + '</div>'
+      + '<div class="rang"><label>Entrepreneur<select id="fb-ent">' + entrepreneurs.map(function (e) { return '<option value="' + h(e.user) + '"' + (e.user === v.ent ? ' selected' : '') + '>' + h(e.nom) + '</option>'; }).join('') + '</select></label>'
+      + '<label>Du<input type="date" id="fb-du" value="' + v.du + '"></label><label>Au<input type="date" id="fb-au" value="' + v.au + '"></label></div>'
+      + (d.publie ? '<div class="aide">Publié : ' + h(nomUser(d.publie.ent)) + ', ' + h(periode(d.publie.du, d.publie.au)) + (d.confirme ? ' · confirmé' : ' · en attente de confirmation') + '. Toute modification passe en brouillon jusqu’à la publication.</div>' : '<div class="aide">Ce chantier n’a jamais été publié.</div>');
+    fenetre('Chantier à l’horaire', corps, '<button type="button" class="btn refus" data-f="retirer">Retirer de l’horaire</button>' + (c ? '<button type="button" class="btn" data-f="chantier">Détails du chantier</button>' : '') + '<button type="button" class="btn" data-f="fermer">Fermer</button><button type="button" class="btn principal" data-f="ok">Appliquer en brouillon</button>');
+    var m = $('fi-modale');
+    m.querySelector('[data-f=ok]').onclick = function () {
+      var du = $('fb-du').value, au = $('fb-au').value; if (!du || !au || au < du) { alert('Vérifie les dates.'); return; }
+      d.brouillon = { ent: $('fb-ent').value, du: du, au: au }; d.retrait = false;
+      if (d.publie && d.publie.ent === d.brouillon.ent && d.publie.du === du && d.publie.au === au) { d.brouillon = null; }
+      sauverBloc(b).then(function () { fermerFenetre(); rendre(); });
+    };
+    m.querySelector('[data-f=retirer]').onclick = function () { retirerBloc(b); };
+    var dc = m.querySelector('[data-f=chantier]'); if (dc) { dc.onclick = function () { fermerFenetre(); formChantier(c); }; }
+  }
+  function retirerBloc(b) {
+    var d = b.d;
+    if (d.publie) { d.retrait = true; d.brouillon = null; sauverBloc(b).then(function () { fermerFenetre(); rendre(); }); return; }
+    G.retirer(b.id).then(function () {
+      blocs = blocs.filter(function (x) { return x !== b; });
+      var c = chantierDe(d.serie, d.cid); if (c) { c.d.statut = 'a_planifier'; G.modifier(c.id, c.d); }
+      fermerFenetre(); rendre();
+    });
+  }
+  function placer(cid, ent, jour) {
+    var c = chantierDe(null, cid); if (!c) { return; }
+    var du = jour; while (!ouvrable(du)) { du = B.ajouterJours(du, 1); }
+    var nd = { type: 'finBloc', bid: 'b' + Date.now().toString(36), cid: cid, serie: c.d.serie, travail: c.d.travail, ville: c.d.ville, publie: null, brouillon: { ent: ent, du: du, au: finApres(du, c.d.duree) }, retrait: false, confirme: null };
+    var b = { id: null, d: nd };
+    blocs.push(b); carteChoisie = null;
+    c.d.statut = 'planifie';
+    Promise.all([sauverBloc(b), G.modifier(c.id, c.d)]).then(rendre).catch(function (e) { dire('Enregistrement impossible : ' + (e && e.message ? e.message : e), true); });
+    rendre();
+  }
+  function deplacer(bid, ent, jour) {
+    var b = blocs.filter(function (x) { return x.d.bid === bid; })[0]; if (!b) { return; }
+    var v = vueBloc(b); if (!v) { return; }
+    var n = joursOuvrables(v.du, v.au), du = jour; while (!ouvrable(du)) { du = B.ajouterJours(du, 1); }
+    b.d.brouillon = { ent: ent, du: du, au: finApres(du, n) }; b.d.retrait = false;
+    var p = b.d.publie; if (p && p.ent === ent && p.du === du && p.au === b.d.brouillon.au) { b.d.brouillon = null; }
+    sauverBloc(b).then(rendre); rendre();
+  }
+  function annulerChangements() {
+    if (!confirm('Annuler tous les changements non publiés ? L’horaire revient à la dernière version publiée.')) { return; }
+    var c = Promise.resolve();
+    changements().forEach(function (b) {
+      if (!b.d.publie) {
+        c = c.then(function () { return G.retirer(b.id); }).then(function () { blocs = blocs.filter(function (x) { return x !== b; }); var ch = chantierDe(b.d.serie, b.d.cid); if (ch) { ch.d.statut = 'a_planifier'; return G.modifier(ch.id, ch.d); } });
+      } else { b.d.brouillon = null; b.d.retrait = false; c = c.then(function () { return sauverBloc(b); }); }
+    });
+    c.then(function () { dire('Changements annulés : l’horaire est revenu à la version publiée.'); });
+  }
+
+  // ---------- Branchements
+  function brancher() {
+    var z = $('fi-contenu');
+    Array.prototype.forEach.call(z.querySelectorAll('[data-mode]'), function (b) { b.onclick = function () { mode = b.getAttribute('data-mode'); if (mode === 'jour' && (!jourSel || jourSel < lundi || jourSel > B.ajouterJours(lundi, 4))) { jourSel = lundi; } rendre(); }; });
+    var af = $('fi-afficher'); if (af) { af.onchange = function () { afficher = af.value; rendre(); }; }
+    var re = $('fi-recherche'); if (re) { re.oninput = function () { recherche = re.value.trim(); var pos = re.selectionStart; rendre(); var r2 = $('fi-recherche'); r2.focus(); try { r2.setSelectionRange(pos, pos); } catch (e) {} }; }
+    Array.prototype.forEach.call(z.querySelectorAll('[data-choix]'), function (c) { c.onchange = function () { choixPublier[c.getAttribute('data-choix')] = c.checked; rendre(); }; });
+    // Glisser-déposer
+    Array.prototype.forEach.call(z.querySelectorAll('[data-carte]'), function (c) {
+      c.ondragstart = function (e) { glisse = { carte: c.getAttribute('data-carte') }; try { e.dataTransfer.setData('text/plain', 'carte'); } catch (x) {} };
+    });
+    Array.prototype.forEach.call(z.querySelectorAll('.bloc[data-bloc]'), function (c) {
+      c.ondragstart = function (e) { if (afficher !== 'brouillon') { e.preventDefault(); return; } glisse = { bloc: c.getAttribute('data-bloc') }; try { e.dataTransfer.setData('text/plain', 'bloc'); } catch (x) {} };
+    });
+    Array.prototype.forEach.call(z.querySelectorAll('.cellule'), function (cel) {
+      cel.ondragover = function (e) { if (glisse && !cel.classList.contains('ferie')) { e.preventDefault(); cel.classList.add('cible'); } };
+      cel.ondragleave = function () { cel.classList.remove('cible'); };
+      cel.ondrop = function (e) {
+        e.preventDefault(); cel.classList.remove('cible'); if (!glisse) { return; }
+        var ent = cel.getAttribute('data-ent'), jour = cel.getAttribute('data-jour');
+        if (glisse.carte) { placer(glisse.carte, ent, jour); } else if (glisse.bloc) { deplacer(glisse.bloc, ent, jour); }
+        glisse = null;
+      };
+    });
+  }
+  function surClic(e) {
+    var t = e.target.closest('button'); if (!t || !$('fi').contains(t) || $('fi-modale')) { return; }
+    var a = t.getAttribute('data-a');
+    if (t.hasAttribute('data-o')) { onglet = t.getAttribute('data-o'); vue = 'horaire'; message = null; rendre(); return; }
+    if (t.hasAttribute('data-carte')) { var cid = t.getAttribute('data-carte'); carteChoisie = carteChoisie === cid ? null : cid; rendre(); return; }
+    if (t.hasAttribute('data-poser')) { var p = t.getAttribute('data-poser').split('|'); placer(carteChoisie, p[0], p[1]); return; }
+    if (t.hasAttribute('data-bloc')) { var b = blocs.filter(function (x) { return x.d.bid === t.getAttribute('data-bloc'); })[0]; if (b && afficher === 'brouillon') { formBloc(b); } return; }
+    if (a === 'prec' || a === 'suiv') {
+      var s = a === 'prec' ? -1 : 1;
+      if (mode === 'jour') { do { jourSel = B.ajouterJours(jourSel, s); } while ([0, 6].indexOf(B.dateDe(jourSel).getDay()) >= 0); lundi = lundiDe(jourSel); }
+      else if (mode === 'mois') { var m = B.dateDe(jourSel || lundi); m = new Date(m.getFullYear(), m.getMonth() + s, 1); jourSel = B.jourIso(m); lundi = lundiDe(jourSel); }
+      else { lundi = B.ajouterJours(lundi, 7 * s); jourSel = lundi; }
+      message = null; rendre(); return;
+    }
+    if (a === 'aujourdhui') { var auj = B.jourIso(); lundi = lundiDe(auj); jourSel = [0, 6].indexOf(B.dateDe(auj).getDay()) >= 0 ? lundi : auj; rendre(); return; }
+    if (a === 'nouveau-chantier') { formChantier(null); return; }
+    if (a === 'annuler-choix') { carteChoisie = null; rendre(); return; }
+    if (a === 'annuler') { annulerChangements(); return; }
+    if (a === 'reviser') { vue = 'publier'; message = null; rendre(); window.scrollTo(0, 0); return; }
+    if (a === 'retour') { vue = 'horaire'; rendre(); return; }
+    if (a === 'publier') { publier(); return; }
+  }
+
+  var branche = false;
+  function demarrer(a) {
+    api = a; B = window.Bonneville; G = B.creerApi(a);
+    if (!lundi) { var auj = B.jourIso(); lundi = lundiDe(auj); jourSel = [0, 6].indexOf(B.dateDe(auj).getDay()) >= 0 ? lundi : auj; }
+    if (!branche) { document.addEventListener('click', surClic); branche = true; }
+    G.session().then(function (s) { moi = s.userName || ''; return charger(); }).then(rendre)
+      .catch(function (e) { $('fi-contenu').innerHTML = '<div class="page"><div class="message erreur">Lecture impossible : ' + h(e && e.message ? e.message : e) + '</div></div>'; });
+  }
+  window.BonnevilleModule = { aller: function (nom) { onglet = nom === 'formulaires' ? 'formulaires' : 'horaire'; vue = 'horaire'; rendre(); } };
+  return {
+    initialize: function (a, s, callback) { try { demarrer(a); } catch (e) { console.warn(e); } callback(); },
+    focus: function (a) { try { demarrer(a); } catch (e) { console.warn(e); } },
+    blur: function () {}
+  };
+};
+geotab.addin.Finition = geotab.addin.finition;
+geotab.addin.bonnevilleFinition = geotab.addin.finition;
+</script>
+</body>
+</html>
