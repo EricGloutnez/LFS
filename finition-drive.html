@@ -88,7 +88,7 @@
 <script>
 (function () {
   'use strict';
-  var VERSION = '1.1.0';
+  var VERSION = '1.2.0';
   var B = window.Bonneville, G = null, api = null, moi = '', monNom = '';
   var blocs = lire('fd-blocs') || [], chantiers = lire('fd-chantiers') || [], publications = lire('fd-pubs') || [], param = null;
   var ecran = 'horaire', lundi = null, chantierOuvert = null, message = null, branche = false;
@@ -116,26 +116,31 @@
     if (d.visibleLe && d.visibleLe > maintenant) { return d.avant || null; }
     return d.retire ? null : d.publie;
   }
-  function mesBlocs() { return blocs.map(function (b) { return { b: b, v: versionVisible(b.d) }; }).filter(function (x) { return x.v && x.v.ent === moi; }); }
+  // Mes « clés » d'horaire : mon courriel, et les fournisseurs auxquels mon compte est lié
+  var mesCles = lire('fd-cles') || [];
+  function estMoi(ent) { return ent === moi || mesCles.indexOf(ent) >= 0; }
+  function mesBlocs() { return blocs.map(function (b) { return { b: b, v: versionVisible(b.d) }; }).filter(function (x) { return x.v && estMoi(x.v.ent); }); }
   function avisNonLus() {
     var maintenant = new Date().toISOString();
     return publications.filter(function (p) { return p.d.notif !== false && (p.d.destinataires || []).indexOf(moi) >= 0 && (p.d.visibleLe || p.d.le) <= maintenant && !(p.d.accuses || {})[moi]; });
   }
-  function nouveauxBids() { var o = {}; avisNonLus().forEach(function (p) { (p.d.changements || []).forEach(function (c) { if (c.ent === moi) { o[c.bid] = true; } }); }); return o; }
+  function nouveauxBids() { var o = {}; avisNonLus().forEach(function (p) { (p.d.changements || []).forEach(function (c) { if (estMoi(c.ent) || c.compte === moi) { o[c.bid] = true; } }); }); return o; }
   function chantierDe(b) { return chantiers.filter(function (c) { return c.d.cid === b.d.cid || (!b.d.cid && c.d.serie === b.d.serie); })[0]; }
 
   function charger() {
-    return G.lireTypes(['finBloc', 'finChantier', 'finPublication']).then(function (l) {
-      blocs = []; chantiers = []; publications = [];
+    return G.lireTypes(['finBloc', 'finChantier', 'finPublication', 'finFournisseur']).then(function (l) {
+      blocs = []; chantiers = []; publications = []; mesCles = [];
       l.forEach(function (x) {
         var d = x.details;
         if (d.type === 'finBloc') { blocs.push({ id: x.id, d: d }); }
         else if (d.type === 'finChantier') { chantiers.push({ id: x.id, d: d }); }
         else if (d.type === 'finPublication') { publications.push({ id: x.id, d: d }); }
+        else if (d.type === 'finFournisseur' && d.user === moi && d.cle) { mesCles.push(d.cle); }
       });
       publications.sort(function (a, b) { return String(b.d.le).localeCompare(String(a.d.le)); });
       // On ne garde sur le téléphone que ce qui concerne cet entrepreneur
-      var mes = blocs.filter(function (b) { var v1 = b.d.publie, v2 = b.d.avant; return (v1 && v1.ent === moi) || (v2 && v2.ent === moi); });
+      ecrire('fd-cles', mesCles);
+      var mes = blocs.filter(function (b) { var v1 = b.d.publie, v2 = b.d.avant; return (v1 && estMoi(v1.ent)) || (v2 && estMoi(v2.ent)); });
       var series = {}; mes.forEach(function (b) { series[b.d.cid || b.d.serie] = true; });
       blocs = mes; chantiers = chantiers.filter(function (c) { return series[c.d.cid] || series[c.d.serie]; });
       publications = publications.filter(function (p) { return (p.d.destinataires || []).indexOf(moi) >= 0; }).slice(0, 20);
@@ -172,9 +177,9 @@
   }
   function vueAvis() {
     return avisNonLus().map(function (p) {
-      var mes = (p.d.changements || []).filter(function (c) { return c.ent === moi || (c.avant && c.avant.ent === moi); });
+      var mes = (p.d.changements || []).filter(function (c) { return estMoi(c.ent) || c.compte === moi || c.compteAvant === moi || (c.avant && estMoi(c.avant.ent)); });
       var resume = mes.map(function (c) {
-        if (c.type === 'retrait' || (c.avant && c.avant.ent === moi && c.ent !== moi)) { return 'Série ' + c.serie + ' retirée de ton horaire'; }
+        if (c.type === 'retrait' || (!estMoi(c.ent) && c.compte !== moi)) { return 'Série ' + c.serie + ' retirée de ton horaire'; }
         if (c.type === 'deplacement') { return 'Série ' + c.serie + ' déplacée : ' + periode(c.du, c.au); }
         return '1 chantier ajouté le ' + periode(c.du, c.au);
       }).join(' · ');
@@ -601,7 +606,7 @@
       var rec = l.filter(function (x) { return x.details.pid === pid; })[0]; if (!rec) { throw new Error('Publication introuvable'); }
       var d = rec.details; d.accuses = d.accuses || {}; d.accuses[moi] = new Date().toISOString();
       var c = G.modifier(rec.id, d);
-      (d.changements || []).filter(function (ch) { return ch.ent === moi; }).forEach(function (ch) {
+      (d.changements || []).filter(function (ch) { return estMoi(ch.ent) || ch.compte === moi; }).forEach(function (ch) {
         var b = blocs.filter(function (x) { return x.d.bid === ch.bid; })[0];
         if (b && (!b.d.confirme)) { b.d.confirme = { le: new Date().toISOString(), par: moi }; c = c.then(function () { return G.modifier(b.id, b.d); }); }
       });

@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   var ADDIN_ID = 'aXdeNEZ7tQ7eMPNywYFFKrA';
-  var VERSION = '1.2.0';
+  var VERSION = '1.3.0';
   var TELEPHONE = '(438) 978-2162';
 
   // ---------- Accès à Geotab
@@ -87,14 +87,16 @@
     { cle: 'heures', nom: 'Heures & Dépenses' },
     { cle: 'chef', nom: 'Chef d’équipe (approuve son équipe)' },
     { cle: 'tousVoyages', nom: 'Commissionnaire (voit tous les voyages, répartit ses heures)' },
-    { cle: 'finition', nom: 'Finition (entrepreneur : Mon horaire, formulaires F0 à F5)' }
+    { cle: 'finition', nom: 'Finition (entrepreneur : Mon horaire, formulaires F0 à F5)' },
+    { cle: 'service', nom: 'Service (technicien : Mon horaire, interventions)' }
   ];
   var ROLES = [
     { cle: 'chauffeur', nom: 'Chauffeur' }, { cle: 'escorte', nom: 'Escorte' }, { cle: 'chef', nom: 'Chef d’équipe' },
-    { cle: 'installation', nom: 'Installation' }, { cle: 'commissionnaire', nom: 'Commissionnaire' }, { cle: 'bureau', nom: 'Bureau' }, { cle: 'administrateur', nom: 'Administrateur Heures & Dépenses' }, { cle: 'entrepreneur', nom: 'Entrepreneur (Finition)' }
+    { cle: 'installation', nom: 'Installation' }, { cle: 'commissionnaire', nom: 'Commissionnaire' }, { cle: 'bureau', nom: 'Bureau' }, { cle: 'administrateur', nom: 'Administrateur Heures & Dépenses' }, { cle: 'entrepreneur', nom: 'Entrepreneur (Finition)' }, { cle: 'technicien', nom: 'Technicien (Service)' }
   ];
   var PROFILS_DEFAUT = [
     { pid: 'entrepreneur', nom: 'Entrepreneur (Finition)', role: 'entrepreneur', droits: { finition: true } },
+    { pid: 'technicien', nom: 'Technicien (Service)', role: 'technicien', droits: { service: true } },
     { pid: 'administrateur', nom: 'Administrateur Heures & Dépenses', role: 'administrateur', droits: { admin: true, heures: true } },
     { pid: 'chauffeur', nom: 'Chauffeur', role: 'chauffeur', droits: { gps: true, formTransport: true, heures: true } },
     { pid: 'escorte', nom: 'Escorte', role: 'escorte', droits: { gps: true, heures: true } },

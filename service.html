@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Bonneville - Service</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<script src="https://ericgloutnez.github.io/LFS/bonneville-commun.js?v=1.3.0"></script>
+</head>
+<body style="margin:0">
+<div id="sv">
+<style>
+  #sv { --encre: #18202B; --t2: #4A5565; --t3: #6B7584; --fond: #F3F4F6; --surf: #FFFFFF; --surf2: #F8F9FB; --bord: #DDE1E7; --ligne: #E8EBEF; --champ: #C8CED7;
+    --rouge: #9E1F27; --bleu: #1F5FA8; --bleuPale: #DCE8F7; --bleuTexte: #173F70; --sel: #EAF1FA; --ambre: #FFF4DC; --ambreBord: #B7791F; --ambreTexte: #5C3B00; --ambrePastille: #8A5A00;
+    --vert: #1E6B3A; --vertPale: #E5F2EA;
+    font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif; color: var(--encre); background: var(--fond); min-height: 100vh; font-size: 14px; }
+  #sv * { box-sizing: border-box; font-family: inherit; }
+  #sv .mono { font-family: 'IBM Plex Mono', Consolas, monospace; font-weight: 500; }
+  #sv button, #sv input, #sv select, #sv textarea { font-size: 14px; color: var(--encre); }
+  #sv .entete { height: 64px; background: var(--encre); color: #fff; display: flex; align-items: center; gap: 12px; padding: 0 28px; }
+  #sv .logo { width: 30px; height: 30px; border-radius: 6px; background: var(--rouge); color: #fff; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  #sv .entete small { display: block; font-size: 12px; color: #C9D1DC; } #sv .entete b { font-size: 17px; font-weight: 600; }
+  #sv .sous { height: 48px; background: var(--surf); border-bottom: 1px solid var(--bord); display: flex; gap: 8px; padding: 0 28px; }
+  #sv .sous button { height: 48px; border: none; background: none; padding: 0 16px; font-weight: 600; color: var(--t2); cursor: pointer; display: inline-flex; align-items: center; gap: 8px; border-bottom: 3px solid transparent; }
+  #sv .sous button[aria-current="page"] { color: var(--encre); border-bottom-color: var(--rouge); }
+  #sv .compte { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--ambrePastille); color: #fff; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+  #sv .compte[hidden] { display: none; }
+  #sv .bandeau { background: var(--ambre); border-bottom: 1px solid #E8C77A; padding: 12px 28px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  #sv .bandeau b { color: var(--ambreTexte); font-size: 15px; } #sv .bandeau span { color: var(--ambreTexte); font-size: 13px; }
+  #sv .page { padding: 16px 28px 28px; display: flex; flex-direction: column; gap: 16px; }
+  #sv .outils { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  #sv .outils h1 { margin: 0; font-size: 20px; font-weight: 600; }
+  #sv .btn { min-height: 44px; padding: 0 16px; border-radius: 6px; border: 1px solid var(--champ); background: var(--surf); font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+  #sv .btn.carre { width: 44px; padding: 0; }
+  #sv .btn.principal { background: var(--rouge); border-color: var(--rouge); color: #fff; }
+  #sv .btn.refus { color: var(--rouge); border-color: var(--rouge); }
+  #sv .btn.ambre { border-color: var(--ambreBord); color: var(--ambreTexte); background: #fff; }
+  #sv .btn:disabled { opacity: .45; cursor: default; }
+  #sv .vues { display: inline-flex; border: 1px solid var(--champ); border-radius: 6px; overflow: hidden; }
+  #sv .vues button { min-height: 44px; padding: 0 16px; border: none; background: var(--surf); cursor: pointer; font-weight: 500; }
+  #sv .vues button[aria-pressed="true"] { background: var(--encre); color: #fff; font-weight: 600; }
+  #sv label.champ { display: flex; align-items: center; gap: 8px; color: var(--t2); font-size: 13px; }
+  #sv input[type=text], #sv input[type=date], #sv input[type=time], #sv input[type=number], #sv input[type=datetime-local], #sv select, #sv textarea { min-height: 44px; border: 1px solid var(--champ); border-radius: 6px; padding: 0 12px; background: #fff; }
+  #sv textarea { padding: 10px 12px; min-height: 90px; resize: vertical; width: 100%; }
+  #sv .corps { display: flex; gap: 20px; align-items: flex-start; }
+  #sv .file { width: 260px; flex: 0 0 auto; background: var(--surf); border: 1px solid var(--bord); border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  #sv .file h2 { margin: 0; font-size: 16px; font-weight: 600; display: flex; justify-content: space-between; align-items: baseline; }
+  #sv .file h2 small { font-size: 12px; font-weight: 400; color: var(--t2); }
+  #sv .aide { font-size: 12px; color: var(--t2); line-height: 1.4; }
+  #sv .carte-file { border: 1px solid var(--bord); border-radius: 6px; padding: 10px 12px; background: var(--surf2); display: flex; gap: 8px; cursor: grab; text-align: left; width: 100%; }
+  #sv .carte-file.choisie { border: 3px solid var(--bleu); background: var(--sel); }
+  #sv .carte-file .poignee { color: var(--t3); padding-top: 2px; }
+  #sv .carte-file b { display: block; font-size: 14px; } #sv .carte-file .s { font-size: 12px; color: var(--t2); display: block; }
+  #sv .grille-boite { flex: 1; min-width: 0; background: var(--surf); border: 1px solid var(--bord); border-radius: 8px; overflow-x: auto; }
+  #sv .grille { display: grid; min-width: 960px; }
+  #sv .tete { background: var(--surf2); border-bottom: 1px solid var(--bord); padding: 10px 8px; font-size: 12px; color: var(--t2); font-weight: 600; }
+  #sv .tete b { display: block; font-size: 14px; color: var(--encre); }
+  #sv .tech { border-bottom: 1px solid var(--ligne); padding: 12px; display: flex; flex-direction: column; justify-content: center; }
+  #sv .tech b { font-weight: 600; } #sv .tech span { font-size: 12px; color: var(--t2); }
+  #sv .cellule { border-bottom: 1px solid var(--ligne); min-height: 84px; }
+  #sv .cellule.heure { border-left: 1px solid var(--ligne); }
+  #sv .cellule.cible { background: var(--sel); outline: 2px dashed var(--bleu); outline-offset: -3px; }
+  #sv .cellule button.poser { width: 100%; height: 100%; min-height: 82px; border: none; background: transparent; cursor: pointer; color: var(--bleu); font-weight: 600; font-size: 12px; }
+  #sv .bloc { margin: 6px 3px; border-radius: 6px; padding: 7px 9px; position: relative; z-index: 1; cursor: pointer; text-align: left; border: 2px solid transparent; display: flex; flex-direction: column; gap: 1px; min-height: 68px; overflow: hidden; }
+  #sv .bloc .l1 { font-size: 12px; } #sv .bloc .l2 { font-weight: 600; font-size: 14px; } #sv .bloc .l3 { font-size: 12px; }
+  #sv .bloc.confirme { background: var(--bleu); color: #fff; }
+  #sv .bloc.attente { background: var(--bleuPale); color: var(--bleuTexte); border-color: var(--bleu); }
+  #sv .bloc.brouillon { background: repeating-linear-gradient(135deg, #FFF4DC 0 10px, #FCE9C0 10px 20px); color: var(--ambreTexte); border: 2px dashed var(--ambreBord); }
+  #sv .bloc.retire { opacity: .55; text-decoration: line-through; }
+  #sv .bloc.absence { background: repeating-linear-gradient(135deg, #E2E5EA 0 8px, #F7F8FA 8px 16px); color: var(--t2); border: 1px solid #C8CED7; justify-content: center; }
+  #sv .grille.choix .bloc { pointer-events: none; opacity: .55; }
+  #sv .bloc.trouve { box-shadow: 0 0 0 3px #F2A900; }
+  #sv .legende { display: flex; gap: 20px; flex-wrap: wrap; padding: 12px 14px; background: var(--surf2); border-top: 1px solid var(--bord); font-size: 13px; }
+  #sv .legende span { display: inline-flex; align-items: center; gap: 8px; }
+  #sv .ech { width: 28px; height: 16px; border-radius: 3px; display: inline-block; }
+  #sv .panneau { background: var(--surf); border: 1px solid var(--bord); border-radius: 8px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+  #sv .panneau h2 { margin: 0; font-size: 16px; font-weight: 600; }
+  #sv .rang { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+  #sv .rang label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--t2); }
+  #sv .message { border-radius: 6px; padding: 10px 14px; font-weight: 600; }
+  #sv .message.ok { background: var(--vertPale); color: var(--vert); } #sv .message.erreur { background: #FFF7F7; color: var(--rouge); }
+  #sv .changement { display: flex; gap: 14px; padding: 14px 16px; border-top: 1px solid var(--ligne); align-items: flex-start; }
+  #sv .changement input[type=checkbox] { width: 24px; height: 24px; margin: 2px 0 0; accent-color: var(--bleu); flex: 0 0 auto; }
+  #sv .etiquette { font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 3px; color: #fff; text-transform: uppercase; }
+  #sv .fond-modale { position: fixed; inset: 0; background: rgba(24,32,43,.45); z-index: 50; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  #sv .modale { background: var(--surf); border-radius: 8px; width: min(580px, 100%); max-height: 92vh; overflow: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+  #sv .modale h2 { margin: 0; font-size: 18px; font-weight: 600; }
+  #sv .semaine-t { width: 100%; border-collapse: collapse; min-width: 860px; }
+  #sv .semaine-t th { background: var(--surf2); border-bottom: 1px solid var(--bord); padding: 10px; text-align: left; font-size: 12px; color: var(--t2); }
+  #sv .semaine-t td { border-bottom: 1px solid var(--ligne); border-left: 1px solid var(--ligne); padding: 6px; vertical-align: top; }
+  #sv .puce { display: block; font-size: 11px; border-radius: 4px; padding: 3px 6px; margin-bottom: 4px; text-align: left; border: none; width: 100%; cursor: pointer; }
+  #sv .lien { color: var(--bleu); background: none; border: none; text-decoration: underline; cursor: pointer; padding: 0; font-weight: 600; }
+  @media (max-width: 1000px) { #sv .corps { flex-direction: column; } #sv .file { width: 100%; } }
+</style>
+<header class="entete sv-entete"><span class="logo" aria-hidden="true">B</span><span><small>Bonneville</small><b>Service</b></span></header>
+<nav class="sous" aria-label="Service">
+  <button type="button" data-o="horaire" aria-current="page">Horaire <span class="compte" id="sv-compte" hidden></span></button>
+</nav>
+<div id="sv-contenu"><div class="page"><div class="aide">Chargement…</div></div></div>
+</div>
+
+<script>
+geotab.addin.service = function () {
+  'use strict';
+  var VERSION = '1.0.0';
+  var B = window.Bonneville, G = null, api = null, moi = '';
+  var TRAVAUX = ['SAV', 'SAV · porte-patio', 'Porte & fenêtre', 'Échangeur d’air', 'Installation échangeur d’air', 'Correctifs après F5', 'Conseiller terrain', 'Ramassage matériaux', 'Autre'];
+  var H0 = 7, H1 = 17, PAS = 15; // grille de 7 h à 17 h, par tranches de 15 min
+  var mode = 'jour', jourSel = null, afficher = 'brouillon', recherche = '', vue = 'horaire';
+  var users = [], employes = {}, profils = [], techs = [], blocs = [], appels = [], absences = [], publications = [];
+  var carteChoisie = null, message = null, glisse = null, choixPublier = {};
+  var IC_OK = '<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5 L10 17 L19 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  var IC_HORLOGE = '<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 2" fill="none" stroke="currentColor" stroke-width="2"/></svg>';
+  var IC_POIGNEE = '<svg width="12" height="18" viewBox="0 0 12 18" aria-hidden="true"><g fill="currentColor"><circle cx="3" cy="3" r="1.6"/><circle cx="9" cy="3" r="1.6"/><circle cx="3" cy="9" r="1.6"/><circle cx="9" cy="9" r="1.6"/><circle cx="3" cy="15" r="1.6"/><circle cx="9" cy="15" r="1.6"/></g></svg>';
+  var MOIS_LONGS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+
+  function $(id) { return document.getElementById(id); }
+  function h(t) { return String(t === undefined || t === null ? '' : t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function nomUser(u) { var x = users.filter(function (y) { return y.user === u; })[0]; return x ? x.nom : u; }
+  function mn(hhmm) { return B.minutesDe(hhmm); }
+  function hFr(m) { var hh = Math.floor(m / 60), mm = m % 60; return hh + ' h' + (mm ? ' ' + ('0' + mm).slice(-2) : ''); }
+  function plage(v) { return hFr(mn(v.debut)) + '–' + hFr(mn(v.fin)); }
+  function lundiDe(iso) { var d = B.dateDe(iso), j = d.getDay(); d.setDate(d.getDate() - (j === 0 ? 6 : j - 1)); return B.jourIso(d); }
+  function ferie(iso) { return B.feriesQuebec(+iso.slice(0, 4))[iso] || null; }
+  function dateCourte(iso) { var d = B.dateDe(iso); return B.JOURS_COURTS[d.getDay()].toLowerCase() + '. ' + d.getDate() + ' ' + B.MOIS[d.getMonth()]; }
+  function dateLongue(iso) { var d = B.dateDe(iso); return B.JOURS[d.getDay()] + ' ' + d.getDate() + ' ' + MOIS_LONGS[d.getMonth()] + ' ' + d.getFullYear(); }
+  function dire(t, erreur) { message = { t: t, e: !!erreur }; rendre(); }
+
+  // ---------- Données
+  function charger() {
+    return Promise.all([
+      G.lireTypes(['employe', 'profil', 'srvBloc', 'srvAppel', 'srvAbsence', 'srvPublication']),
+      G.utilisateurs().catch(function () { return []; })
+    ]).then(function (r) {
+      employes = {}; profils = []; blocs = []; appels = []; absences = []; publications = [];
+      users = r[1];
+      r[0].forEach(function (l) {
+        var d = l.details;
+        if (d.type === 'employe' && d.user) { employes[d.user] = d; }
+        else if (d.type === 'profil') { profils.push(d); }
+        else if (d.type === 'srvBloc') { blocs.push({ id: l.id, d: d }); }
+        else if (d.type === 'srvAppel') { appels.push({ id: l.id, d: d }); }
+        else if (d.type === 'srvAbsence') { absences.push({ id: l.id, d: d }); }
+        else if (d.type === 'srvPublication') { publications.push({ id: l.id, d: d }); }
+      });
+      techs = Object.keys(employes).filter(function (u) { return !employes[u].masque && B.droitsEffectifs(employes[u], profils).service; })
+        .map(function (u) { return { user: u, nom: nomUser(u) }; }).sort(function (a, b) { return a.nom.localeCompare(b.nom, 'fr'); });
+      publications.sort(function (a, b) { return String(b.d.le).localeCompare(String(a.d.le)); });
+    });
+  }
+  function appelDe(aid) { return appels.filter(function (a) { return a.d.aid === aid; })[0]; }
+  // Version affichée d'un bloc selon le mode (brouillon ou publié)
+  function vueBloc(b) {
+    var d = b.d;
+    if (afficher === 'publie') { return d.publie ? Object.assign({ etat: estConfirme(d) ? 'confirme' : 'attente' }, d.publie) : null; }
+    if (d.retrait) { return d.publie ? Object.assign({ etat: 'retire' }, d.publie) : null; }
+    if (d.brouillon) { return Object.assign({ etat: 'brouillon', nouveau: !d.publie }, d.brouillon); }
+    if (d.publie) { return Object.assign({ etat: estConfirme(d) ? 'confirme' : 'attente' }, d.publie); }
+    return null;
+  }
+  function estConfirme(d) { var c = d.confirme || {}; return !!(d.publie && d.publie.techs.length && d.publie.techs.every(function (t) { return c[t]; })); }
+  function changements() { return blocs.filter(function (b) { return b.d.brouillon || b.d.retrait; }); }
+  function sauverBloc(b) { return G.enregistrer(b.id ? b : null, b.d).then(function (id) { b.id = id; return b; }); }
+  function memeVersion(a, b) { return a && b && a.date === b.date && a.debut === b.debut && a.fin === b.fin && a.techs.slice().sort().join() === b.techs.slice().sort().join(); }
+
+  // ---------- Rendu
+  function rendre() {
+    var n = changements().length, c = $('sv-compte'); c.hidden = !n; c.textContent = n;
+    $('sv-contenu').innerHTML = vue === 'publier' ? vuePublier() : vueHoraire();
+    brancher();
+  }
+  function bandeau() {
+    var n = changements().length; if (!n || afficher === 'publie') { return ''; }
+    return '<div class="bandeau" role="status"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z M14 6l4 4" fill="none" stroke="#5C3B00" stroke-width="1.8" stroke-linejoin="round"/></svg>'
+      + '<div style="flex:1;min-width:240px"><b>Service · mode brouillon · ' + n + ' changement' + (n > 1 ? 's' : '') + ' non publié' + (n > 1 ? 's' : '') + '</b><br><span>Indépendant de l’horaire Finition : son propre brouillon, sa propre publication.</span></div>'
+      + '<button type="button" class="btn ambre" data-a="annuler">Annuler les changements</button>'
+      + '<button type="button" class="btn principal" data-a="reviser">Réviser et publier (' + n + ') →</button></div>';
+  }
+  function rappels() {
+    var lim = Date.now() - 24 * 3600000, l = [];
+    publications.forEach(function (p) {
+      if (!p.d.rappel || new Date(p.d.visibleLe || p.d.le).getTime() > lim) { return; }
+      (p.d.destinataires || []).forEach(function (u) { if (!(p.d.accuses || {})[u]) { l.push(nomUser(u) + ' n’a pas confirmé la publication du ' + dateCourte(String(p.d.le).slice(0, 10))); } });
+    });
+    return l.length ? '<div class="message erreur" role="alert">' + l.map(h).join('<br>') + '</div>' : '';
+  }
+  function titre() {
+    if (mode === 'jour') { return dateLongue(jourSel); }
+    var l = lundiDe(jourSel), v = B.ajouterJours(l, 4), a = B.dateDe(l), z = B.dateDe(v);
+    if (mode === 'semaine') { return 'Semaine du ' + a.getDate() + (a.getMonth() !== z.getMonth() ? ' ' + MOIS_LONGS[a.getMonth()] : '') + ' au ' + z.getDate() + ' ' + MOIS_LONGS[z.getMonth()] + ' ' + z.getFullYear(); }
+    var m = B.dateDe(jourSel); return MOIS_LONGS[m.getMonth()].charAt(0).toUpperCase() + MOIS_LONGS[m.getMonth()].slice(1) + ' ' + m.getFullYear();
+  }
+  function vueHoraire() {
+    var html = bandeau() + '<div class="page">';
+    if (message) { html += '<div class="message ' + (message.e ? 'erreur' : 'ok') + '" role="status">' + h(message.t) + '</div>'; }
+    html += rappels();
+    html += '<div class="outils"><button type="button" class="btn carre" data-a="prec" aria-label="Précédent">‹</button><h1>' + h(titre()) + '</h1><button type="button" class="btn carre" data-a="suiv" aria-label="Suivant">›</button>'
+      + '<button type="button" class="btn" data-a="aujourdhui">Aujourd’hui</button><span style="flex:1"></span>'
+      + '<div class="vues" role="group" aria-label="Vue">' + [['jour', 'Jour'], ['semaine', 'Semaine'], ['mois', 'Mois']].map(function (x) { return '<button type="button" data-mode="' + x[0] + '" aria-pressed="' + (mode === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div>'
+      + '<label class="champ">Afficher<select id="sv-afficher"><option value="brouillon"' + (afficher === 'brouillon' ? ' selected' : '') + '>Brouillon (avec changements)</option><option value="publie"' + (afficher === 'publie' ? ' selected' : '') + '>Publié (ce que voient les techniciens)</option></select></label>'
+      + '<label class="champ">Rechercher<input type="text" id="sv-recherche" value="' + h(recherche) + '" placeholder="Série, ville…"></label></div>';
+    html += '<div class="corps">' + vueFile() + '<div class="grille-boite">' + (mode === 'jour' ? grilleJour() : (mode === 'semaine' ? grilleSemaine() : grilleMois())) + legende() + '</div></div></div>';
+    return html;
+  }
+  function vueFile() {
+    var file = appels.filter(function (a) { return a.d.statut !== 'planifie' && !a.d.archive; });
+    var html = '<aside class="file" aria-label="Appels à planifier"><h2>Appels à planifier <small>' + file.length + ' appel' + (file.length > 1 ? 's' : '') + '</small></h2>'
+      + '<div class="aide">' + (carteChoisie ? 'Touche maintenant l’heure de début sur la ligne d’un technicien (vue Jour).' : 'Glissez un appel sur la ligne d’un technicien, à l’heure de début (vue Jour). Il arrive en brouillon.') + '</div>';
+    file.forEach(function (a) {
+      var d = a.d;
+      html += '<button type="button" class="carte-file' + (carteChoisie === d.aid ? ' choisie' : '') + '" draggable="true" data-carte="' + h(d.aid) + '" aria-pressed="' + (carteChoisie === d.aid) + '"><span class="poignee">' + IC_POIGNEE + '</span><span>'
+        + '<span class="mono">Série ' + h(d.serie) + '</span><b>' + h(d.travail) + '</b><span class="s">' + h(d.ville || '') + ' · ' + hFr(d.duree) + ' · ' + d.nbTech + ' technicien' + (d.nbTech > 1 ? 's' : '') + '</span>'
+        + (d.info ? '<span class="s">' + h(d.info) + '</span>' : '') + '</span></button>';
+    });
+    html += '<button type="button" class="btn" data-a="nouvel-appel">+ Ajouter un appel</button><button type="button" class="btn" data-a="absence">+ Absence d’un technicien</button>'
+      + (carteChoisie ? '<button type="button" class="lien" data-a="annuler-choix">Annuler le choix</button>' : '') + '</aside>';
+    return html;
+  }
+  function correspond(b) { if (!recherche) { return false; } var q = recherche.toLowerCase(); return String(b.d.serie).indexOf(q) === 0 || String(b.d.ville || '').toLowerCase().indexOf(q) >= 0; }
+  function colDe(m) { return 2 + Math.round((m - H0 * 60) / PAS); }
+  function grilleJour() {
+    var nCol = (H1 - H0) * 60 / PAS, j = jourSel, f = ferie(j);
+    var html = '<div class="grille' + (carteChoisie ? ' choix' : '') + '" style="grid-template-columns:170px repeat(' + nCol + ', minmax(14px, 1fr))"><div class="tete" style="grid-row:1;grid-column:1">Technicien</div>';
+    for (var hh = H0; hh < H1; hh++) { html += '<div class="tete" style="grid-row:1;grid-column:' + colDe(hh * 60) + ' / span ' + (60 / PAS) + '">' + hh + ' h</div>'; }
+    if (f) { html += '<div class="aide" style="grid-row:2;grid-column:1 / -1;padding:12px">Férié : ' + h(f) + '</div>'; }
+    if (!techs.length) { return html + '</div><div class="aide" style="padding:16px">Aucun technicien. Dans Employés, donne le profil « Technicien (Service) » aux comptes des techniciens.</div>'; }
+    var rangee = f ? 3 : 2;
+    techs.forEach(function (t) {
+      var items = [];
+      blocs.forEach(function (b) { var v = vueBloc(b); if (v && v.date === j && v.techs.indexOf(t.user) >= 0) { items.push({ b: b, v: v, a: mn(v.debut), z: mn(v.fin) }); } });
+      absences.forEach(function (x) { if (x.d.tech === t.user && x.d.date === j) { items.push({ abs: x, a: mn(x.d.debut), z: mn(x.d.fin) }); } });
+      items.sort(function (p, q) { return p.a - q.a; });
+      var couloirs = []; items.forEach(function (x) { var k = 0; while (couloirs[k] !== undefined && couloirs[k] > x.a) { k++; } couloirs[k] = x.z; x.k = k; });
+      var nb = Math.max(1, couloirs.length), r0 = rangee; rangee += nb;
+      var prevues = items.filter(function (x) { return x.b && x.v.etat !== 'retire'; }).reduce(function (s, x) { return s + (x.z - x.a); }, 0);
+      html += '<div class="tech" style="grid-column:1;grid-row:' + r0 + ' / span ' + nb + '"><b>' + h(t.nom) + '</b><span>' + h(hFr(prevues).replace(/ h$/, ' h')) + ' prévues</span></div>';
+      for (var k = 0; k < nb; k++) {
+        for (var hh = H0; hh < H1; hh++) {
+          html += '<div class="cellule heure" data-tech="' + h(t.user) + '" data-heure="' + hh + '" style="grid-column:' + colDe(hh * 60) + ' / span ' + (60 / PAS) + ';grid-row:' + (r0 + k) + (k < nb - 1 ? ';border-bottom:none' : '') + '">'
+            + (carteChoisie && k === 0 ? '<button type="button" class="poser" data-poser="' + h(t.user) + '|' + hh + '" aria-label="Placer à ' + hh + ' h chez ' + h(t.nom) + '">' + hh + ' h</button>' : '') + '</div>';
+        }
+      }
+      items.forEach(function (x) {
+        var c1 = Math.max(2, colDe(x.a)), c2 = Math.min(nCol + 2, colDe(x.z)); if (c2 <= c1) { c2 = c1 + 1; }
+        var st = 'grid-column:' + c1 + ' / ' + c2 + ';grid-row:' + (r0 + x.k);
+        html += x.abs ? '<button type="button" class="bloc absence" style="' + st + '" data-absence="' + h(x.abs.d.xid) + '"><span class="l2">Absence · ' + h(x.abs.d.motif || 'indisponible') + ' (' + h(hFr(x.a)) + '–' + h(hFr(x.z)) + ')</span></button>' : blocHtml(x.b, x.v, st, t.user);
+      });
+    });
+    return html + '</div>';
+  }
+  function blocHtml(b, v, style, tech) {
+    var d = b.d, l3 = '', pastille = '', autres = v.techs.filter(function (u) { return u !== tech; });
+    if (v.etat === 'brouillon') { l3 = v.nouveau ? 'NOUVEAU' : 'DÉPLACÉ · était ' + hFr(mn(d.publie.debut)) + (d.publie.date !== v.date ? ' le ' + dateCourte(d.publie.date) : ''); }
+    else if (v.etat === 'retire') { l3 = 'RETIRÉ (brouillon)'; }
+    else if (v.etat === 'confirme') { l3 = (autres.length ? 'Avec ' + autres.map(nomUser).join(', ') + ' · ' : '') + 'Confirmé'; pastille = IC_OK; }
+    else { l3 = (autres.length ? 'Avec ' + autres.map(nomUser).join(', ') + ' · ' : '') + 'En attente de confirmation'; pastille = IC_HORLOGE; }
+    if (v.etat === 'brouillon' && autres.length) { l3 = 'Avec ' + autres.map(nomUser).join(', ') + ' · ' + l3; }
+    return '<button type="button" class="bloc ' + v.etat + (correspond(b) ? ' trouve' : '') + '" style="' + style + '" draggable="' + (afficher === 'brouillon') + '" data-bloc="' + h(d.bid) + '" aria-label="Série ' + h(d.serie) + ', ' + h(d.travail) + ', ' + h(plage(v)) + ', ' + h(l3) + '">'
+      + (pastille ? '<span style="position:absolute;top:6px;right:6px">' + pastille + '</span>' : '')
+      + '<span class="l1 mono">' + h(d.serie) + ' · ' + h(plage(v)) + '</span><span class="l2">' + h(d.travail) + (d.ville ? ' · ' + h(d.ville) : '') + '</span><span class="l3"' + (v.etat === 'brouillon' ? ' style="font-weight:700"' : '') + '>' + h(l3) + '</span></button>';
+  }
+  function grilleSemaine() {
+    var l = lundiDe(jourSel), jours = []; for (var i = 0; i < 5; i++) { jours.push(B.ajouterJours(l, i)); }
+    var html = '<table class="semaine-t"><thead><tr><th>Technicien</th>' + jours.map(function (j) { var f = ferie(j); return '<th>' + h(dateCourte(j)) + (f ? '<br><span style="font-weight:400">' + h(f) + '</span>' : '') + '</th>'; }).join('') + '</tr></thead><tbody>';
+    techs.forEach(function (t) {
+      html += '<tr><td><b>' + h(t.nom) + '</b></td>' + jours.map(function (j) {
+        var it = blocs.map(function (b) { return { b: b, v: vueBloc(b) }; }).filter(function (x) { return x.v && x.v.date === j && x.v.techs.indexOf(t.user) >= 0; }).sort(function (a, b) { return mn(a.v.debut) - mn(b.v.debut); });
+        var ab = absences.filter(function (x) { return x.d.tech === t.user && x.d.date === j; });
+        return '<td' + (ferie(j) ? ' style="background:repeating-linear-gradient(135deg,#E2E5EA 0 8px,#F7F8FA 8px 16px)"' : '') + '>' + it.map(function (x) { return '<button type="button" class="puce mono" data-jour-ouvrir="' + j + '" style="' + styleEtat(x.v.etat) + '">' + h(x.b.d.serie) + ' · ' + h(plage(x.v)) + '</button>'; }).join('')
+          + ab.map(function (x) { return '<span class="puce" style="background:#E2E5EA">Absence ' + h(hFr(mn(x.d.debut))) + '–' + h(hFr(mn(x.d.fin))) + '</span>'; }).join('') + '</td>';
+      }).join('') + '</tr>';
+    });
+    return html + '</tbody></table>';
+  }
+  function styleEtat(e) { return e === 'brouillon' ? 'background:#FFF4DC;color:#5C3B00;border:1px dashed #B7791F' : (e === 'confirme' ? 'background:#1F5FA8;color:#fff' : (e === 'retire' ? 'background:#eee;text-decoration:line-through' : 'background:#DCE8F7;color:#173F70')); }
+  function grilleMois() {
+    var m = B.dateDe(jourSel), premier = new Date(m.getFullYear(), m.getMonth(), 1), dernier = B.jourIso(new Date(m.getFullYear(), m.getMonth() + 1, 0));
+    var d = lundiDe(B.jourIso(premier)), html = '<table class="semaine-t"><thead><tr>' + ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven'].map(function (x) { return '<th>' + x + '</th>'; }).join('') + '</tr></thead><tbody>';
+    while (d <= dernier) {
+      html += '<tr>';
+      for (var i = 0; i < 5; i++) {
+        var j = B.ajouterJours(d, i), n = blocs.filter(function (b) { var v = vueBloc(b); return v && v.date === j && v.etat !== 'retire'; }).length, f = ferie(j);
+        html += '<td style="height:76px;' + (j.slice(0, 7) !== dernier.slice(0, 7) ? 'opacity:.45;' : '') + (f ? 'background:repeating-linear-gradient(135deg,#E2E5EA 0 8px,#F7F8FA 8px 16px)' : '') + '"><b>' + B.dateDe(j).getDate() + '</b>' + (f ? ' <span class="aide">' + h(f) + '</span>' : '')
+          + (n ? '<button type="button" class="puce" data-jour-ouvrir="' + j + '" style="background:#DCE8F7;color:#173F70;margin-top:6px">' + n + ' intervention' + (n > 1 ? 's' : '') + '</button>' : '') + '</td>';
+      }
+      html += '</tr>'; d = B.ajouterJours(d, 7);
+    }
+    return html + '</tbody></table>';
+  }
+  function legende() {
+    return '<div class="legende"><span><i class="ech" style="background:#FFF4DC;border:2px dashed #B7791F"></i>Brouillon</span><span><i class="ech" style="background:#DCE8F7;border:2px solid #1F5FA8"></i>Publié · en attente</span>'
+      + '<span><i class="ech" style="background:#1F5FA8"></i>Publié · confirmé</span><span><i class="ech" style="background:repeating-linear-gradient(135deg,#E2E5EA 0 4px,#F7F8FA 4px 8px);border:1px solid #DDE1E7"></i>Absence</span></div>';
+  }
+
+  // ---------- Réviser et publier
+  function typeChangement(b) { return b.d.retrait ? 'retrait' : (b.d.publie ? 'deplacement' : 'ajout'); }
+  function techsTouches(b) { var o = {}; [b.d.brouillon, b.d.publie].forEach(function (v) { if (v) { v.techs.forEach(function (t) { o[t] = true; }); } }); return Object.keys(o); }
+  function vuePublier() {
+    var ch = changements(), touches = {};
+    ch.forEach(function (b) { techsTouches(b).forEach(function (t) { touches[t] = true; }); if (choixPublier[b.d.bid] === undefined) { choixPublier[b.d.bid] = true; } });
+    var sans = techs.filter(function (t) { return !touches[t.user]; }).map(function (t) { return t.nom; });
+    var html = '<div class="page" style="max-width:1120px;margin:0 auto;width:100%"><button type="button" class="lien" data-a="retour" style="align-self:flex-start">← Retour au brouillon</button>'
+      + '<div><h1 style="margin:0;font-size:24px;font-weight:600">Horaire Service · réviser et publier</h1><div class="aide" style="font-size:14px">' + ch.length + ' changement' + (ch.length > 1 ? 's' : '') + ' touche' + (ch.length > 1 ? 'nt ' : ' ') + Object.keys(touches).length + ' technicien' + (Object.keys(touches).length > 1 ? 's' : '') + '.'
+      + (sans.length ? ' ' + h(sans.join(', ')) + (sans.length > 1 ? ' n’ont' : ' n’a') + ' aucun changement : ' + (sans.length > 1 ? 'ils ne recevront' : 'il ne recevra') + ' rien.' : '') + '</div></div>'
+      + '<div class="corps"><section class="panneau" style="flex:1;padding:0;gap:0"><div style="display:flex;justify-content:space-between;padding:14px 16px;background:#F8F9FB;border-bottom:1px solid #DDE1E7;border-radius:8px 8px 0 0"><h2>Changements à publier</h2><span class="aide">Décochez un changement pour le garder en brouillon</span></div>';
+    if (!ch.length) { html += '<div class="aide" style="padding:16px">Aucun changement à publier.</div>'; }
+    ch.forEach(function (b) {
+      var t = typeChangement(b), d = b.d, n = d.brouillon || d.publie;
+      var etiq = { ajout: ['Ajout', '#1E6B3A'], deplacement: ['Déplacement', '#8A5A00'], retrait: ['Retrait', '#9E1F27'] }[t];
+      html += '<label class="changement"><input type="checkbox" data-choix="' + h(d.bid) + '"' + (choixPublier[d.bid] ? ' checked' : '') + '><span style="display:flex;flex-direction:column;gap:3px">'
+        + '<span><span class="etiquette" style="background:' + etiq[1] + '">' + etiq[0] + '</span> <b>' + h(n.techs.map(nomUser).join(' et ')) + '</b></span>'
+        + '<span><span class="mono">Série ' + h(d.serie) + '</span> · ' + h(d.travail) + (d.ville ? ' · ' + h(d.ville) : '') + '</span>'
+        + '<span class="aide">' + (t === 'deplacement' ? '<s>' + h(dateCourte(d.publie.date) + ', ' + plage(d.publie)) + '</s> → ' + h(dateCourte(d.brouillon.date) + ', ' + plage(d.brouillon)) + (Object.keys(d.confirme || {}).length ? ' · déjà confirmé à l’ancienne heure' : '') : (t === 'retrait' ? 'Retiré de l’horaire (était ' + h(dateCourte(d.publie.date) + ', ' + plage(d.publie)) + ')' : h(dateCourte(n.date) + ', ' + plage(n)))) + '</span></span></label>';
+    });
+    var sel = ch.filter(function (b) { return choixPublier[b.d.bid]; }), avises = {};
+    sel.forEach(function (b) { techsTouches(b).forEach(function (t) { avises[t] = true; }); });
+    var demain = new Date(Date.now() + 86400000), prog = B.jourIso(demain) + 'T16:00';
+    html += '</section><aside class="panneau" style="width:300px;flex:0 0 auto"><h2>Envoi aux techniciens</h2>'
+      + '<fieldset style="border:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px"><legend style="font-weight:600;margin-bottom:6px">Quand publier</legend>'
+      + '<label style="display:flex;gap:10px;align-items:center;min-height:44px"><input type="radio" name="sv-quand" value="maintenant" checked style="width:20px;height:20px"> Maintenant</label>'
+      + '<label style="display:flex;gap:10px;align-items:center;min-height:44px"><input type="radio" name="sv-quand" value="programmer" style="width:20px;height:20px"> Programmer :</label><input type="datetime-local" id="sv-prog" value="' + prog + '" aria-label="Date et heure de publication"></fieldset>'
+      + '<fieldset style="border:none;padding:0;margin:0;display:flex;flex-direction:column;gap:4px"><legend style="font-weight:600;margin-bottom:6px">Avis</legend>'
+      + ['Notification dans Geotab Drive|sv-notif|1', 'Exiger une confirmation de réception|sv-exiger|1', 'Me rappeler si non confirmé après 24 h|sv-rappel|0'].map(function (x) { var p = x.split('|'); return '<label style="display:flex;gap:10px;align-items:center;min-height:44px"><input type="checkbox" id="' + p[1] + '"' + (p[2] === '1' ? ' checked' : '') + ' style="width:22px;height:22px;accent-color:#1F5FA8"> ' + p[0] + '</label>'; }).join('') + '</fieldset>'
+      + '<label style="display:flex;flex-direction:column;gap:6px;font-weight:600">Message joint (facultatif)<textarea id="sv-msg" placeholder="Ex. : Apporter le matériel pour la porte-patio."></textarea></label>'
+      + '<div class="aide" style="border-top:1px solid #E8EBEF;padding-top:10px">' + sel.length + ' changement' + (sel.length > 1 ? 's' : '') + ' sélectionné' + (sel.length > 1 ? 's' : '') + ' · ' + Object.keys(avises).length + ' technicien' + (Object.keys(avises).length > 1 ? 's' : '') + ' avisé' + (Object.keys(avises).length > 1 ? 's' : '') + '</div>'
+      + '<button type="button" class="btn principal" data-a="publier"' + (sel.length ? '' : ' disabled') + '>Publier ' + sel.length + ' changement' + (sel.length > 1 ? 's' : '') + '</button>'
+      + '<button type="button" class="btn" data-a="retour">Continuer à modifier</button></aside></div></div>';
+    return html;
+  }
+  function publier() {
+    var sel = changements().filter(function (b) { return choixPublier[b.d.bid]; }); if (!sel.length) { return; }
+    var quand = (document.querySelector('input[name=sv-quand]:checked') || {}).value, maintenant = new Date().toISOString();
+    var visible = quand === 'programmer' && $('sv-prog').value ? new Date($('sv-prog').value).toISOString() : maintenant;
+    var pid = 'p' + Date.now().toString(36);
+    var pub = { type: 'srvPublication', pid: pid, le: maintenant, visibleLe: visible, par: moi, message: $('sv-msg').value.trim(), notif: $('sv-notif').checked, exiger: $('sv-exiger').checked, rappel: $('sv-rappel').checked, changements: [], destinataires: [], accuses: {} };
+    var dest = {}, c = Promise.resolve();
+    sel.forEach(function (b) {
+      var d = b.d, t = typeChangement(b), n = d.brouillon || d.publie;
+      pub.changements.push({ bid: d.bid, type: t, serie: d.serie, travail: d.travail, ville: d.ville, techs: n.techs.slice(), date: n.date, debut: n.debut, fin: n.fin, avant: d.publie ? JSON.parse(JSON.stringify(d.publie)) : null });
+      techsTouches(b).forEach(function (u) { dest[u] = true; });
+      d.avant = d.publie || null; d.visibleLe = visible; d.publication = pid;
+      if (d.retrait) { d.publie = null; d.retire = true; } else { d.publie = d.brouillon; }
+      d.brouillon = null; d.retrait = false; d.confirme = {};
+      c = c.then(function () { return sauverBloc(b); });
+    });
+    pub.destinataires = Object.keys(dest);
+    c.then(function () { return G.ajouter(pub); }).then(function (id) {
+      publications.unshift({ id: id, d: pub }); choixPublier = {}; vue = 'horaire';
+      dire(sel.length + ' changement' + (sel.length > 1 ? 's' : '') + ' publié' + (sel.length > 1 ? 's' : '') + '. ' + pub.destinataires.length + ' technicien' + (pub.destinataires.length > 1 ? 's' : '') + ' avisé' + (pub.destinataires.length > 1 ? 's' : '') + ' dans Drive.');
+    }).catch(function (e) { dire('Publication impossible : ' + (e && e.message ? e.message : e), true); });
+  }
+
+  // ---------- Fenêtres : appel, intervention, absence
+  function fenetre(titre, corps, actions) {
+    var f = document.createElement('div'); f.className = 'fond-modale'; f.id = 'sv-modale';
+    f.innerHTML = '<section class="modale" role="dialog" aria-modal="true" aria-label="' + h(titre) + '"><h2>' + h(titre) + '</h2>' + corps + '<div class="rang" style="justify-content:flex-end">' + actions + '</div></section>';
+    $('sv').appendChild(f);
+    f.addEventListener('click', function (e) { if (e.target === f || e.target.getAttribute('data-f') === 'fermer') { fermer(); } });
+    var p = f.querySelector('input, select, textarea'); if (p) { p.focus(); }
+  }
+  function fermer() { var f = $('sv-modale'); if (f) { f.parentNode.removeChild(f); } }
+  function optionsTechs(choisi, vide) { return (vide ? '<option value="">' + h(vide) + '</option>' : '') + techs.map(function (t) { return '<option value="' + h(t.user) + '"' + (t.user === choisi ? ' selected' : '') + '>' + h(t.nom) + '</option>'; }).join(''); }
+  function formAppel(a) {
+    var d = a ? a.d : { serie: '', travail: TRAVAUX[0], ville: '', duree: 120, nbTech: 1, adresse: '', client: '', info: '', documents: [] };
+    var corps = '<div class="rang"><label>Série (5 chiffres)<input type="text" id="fa-serie" inputmode="numeric" maxlength="5" class="mono" value="' + h(d.serie) + '" style="width:120px"></label>'
+      + '<label>Type d’intervention<select id="fa-travail">' + TRAVAUX.map(function (t) { return '<option' + (t === d.travail ? ' selected' : '') + '>' + h(t) + '</option>'; }).join('') + '</select></label></div>'
+      + '<div class="rang"><label>Durée (heures)<input type="number" id="fa-duree" min="0.25" max="10" step="0.25" value="' + (d.duree / 60) + '" style="width:110px"></label><label>Techniciens<select id="fa-nb"><option value="1"' + (d.nbTech === 1 ? ' selected' : '') + '>1 technicien</option><option value="2"' + (d.nbTech === 2 ? ' selected' : '') + '>2 techniciens</option></select></label></div>'
+      + '<div class="rang"><label style="flex:1">Ville<input type="text" id="fa-ville" value="' + h(d.ville) + '"></label><label style="flex:2">Adresse<input type="text" id="fa-adresse" value="' + h(d.adresse) + '"></label></div>'
+      + '<div class="rang"><label style="flex:1">Client<input type="text" id="fa-client" value="' + h(d.client) + '"></label><label style="flex:2">Information (facultatif)<input type="text" id="fa-info" value="' + h(d.info) + '"></label></div>'
+      + '<label style="display:flex;flex-direction:column;gap:4px;font-size:13px;color:#4A5565">Documents (un par ligne : Nom | lien)<textarea id="fa-docs">' + h((d.documents || []).map(function (x) { return x.nom + ' | ' + x.url; }).join('\n')) + '</textarea></label>';
+    fenetre(a ? 'Modifier l’appel' : 'Ajouter un appel à planifier', corps, (a ? '<button type="button" class="btn refus" data-f="suppr">Retirer de la file</button>' : '') + '<button type="button" class="btn" data-f="fermer">Annuler</button><button type="button" class="btn principal" data-f="ok">Enregistrer</button>');
+    var m = $('sv-modale');
+    m.querySelector('[data-f=ok]').onclick = function () {
+      var serie = $('fa-serie').value.trim(); if (!/^\d{5}$/.test(serie)) { alert('La Série doit avoir 5 chiffres.'); return; }
+      var nd = a ? JSON.parse(JSON.stringify(a.d)) : { type: 'srvAppel', aid: 'a' + Date.now().toString(36), statut: 'a_planifier', cree: new Date().toISOString(), par: moi };
+      nd.serie = serie; nd.travail = $('fa-travail').value; nd.duree = Math.max(15, Math.round(parseFloat(String($('fa-duree').value).replace(',', '.')) * 60 / 15) * 15 || 120);
+      nd.nbTech = +$('fa-nb').value; nd.ville = $('fa-ville').value.trim(); nd.adresse = $('fa-adresse').value.trim(); nd.client = $('fa-client').value.trim(); nd.info = $('fa-info').value.trim();
+      nd.documents = $('fa-docs').value.split('\n').map(function (l) { var p = l.split('|'); return p.length > 1 ? { nom: p[0].trim(), url: p.slice(1).join('|').trim() } : null; }).filter(Boolean);
+      G.enregistrer(a, nd).then(function (id) { if (a) { a.d = nd; } else { appels.push({ id: id, d: nd }); } fermer(); dire('Appel de la Série ' + serie + ' enregistré.'); });
+    };
+    var s = m.querySelector('[data-f=suppr]'); if (s) { s.onclick = function () { if (!confirm('Retirer cet appel de la file ?')) { return; } G.retirer(a.id).then(function () { appels = appels.filter(function (x) { return x !== a; }); fermer(); rendre(); }); }; }
+  }
+  function formBloc(b) {
+    var v = vueBloc(b); if (!v) { return; }
+    var d = b.d, a = appelDe(d.aid);
+    var corps = '<div class="aide" style="font-size:14px"><span class="mono">Série ' + h(d.serie) + '</span> · ' + h(d.travail) + (d.ville ? ' · ' + h(d.ville) : '') + '</div>'
+      + '<div class="rang"><label>Technicien<select id="fb-t1">' + optionsTechs(v.techs[0]) + '</select></label><label>Deuxième technicien<select id="fb-t2">' + optionsTechs(v.techs[1] || '', 'Aucun') + '</select></label></div>'
+      + '<div class="rang"><label>Date<input type="date" id="fb-date" value="' + v.date + '"></label><label>Début<input type="time" id="fb-debut" step="900" value="' + v.debut + '"></label><label>Fin<input type="time" id="fb-fin" step="900" value="' + v.fin + '"></label></div>'
+      + (d.publie ? '<div class="aide">Publié : ' + h(d.publie.techs.map(nomUser).join(' et ')) + ', ' + h(dateCourte(d.publie.date) + ', ' + plage(d.publie)) + '. Toute modification passe en brouillon jusqu’à la publication.</div>' : '<div class="aide">Cette intervention n’a jamais été publiée.</div>');
+    fenetre('Intervention à l’horaire', corps, '<button type="button" class="btn refus" data-f="retirer">Retirer de l’horaire</button>' + (a ? '<button type="button" class="btn" data-f="appel">Détails de l’appel</button>' : '') + '<button type="button" class="btn" data-f="fermer">Fermer</button><button type="button" class="btn principal" data-f="ok">Appliquer en brouillon</button>');
+    var m = $('sv-modale');
+    m.querySelector('[data-f=ok]').onclick = function () {
+      var t1 = $('fb-t1').value, t2 = $('fb-t2').value, date = $('fb-date').value, de = $('fb-debut').value, fi = $('fb-fin').value;
+      if (!date || !de || !fi || mn(fi) <= mn(de)) { alert('Vérifie la date et les heures.'); return; }
+      var nv = { techs: t2 && t2 !== t1 ? [t1, t2] : [t1], date: date, debut: de, fin: fi };
+      d.brouillon = memeVersion(nv, d.publie) ? null : nv; d.retrait = false;
+      sauverBloc(b).then(function () { fermer(); rendre(); });
+    };
+    m.querySelector('[data-f=retirer]').onclick = function () { retirerBloc(b); };
+    var da = m.querySelector('[data-f=appel]'); if (da) { da.onclick = function () { fermer(); formAppel(a); }; }
+  }
+  function retirerBloc(b) {
+    var d = b.d;
+    if (d.publie) { d.retrait = true; d.brouillon = null; sauverBloc(b).then(function () { fermer(); rendre(); }); return; }
+    G.retirer(b.id).then(function () {
+      blocs = blocs.filter(function (x) { return x !== b; });
+      var a = appelDe(d.aid); if (a) { a.d.statut = 'a_planifier'; G.modifier(a.id, a.d); }
+      fermer(); rendre();
+    });
+  }
+  function formAbsence(x) {
+    var d = x ? x.d : { tech: techs[0] ? techs[0].user : '', date: jourSel, debut: '07:00', fin: '12:00', motif: 'formation' };
+    var corps = '<div class="rang"><label>Technicien<select id="fx-tech">' + optionsTechs(d.tech) + '</select></label><label>Date<input type="date" id="fx-date" value="' + d.date + '"></label></div>'
+      + '<div class="rang"><label>Début<input type="time" id="fx-debut" step="900" value="' + d.debut + '"></label><label>Fin<input type="time" id="fx-fin" step="900" value="' + d.fin + '"></label><label style="flex:1">Motif<input type="text" id="fx-motif" value="' + h(d.motif) + '"></label></div>'
+      + '<div class="aide">L’absence s’affiche tout de suite dans l’horaire (elle ne passe pas par la publication).</div>';
+    fenetre(x ? 'Modifier l’absence' : 'Absence d’un technicien', corps, (x ? '<button type="button" class="btn refus" data-f="suppr">Supprimer</button>' : '') + '<button type="button" class="btn" data-f="fermer">Annuler</button><button type="button" class="btn principal" data-f="ok">Enregistrer</button>');
+    var m = $('sv-modale');
+    m.querySelector('[data-f=ok]').onclick = function () {
+      var nd = x ? JSON.parse(JSON.stringify(x.d)) : { type: 'srvAbsence', xid: 'x' + Date.now().toString(36) };
+      nd.tech = $('fx-tech').value; nd.date = $('fx-date').value; nd.debut = $('fx-debut').value; nd.fin = $('fx-fin').value; nd.motif = $('fx-motif').value.trim();
+      if (!nd.date || mn(nd.fin) <= mn(nd.debut)) { alert('Vérifie la date et les heures.'); return; }
+      G.enregistrer(x, nd).then(function (id) { if (x) { x.d = nd; } else { absences.push({ id: id, d: nd }); } fermer(); rendre(); });
+    };
+    var s = m.querySelector('[data-f=suppr]'); if (s) { s.onclick = function () { G.retirer(x.id).then(function () { absences = absences.filter(function (y) { return y !== x; }); fermer(); rendre(); }); }; }
+  }
+  function conflit(tech, date, debut, fin, saufBid) {
+    var occ = blocs.some(function (b) { var v = vueBloc(b); return b.d.bid !== saufBid && v && v.etat !== 'retire' && v.date === date && v.techs.indexOf(tech) >= 0 && mn(v.debut) < fin && mn(v.fin) > debut; });
+    var abs = absences.some(function (x) { return x.d.tech === tech && x.d.date === date && mn(x.d.debut) < fin && mn(x.d.fin) > debut; });
+    return abs ? 'une absence' : (occ ? 'une autre intervention' : '');
+  }
+  function placer(aid, tech, heure) {
+    var a = appelDe(aid); if (!a) { return; }
+    var debut = heure * 60, fin = Math.min(H1 * 60 + 120, debut + a.d.duree);
+    var cf = conflit(tech, jourSel, debut, fin, null);
+    if (cf && !confirm(nomUser(tech) + ' a déjà ' + cf + ' à ce moment. Placer quand même ?')) { return; }
+    var nd = { type: 'srvBloc', bid: 'b' + Date.now().toString(36), aid: aid, serie: a.d.serie, travail: a.d.travail, ville: a.d.ville, publie: null, brouillon: { techs: [tech], date: jourSel, debut: B.hhmm(debut), fin: B.hhmm(fin) }, retrait: false, confirme: {} };
+    var b = { id: null, d: nd };
+    blocs.push(b); carteChoisie = null; a.d.statut = 'planifie';
+    Promise.all([sauverBloc(b), G.modifier(a.id, a.d)]).then(function () { if (a.d.nbTech > 1) { formBloc(b); } else { rendre(); } }).catch(function (e) { dire('Enregistrement impossible : ' + (e && e.message ? e.message : e), true); });
+    rendre();
+  }
+  function deplacer(bid, tech, heure) {
+    var b = blocs.filter(function (x) { return x.d.bid === bid; })[0]; if (!b) { return; }
+    var v = vueBloc(b); if (!v) { return; }
+    var duree = mn(v.fin) - mn(v.debut), debut = heure * 60;
+    var techsN = v.techs.slice(); techsN[0] = tech; if (techsN[1] === tech) { techsN.splice(1, 1); }
+    var nv = { techs: techsN, date: jourSel, debut: B.hhmm(debut), fin: B.hhmm(debut + duree) };
+    b.d.brouillon = memeVersion(nv, b.d.publie) ? null : nv; b.d.retrait = false;
+    sauverBloc(b).then(rendre); rendre();
+  }
+  function annulerChangements() {
+    if (!confirm('Annuler tous les changements non publiés ? L’horaire revient à la dernière version publiée.')) { return; }
+    var c = Promise.resolve();
+    changements().forEach(function (b) {
+      if (!b.d.publie) { c = c.then(function () { return G.retirer(b.id); }).then(function () { blocs = blocs.filter(function (x) { return x !== b; }); var a = appelDe(b.d.aid); if (a) { a.d.statut = 'a_planifier'; return G.modifier(a.id, a.d); } }); }
+      else { b.d.brouillon = null; b.d.retrait = false; c = c.then(function () { return sauverBloc(b); }); }
+    });
+    c.then(function () { dire('Changements annulés : l’horaire est revenu à la version publiée.'); });
+  }
+
+  // ---------- Branchements
+  function brancher() {
+    var z = $('sv-contenu');
+    Array.prototype.forEach.call(z.querySelectorAll('[data-mode]'), function (b) { b.onclick = function () { mode = b.getAttribute('data-mode'); rendre(); }; });
+    var af = $('sv-afficher'); if (af) { af.onchange = function () { afficher = af.value; rendre(); }; }
+    var re = $('sv-recherche'); if (re) { re.oninput = function () { recherche = re.value.trim(); var pos = re.selectionStart; rendre(); var r2 = $('sv-recherche'); r2.focus(); try { r2.setSelectionRange(pos, pos); } catch (e) {} }; }
+    Array.prototype.forEach.call(z.querySelectorAll('[data-choix]'), function (c) { c.onchange = function () { choixPublier[c.getAttribute('data-choix')] = c.checked; rendre(); }; });
+    Array.prototype.forEach.call(z.querySelectorAll('[data-carte]'), function (c) { c.ondragstart = function (e) { glisse = { carte: c.getAttribute('data-carte') }; try { e.dataTransfer.setData('text/plain', 'carte'); } catch (x) {} }; });
+    Array.prototype.forEach.call(z.querySelectorAll('.bloc[data-bloc]'), function (c) { c.ondragstart = function (e) { if (afficher !== 'brouillon' || mode !== 'jour') { e.preventDefault(); return; } glisse = { bloc: c.getAttribute('data-bloc') }; try { e.dataTransfer.setData('text/plain', 'bloc'); } catch (x) {} }; });
+    Array.prototype.forEach.call(z.querySelectorAll('.cellule.heure'), function (cel) {
+      cel.ondragover = function (e) { if (glisse) { e.preventDefault(); cel.classList.add('cible'); } };
+      cel.ondragleave = function () { cel.classList.remove('cible'); };
+      cel.ondrop = function (e) {
+        e.preventDefault(); cel.classList.remove('cible'); if (!glisse) { return; }
+        var t = cel.getAttribute('data-tech'), hh = +cel.getAttribute('data-heure');
+        if (glisse.carte) { placer(glisse.carte, t, hh); } else if (glisse.bloc) { deplacer(glisse.bloc, t, hh); }
+        glisse = null;
+      };
+    });
+  }
+  function surClic(e) {
+    var t = e.target.closest('button'); if (!t || !$('sv').contains(t) || $('sv-modale')) { return; }
+    var a = t.getAttribute('data-a');
+    if (t.hasAttribute('data-o')) { vue = 'horaire'; message = null; rendre(); return; }
+    if (t.hasAttribute('data-carte')) { var aid = t.getAttribute('data-carte'); carteChoisie = carteChoisie === aid ? null : aid; if (carteChoisie) { mode = 'jour'; } rendre(); return; }
+    if (t.hasAttribute('data-poser')) { var p = t.getAttribute('data-poser').split('|'); placer(carteChoisie, p[0], +p[1]); return; }
+    if (t.hasAttribute('data-bloc')) { var b = blocs.filter(function (x) { return x.d.bid === t.getAttribute('data-bloc'); })[0]; if (b && afficher === 'brouillon') { formBloc(b); } return; }
+    if (t.hasAttribute('data-absence')) { var x = absences.filter(function (y) { return y.d.xid === t.getAttribute('data-absence'); })[0]; if (x) { formAbsence(x); } return; }
+    if (t.hasAttribute('data-jour-ouvrir')) { jourSel = t.getAttribute('data-jour-ouvrir'); mode = 'jour'; rendre(); return; }
+    if (a === 'prec' || a === 'suiv') {
+      var s = a === 'prec' ? -1 : 1;
+      if (mode === 'jour') { do { jourSel = B.ajouterJours(jourSel, s); } while ([0, 6].indexOf(B.dateDe(jourSel).getDay()) >= 0); }
+      else if (mode === 'semaine') { jourSel = B.ajouterJours(lundiDe(jourSel), 7 * s); }
+      else { var m = B.dateDe(jourSel); jourSel = B.jourIso(new Date(m.getFullYear(), m.getMonth() + s, 1)); }
+      message = null; rendre(); return;
+    }
+    if (a === 'aujourdhui') { var auj = B.jourIso(); jourSel = [0, 6].indexOf(B.dateDe(auj).getDay()) >= 0 ? B.ajouterJours(lundiDe(auj), 7) : auj; rendre(); return; }
+    if (a === 'nouvel-appel') { formAppel(null); return; }
+    if (a === 'absence') { formAbsence(null); return; }
+    if (a === 'annuler-choix') { carteChoisie = null; rendre(); return; }
+    if (a === 'annuler') { annulerChangements(); return; }
+    if (a === 'reviser') { vue = 'publier'; message = null; rendre(); window.scrollTo(0, 0); return; }
+    if (a === 'retour') { vue = 'horaire'; rendre(); return; }
+    if (a === 'publier') { publier(); return; }
+  }
+
+  var branche = false;
+  function demarrer(a) {
+    api = a; B = window.Bonneville; G = B.creerApi(a);
+    if (!jourSel) { var auj = B.jourIso(); jourSel = [0, 6].indexOf(B.dateDe(auj).getDay()) >= 0 ? B.ajouterJours(lundiDe(auj), 7) : auj; }
+    if (!branche) { document.addEventListener('click', surClic); branche = true; }
+    G.session().then(function (s) { moi = s.userName || ''; return charger(); }).then(rendre)
+      .catch(function (e) { $('sv-contenu').innerHTML = '<div class="page"><div class="message erreur">Lecture impossible : ' + h(e && e.message ? e.message : e) + '</div></div>'; });
+  }
+  window.BonnevilleModule = { aller: function () { vue = 'horaire'; rendre(); } };
+  return {
+    initialize: function (a, s, callback) { try { demarrer(a); } catch (e) { console.warn(e); } callback(); },
+    focus: function (a) { try { demarrer(a); } catch (e) { console.warn(e); } },
+    blur: function () {}
+  };
+};
+geotab.addin.Service = geotab.addin.service;
+geotab.addin.bonnevilleService = geotab.addin.service;
+</script>
+</body>
+</html>

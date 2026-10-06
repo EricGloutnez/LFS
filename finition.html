@@ -50,7 +50,14 @@
   #fi .file h2 small { font-size: 12px; font-weight: 400; color: var(--t2); }
   #fi .aide { font-size: 12px; color: var(--t2); line-height: 1.4; }
   #fi .carte-file { border: 1px solid var(--bord); border-radius: 6px; padding: 10px 12px; background: var(--surf2); display: flex; gap: 8px; cursor: grab; text-align: left; width: 100%; }
-  #fi .carte-file.choisie { border: 3px solid var(--bleu); background: var(--sel); }
+  #fi .carte-boite { border: 1px solid var(--bord); border-radius: 6px; background: var(--surf2); }
+  #fi .carte-boite.choisie { border: 3px solid var(--bleu); background: var(--sel); }
+  #fi .carte-boite .carte-file { border: none; background: transparent; }
+  #fi .carte-actions { display: flex; gap: 16px; padding: 0 12px 8px 32px; }
+  #fi .lien.rouge { color: var(--rouge); }
+  #fi .table-f { width: 100%; border-collapse: collapse; }
+  #fi .table-f th { text-align: left; font-size: 12px; color: var(--t2); background: var(--surf2); padding: 10px; border-bottom: 1px solid var(--bord); }
+  #fi .table-f td { padding: 8px 10px; border-bottom: 1px solid var(--ligne); }
   #fi .carte-file .poignee { color: var(--t3); font-size: 16px; line-height: 1; padding-top: 2px; }
   #fi .carte-file b { display: block; font-size: 14px; } #fi .carte-file .s { font-size: 12px; color: var(--t2); display: block; }
   #fi .grille-boite { flex: 1; min-width: 0; background: var(--surf); border: 1px solid var(--bord); border-radius: 8px; overflow-x: auto; }
@@ -100,6 +107,7 @@
 <header class="entete fi-entete"><span class="logo" aria-hidden="true">B</span><span><small>Bonneville</small><b>Finition</b></span></header>
 <nav class="sous" aria-label="Finition">
   <button type="button" data-o="horaire" aria-current="page">Horaire <span class="compte" id="fi-compte" hidden></span></button>
+  <button type="button" data-o="fournisseurs">Fournisseurs</button>
   <button type="button" data-o="formulaires">Formulaires F0 à F5 <span class="compte" id="fi-compte-f" hidden></span></button>
 </nav>
 <div id="fi-contenu"><div class="page"><div class="aide">Chargement…</div></div></div>
@@ -108,10 +116,11 @@
 <script>
 geotab.addin.finition = function () {
   'use strict';
-  var VERSION = '1.1.0';
+  var VERSION = '1.2.0';
   var B = window.Bonneville, G = null, api = null, moi = '';
   var TRAVAUX = ['Raccordement', 'Raccordement de menuiserie', 'Correctifs après F5', 'F3 · Travaux en extra', 'Autre'];
   var onglet = 'horaire', vue = 'horaire', mode = 'semaine', lundi = null, jourSel = null, afficher = 'brouillon', recherche = '';
+  var fournisseurs = [], creationFournisseurs = false;
   var users = [], employes = {}, profils = [], entrepreneurs = [], blocs = [], chantiers = [], publications = [], voyages = {}, formsRes = [], param = null;
   var carteChoisie = null, message = null, glisse = null, choixPublier = {};
 
@@ -119,7 +128,14 @@ geotab.addin.finition = function () {
   var IC_OK = '<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5 L10 17 L19 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   function $(id) { return document.getElementById(id); }
   function h(t) { return String(t === undefined || t === null ? '' : t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
-  function nomUser(u) { var x = users.filter(function (y) { return y.user === u; })[0]; return x ? x.nom : u; }
+  function nomUser(u) { var f = fournisseurs.filter(function (y) { return y.d.cle === u; })[0]; if (f) { return f.d.nom; } var x = users.filter(function (y) { return y.user === u; })[0]; return x ? x.nom : u; }
+  // Compte Geotab (Drive) qui reçoit l'horaire d'un fournisseur
+  function compteDe(cle) { var f = fournisseurs.filter(function (y) { return y.d.cle === cle; })[0]; if (f) { return f.d.user || ''; } return cle.indexOf('@') > 0 ? cle : ''; }
+  function listeEntrepreneurs() {
+    entrepreneurs = fournisseurs.filter(function (f) { return f.d.actif !== false; })
+      .map(function (f) { return { user: f.d.cle, nom: f.d.nom, specialite: (f.d.specialite || 'Entrepreneur') + (f.d.user ? '' : ' · sans compte Drive') }; })
+      .sort(function (a, b) { return a.nom.localeCompare(b.nom, 'fr'); });
+  }
   function lundiDe(iso) { var d = B.dateDe(iso), j = d.getDay(); d.setDate(d.getDate() - (j === 0 ? 6 : j - 1)); return B.jourIso(d); }
   function feries(iso) {
     var an = +String(iso).slice(0, 4), f = B.feriesQuebec(an);
@@ -138,10 +154,10 @@ geotab.addin.finition = function () {
   // ---------- Données
   function charger() {
     return Promise.all([
-      G.lireTypes(['employe', 'profil', 'finBloc', 'finChantier', 'finPublication', 'finParametres', 'voyage', 'formresume']),
+      G.lireTypes(['employe', 'profil', 'finBloc', 'finChantier', 'finPublication', 'finParametres', 'voyage', 'formresume', 'finFournisseur']),
       G.utilisateurs().catch(function () { return []; })
     ]).then(function (r) {
-      employes = {}; profils = []; blocs = []; chantiers = []; publications = []; voyages = {}; formsRes = []; param = null;
+      employes = {}; profils = []; blocs = []; chantiers = []; publications = []; voyages = {}; formsRes = []; param = null; fournisseurs = [];
       users = r[1];
       r[0].forEach(function (l) {
         var d = l.details;
@@ -153,10 +169,20 @@ geotab.addin.finition = function () {
         else if (d.type === 'finParametres') { param = { id: l.id, d: d }; }
         else if (d.type === 'voyage' && d.ref) { var s = String(d.ref).split('-')[0]; if (!voyages[s] || String(d.date) > String(voyages[s].date)) { voyages[s] = d; } }
         else if (d.type === 'formresume') { formsRes.push(d); }
+        else if (d.type === 'finFournisseur') { fournisseurs.push({ id: l.id, d: d }); }
       });
-      entrepreneurs = Object.keys(employes).filter(function (u) { return !employes[u].masque && B.droitsEffectifs(employes[u], profils).finition; })
-        .map(function (u) { var p = profils.filter(function (x) { return x.pid === employes[u].profil; })[0]; return { user: u, nom: nomUser(u), specialite: employes[u].specialiteFinition || (p ? p.nom.replace(/\s*\(Finition\)/, '') : 'Entrepreneur') }; })
-        .sort(function (a, b) { return a.nom.localeCompare(b.nom, 'fr'); });
+      // Première ouverture : les entrepreneurs qui ont un compte deviennent des fournisseurs, et on crée les fournisseurs A à J
+      if (!fournisseurs.length && !creationFournisseurs) {
+        creationFournisseurs = true;
+        var nouveaux = Object.keys(employes).filter(function (u) { return !employes[u].masque && B.droitsEffectifs(employes[u], profils).finition; })
+          .map(function (u) { return { type: 'finFournisseur', cle: u, nom: nomUser(u), specialite: employes[u].specialiteFinition || 'Raccordement', user: u, actif: true }; });
+        'ABCDEFGHIJ'.split('').forEach(function (x) { nouveaux.push({ type: 'finFournisseur', cle: 'f-' + x.toLowerCase() + Date.now().toString(36), nom: 'Fournisseur ' + x, specialite: 'Raccordement', user: '', actif: true }); });
+        publications.sort(function (a, b) { return String(b.d.le).localeCompare(String(a.d.le)); });
+        var c = Promise.resolve();
+        nouveaux.forEach(function (d) { c = c.then(function () { return G.ajouter(d).then(function (id) { fournisseurs.push({ id: id, d: d }); }); }); });
+        return c.then(function () { return listeEntrepreneurs(); });
+      }
+      listeEntrepreneurs();
       publications.sort(function (a, b) { return String(b.d.le).localeCompare(String(a.d.le)); });
     });
   }
@@ -189,11 +215,13 @@ geotab.addin.finition = function () {
     var nf = fCharge ? aApprouver().length : 0, cf = $('fi-compte-f'); cf.hidden = !nf; cf.textContent = nf;
     var html = '';
     if (onglet === 'formulaires') { html = vueFormulaires(); }
+    else if (onglet === 'fournisseurs') { html = vueFournisseurs(); }
     else if (vue === 'publier') { html = vuePublier(); }
     else { html = vueHoraire(); }
     $('fi-contenu').innerHTML = html;
     brancher();
     if (onglet === 'formulaires') { brancherFormulaires(); }
+    if (onglet === 'fournisseurs') { brancherFournisseurs(); }
   }
   function bandeau() {
     var n = changements().length; if (!n || afficher === 'publie') { return ''; }
@@ -240,9 +268,10 @@ geotab.addin.finition = function () {
       + '<div class="aide">' + (carteChoisie ? 'Choisis maintenant la case de l’entrepreneur et du jour de début.' : 'Glissez une carte sur la ligne d’un entrepreneur, ou touchez-la puis touchez la case du jour. Elle arrive en brouillon.') + '</div>';
     file.forEach(function (c) {
       var d = c.d, lv = livraison(d.serie);
-      html += '<button type="button" class="carte-file' + (carteChoisie === d.cid ? ' choisie' : '') + '" draggable="true" data-carte="' + h(d.cid) + '" aria-pressed="' + (carteChoisie === d.cid) + '"><span class="poignee" aria-hidden="true"><svg width="12" height="18" viewBox="0 0 12 18"><g fill="currentColor"><circle cx="3" cy="3" r="1.6"/><circle cx="9" cy="3" r="1.6"/><circle cx="3" cy="9" r="1.6"/><circle cx="9" cy="9" r="1.6"/><circle cx="3" cy="15" r="1.6"/><circle cx="9" cy="15" r="1.6"/></g></svg></span><span>'
+      html += '<div class="carte-boite' + (carteChoisie === d.cid ? ' choisie' : '') + '" draggable="true" data-glisser="' + h(d.cid) + '"><button type="button" class="carte-file" data-carte="' + h(d.cid) + '" aria-pressed="' + (carteChoisie === d.cid) + '"><span class="poignee" aria-hidden="true"><svg width="12" height="18" viewBox="0 0 12 18"><g fill="currentColor"><circle cx="3" cy="3" r="1.6"/><circle cx="9" cy="3" r="1.6"/><circle cx="3" cy="9" r="1.6"/><circle cx="9" cy="9" r="1.6"/><circle cx="3" cy="15" r="1.6"/><circle cx="9" cy="15" r="1.6"/></g></svg></span><span>'
         + '<span class="mono">Série ' + h(d.serie) + '</span><b>' + h(d.travail) + '</b><span class="s">' + h(d.ville || '') + ' · ' + d.duree + ' jour' + (d.duree > 1 ? 's' : '') + '</span>'
-        + '<span class="s" style="' + (lv.ok ? 'color:#1E6B3A' : '') + '">' + h(d.info || lv.texte) + '</span></span></button>';
+        + '<span class="s" style="' + (lv.ok ? 'color:#1E6B3A' : '') + '">' + h(d.info || lv.texte) + '</span></span></button>'
+        + '<span class="carte-actions"><button type="button" class="lien" data-modifier-carte="' + h(d.cid) + '">Modifier</button><button type="button" class="lien rouge" data-supprimer-carte="' + h(d.cid) + '">Supprimer</button></span></div>';
     });
     html += '<button type="button" class="btn" data-a="nouveau-chantier">+ Ajouter un chantier</button>'
       + (carteChoisie ? '<button type="button" class="lien" data-a="annuler-choix">Annuler le choix</button>' : '') + '</aside>';
@@ -263,7 +292,7 @@ geotab.addin.finition = function () {
       html += '<div class="tete' + (f ? ' ferie' : '') + '" style="grid-row:1;grid-column:' + (js.indexOf(j) + 2) + '"><b>' + h(jourCourt(j)) + '</b>' + (f ? h(f) + ' · férié' : (total ? (occ >= total ? '<span class="complet">' + occ + ' / ' + total + ' · complet</span>' : occ + ' / ' + total + ' équipes') : '')) + '</div>';
     });
     if (!entrepreneurs.length) {
-      return html + '</div><div class="aide" style="padding:16px">Aucun entrepreneur. Dans Employés, donne le profil « Entrepreneur (Finition) » aux comptes des entrepreneurs.</div>';
+      return html + '</div><div class="aide" style="padding:16px">Aucun fournisseur actif. Ajoute-les dans l’onglet « Fournisseurs ».</div>';
     }
     var rangee = 2;
     entrepreneurs.forEach(function (e, ri) {
@@ -348,7 +377,8 @@ geotab.addin.finition = function () {
         + (alerte ? '<span class="alerte">' + IC_ALERTE + ' La livraison des modules n’est pas confirmée dans Logistique. Décoché par défaut.</span>' : '') + '</span></label>';
     });
     var sel = ch.filter(function (b) { return choixPublier[b.d.bid]; }), avises = {};
-    sel.forEach(function (b) { if (b.d.brouillon) { avises[b.d.brouillon.ent] = true; } if (b.d.publie) { avises[b.d.publie.ent] = true; } });
+    var sansCompte = {};
+    sel.forEach(function (b) { [b.d.brouillon, b.d.publie].forEach(function (v) { if (v) { if (compteDe(v.ent)) { avises[compteDe(v.ent)] = true; } else { sansCompte[nomUser(v.ent)] = true; } } }); });
     var demain = new Date(Date.now() + 86400000); demain.setHours(16, 0, 0, 0);
     var progDefaut = B.jourIso(demain) + 'T16:00';
     html += '</section><aside class="panneau" style="width:300px;flex:0 0 auto"><h2>Envoi aux entrepreneurs</h2>'
@@ -358,7 +388,8 @@ geotab.addin.finition = function () {
       + '<fieldset style="border:none;padding:0;margin:0;display:flex;flex-direction:column;gap:4px"><legend style="font-weight:600;margin-bottom:6px">Avis</legend>'
       + ['Notification dans Geotab Drive|fi-notif|1', 'Exiger une confirmation de réception|fi-exiger|1', 'Me rappeler si non confirmé après 24 h|fi-rappel|0'].map(function (x) { var p = x.split('|'); return '<label style="display:flex;gap:10px;align-items:center;min-height:44px"><input type="checkbox" id="' + p[1] + '"' + (p[2] === '1' ? ' checked' : '') + ' style="width:22px;height:22px;accent-color:#1F5FA8"> ' + p[0] + '</label>'; }).join('') + '</fieldset>'
       + '<label style="display:flex;flex-direction:column;gap:6px;font-weight:600">Message joint (facultatif)<textarea id="fi-msg" placeholder="Ex. : Merci de valider la feuille de chargement avant mercredi."></textarea></label>'
-      + '<div class="aide" style="border-top:1px solid #E8EBEF;padding-top:10px">' + sel.length + ' changement' + (sel.length > 1 ? 's' : '') + ' sélectionné' + (sel.length > 1 ? 's' : '') + ' · ' + Object.keys(avises).length + ' entrepreneur' + (Object.keys(avises).length > 1 ? 's' : '') + ' avisé' + (Object.keys(avises).length > 1 ? 's' : '') + '</div>'
+      + '<div class="aide" style="border-top:1px solid #E8EBEF;padding-top:10px">' + sel.length + ' changement' + (sel.length > 1 ? 's' : '') + ' sélectionné' + (sel.length > 1 ? 's' : '') + ' · ' + Object.keys(avises).length + ' entrepreneur' + (Object.keys(avises).length > 1 ? 's' : '') + ' avisé' + (Object.keys(avises).length > 1 ? 's' : '') + ' dans Drive'
+      + (Object.keys(sansCompte).length ? '<br>Sans compte Drive, à aviser autrement : ' + h(Object.keys(sansCompte).join(', ')) : '') + '</div>'
       + '<button type="button" class="btn principal" data-a="publier"' + (sel.length ? '' : ' disabled') + '>Publier ' + sel.length + ' changement' + (sel.length > 1 ? 's' : '') + '</button>'
       + '<button type="button" class="btn" data-a="retour">Continuer à modifier</button></aside></div></div>';
     return html;
@@ -372,8 +403,8 @@ geotab.addin.finition = function () {
     var dest = {}, c = Promise.resolve();
     sel.forEach(function (b) {
       var d = b.d, t = typeChangement(b);
-      pub.changements.push({ bid: d.bid, type: t, serie: d.serie, travail: d.travail, ville: d.ville, ent: (d.brouillon || d.publie).ent, du: (d.brouillon || d.publie).du, au: (d.brouillon || d.publie).au, avant: d.publie ? { ent: d.publie.ent, du: d.publie.du, au: d.publie.au } : null });
-      if (d.brouillon) { dest[d.brouillon.ent] = true; } if (d.publie) { dest[d.publie.ent] = true; }
+      pub.changements.push({ bid: d.bid, type: t, serie: d.serie, travail: d.travail, ville: d.ville, ent: (d.brouillon || d.publie).ent, compte: compteDe((d.brouillon || d.publie).ent), compteAvant: d.publie ? compteDe(d.publie.ent) : '', du: (d.brouillon || d.publie).du, au: (d.brouillon || d.publie).au, avant: d.publie ? { ent: d.publie.ent, du: d.publie.du, au: d.publie.au } : null });
+      [d.brouillon, d.publie].forEach(function (v) { if (v && compteDe(v.ent)) { dest[compteDe(v.ent)] = true; } });
       d.avant = d.publie || null; d.visibleLe = visible; d.publication = pid;
       if (d.retrait) { d.publie = null; d.retire = true; } else { d.publie = d.brouillon; }
       d.brouillon = null; d.retrait = false; d.confirme = null;
@@ -595,6 +626,46 @@ geotab.addin.finition = function () {
     chargerVignettes();
   }
 
+  // ---------- Fournisseurs (lignes de l'horaire)
+  function vueFournisseurs() {
+    var comptes = users.filter(function (u) { return u.actif !== false; }).sort(function (a, b) { return a.nom.localeCompare(b.nom, 'fr'); });
+    var html = '<div class="page">' + (message ? '<div class="message ' + (message.e ? 'erreur' : 'ok') + '" role="status">' + h(message.t) + '</div>' : '')
+      + '<section class="panneau" style="max-width:1000px"><h2>Fournisseurs (entrepreneurs de Finition)</h2><div class="aide" style="font-size:13px">Chaque fournisseur actif est une ligne de l’horaire. Le compte Drive est facultatif : s’il est choisi, cette personne reçoit l’horaire publié et remplit les formulaires F0 à F5 sur son cellulaire. Les changements s’enregistrent tout de suite.</div>'
+      + '<div style="overflow-x:auto"><table class="table-f"><thead><tr><th>Nom</th><th>Spécialité</th><th>Compte Drive (facultatif)</th><th>Actif</th><th></th></tr></thead><tbody>';
+    fournisseurs.slice().sort(function (a, b) { return String(a.d.nom).localeCompare(String(b.d.nom), 'fr'); }).forEach(function (f) {
+      html += '<tr><td><input type="text" data-fo="' + h(f.d.cle) + '" data-ch="nom" value="' + h(f.d.nom) + '" aria-label="Nom du fournisseur"></td>'
+        + '<td><input type="text" data-fo="' + h(f.d.cle) + '" data-ch="specialite" value="' + h(f.d.specialite || '') + '" aria-label="Spécialité"></td>'
+        + '<td><select data-fo="' + h(f.d.cle) + '" data-ch="user" aria-label="Compte Drive"><option value="">Aucun</option>' + comptes.map(function (u) { return '<option value="' + h(u.user) + '"' + (u.user === f.d.user ? ' selected' : '') + '>' + h(u.nom) + '</option>'; }).join('') + '</select></td>'
+        + '<td><input type="checkbox" data-fo="' + h(f.d.cle) + '" data-ch="actif"' + (f.d.actif !== false ? ' checked' : '') + ' style="width:22px;height:22px" aria-label="Actif"></td>'
+        + '<td><button type="button" class="lien rouge" data-suppr-fo="' + h(f.d.cle) + '">Supprimer</button></td></tr>';
+    });
+    html += '</tbody></table></div><div class="rang"><button type="button" class="btn principal" data-a="fo-ajouter">+ Ajouter un fournisseur</button></div></section></div>';
+    return html;
+  }
+  function brancherFournisseurs() {
+    Array.prototype.forEach.call(document.querySelectorAll('[data-fo]'), function (c) {
+      c.onchange = function () {
+        var f = fournisseurs.filter(function (x) { return x.d.cle === c.getAttribute('data-fo'); })[0]; if (!f) { return; }
+        var ch = c.getAttribute('data-ch'); f.d[ch] = c.type === 'checkbox' ? c.checked : c.value.trim();
+        G.modifier(f.id, f.d).then(function () { listeEntrepreneurs(); dire('Fournisseur « ' + f.d.nom + ' » enregistré.'); });
+      };
+    });
+  }
+  function supprimerFournisseur(cle) {
+    var f = fournisseurs.filter(function (x) { return x.d.cle === cle; })[0]; if (!f) { return; }
+    var utilise = blocs.some(function (b) { return [b.d.publie, b.d.brouillon].some(function (v) { return v && v.ent === cle; }); });
+    if (utilise) {
+      if (!confirm('« ' + f.d.nom + ' » a des chantiers à l’horaire. Il sera rendu inactif (retiré de l’horaire, historique conservé). Continuer ?')) { return; }
+      f.d.actif = false; G.modifier(f.id, f.d).then(function () { listeEntrepreneurs(); dire('« ' + f.d.nom + ' » est maintenant inactif.'); }); return;
+    }
+    if (!confirm('Supprimer le fournisseur « ' + f.d.nom + ' » ?')) { return; }
+    G.retirer(f.id).then(function () { fournisseurs = fournisseurs.filter(function (x) { return x !== f; }); listeEntrepreneurs(); dire('Fournisseur supprimé.'); });
+  }
+  function ajouterFournisseur() {
+    var d = { type: 'finFournisseur', cle: 'f-' + Date.now().toString(36), nom: 'Nouveau fournisseur', specialite: 'Raccordement', user: '', actif: true };
+    G.ajouter(d).then(function (id) { fournisseurs.push({ id: id, d: d }); listeEntrepreneurs(); rendre(); var champ = document.querySelector('[data-fo="' + d.cle + '"][data-ch="nom"]'); if (champ) { champ.focus(); champ.select(); } });
+  }
+
   // ---------- Chantier : ajout et modification
   function fenetre(titre, corps, actions) {
     var f = document.createElement('div'); f.className = 'fond-modale'; f.id = 'fi-modale';
@@ -692,8 +763,8 @@ geotab.addin.finition = function () {
     var re = $('fi-recherche'); if (re) { re.oninput = function () { recherche = re.value.trim(); var pos = re.selectionStart; rendre(); var r2 = $('fi-recherche'); r2.focus(); try { r2.setSelectionRange(pos, pos); } catch (e) {} }; }
     Array.prototype.forEach.call(z.querySelectorAll('[data-choix]'), function (c) { c.onchange = function () { choixPublier[c.getAttribute('data-choix')] = c.checked; rendre(); }; });
     // Glisser-déposer
-    Array.prototype.forEach.call(z.querySelectorAll('[data-carte]'), function (c) {
-      c.ondragstart = function (e) { glisse = { carte: c.getAttribute('data-carte') }; try { e.dataTransfer.setData('text/plain', 'carte'); } catch (x) {} };
+    Array.prototype.forEach.call(z.querySelectorAll('[data-glisser]'), function (c) {
+      c.ondragstart = function (e) { glisse = { carte: c.getAttribute('data-glisser') }; try { e.dataTransfer.setData('text/plain', 'carte'); } catch (x) {} };
     });
     Array.prototype.forEach.call(z.querySelectorAll('.bloc[data-bloc]'), function (c) {
       c.ondragstart = function (e) { if (afficher !== 'brouillon') { e.preventDefault(); return; } glisse = { bloc: c.getAttribute('data-bloc') }; try { e.dataTransfer.setData('text/plain', 'bloc'); } catch (x) {} };
@@ -714,6 +785,14 @@ geotab.addin.finition = function () {
     var a = t.getAttribute('data-a');
     if (t.hasAttribute('data-o')) { onglet = t.getAttribute('data-o'); vue = 'horaire'; message = null; if (onglet === 'formulaires') { fCharge = false; } rendre(); return; }
     if (onglet === 'formulaires' && surClicFormulaires(t, a)) { return; }
+    if (t.hasAttribute('data-suppr-fo')) { supprimerFournisseur(t.getAttribute('data-suppr-fo')); return; }
+    if (a === 'fo-ajouter') { ajouterFournisseur(); return; }
+    if (t.hasAttribute('data-modifier-carte')) { formChantier(chantierDe(null, t.getAttribute('data-modifier-carte'))); return; }
+    if (t.hasAttribute('data-supprimer-carte')) {
+      var cs = chantierDe(null, t.getAttribute('data-supprimer-carte'));
+      if (cs && confirm('Supprimer le chantier de la Série ' + cs.d.serie + ' de la file « À planifier » ?')) { G.retirer(cs.id).then(function () { chantiers = chantiers.filter(function (x) { return x !== cs; }); if (carteChoisie === cs.d.cid) { carteChoisie = null; } dire('Chantier de la Série ' + cs.d.serie + ' supprimé.'); }); }
+      return;
+    }
     if (t.hasAttribute('data-carte')) { var cid = t.getAttribute('data-carte'); carteChoisie = carteChoisie === cid ? null : cid; rendre(); return; }
     if (t.hasAttribute('data-poser')) { var p = t.getAttribute('data-poser').split('|'); placer(carteChoisie, p[0], p[1]); return; }
     if (t.hasAttribute('data-bloc')) { var b = blocs.filter(function (x) { return x.d.bid === t.getAttribute('data-bloc'); })[0]; if (b && afficher === 'brouillon') { formBloc(b); } return; }

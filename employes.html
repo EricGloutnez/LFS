@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Bonneville - Employés</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="https://ericgloutnez.github.io/LFS/bonneville-commun.js?v=1.2.0"></script>
+<script src="https://ericgloutnez.github.io/LFS/bonneville-commun.js?v=1.3.0"></script>
 </head>
 <body>
 <div id="be">
@@ -97,7 +97,7 @@
 geotab.addin.employes = function () {
   'use strict';
   var B = window.Bonneville;
-  var VERSION = '1.2.0';
+  var VERSION = '1.3.0';
   var G = null, moi = '', onglet = 'employes';
   var users = [], employes = {}, profils = [], paies = {}, param = null, groupesGeotab = [];
   var modifies = {}, filtre = { texte: '', profil: '', inactifs: false, masques: false }, message = null, notes = {}, selection = {};
@@ -140,6 +140,11 @@ geotab.addin.employes = function () {
         var na = JSON.parse(JSON.stringify(ancienAdmin.d)); na.nom = /Tempo/.test(na.nom || '') ? na.nom.replace(/Tempo/g, 'Heures & Dépenses') : 'Administrateur Heures & Dépenses';
         return G.modifier(ancienAdmin.id, na).then(charger);
       }
+      if (!creeTechnicien && !profils.some(function (p) { return p.d.pid === 'technicien' || p.d.role === 'technicien'; })) {
+        creeTechnicien = true;
+        var pt = B.PROFILS_DEFAUT.filter(function (x) { return x.pid === 'technicien'; })[0];
+        return G.ajouter({ type: 'profil', pid: pt.pid, nom: pt.nom, role: pt.role, droits: pt.droits }).then(charger);
+      }
       if (!creeEntrepreneur && !profils.some(function (p) { return p.d.pid === 'entrepreneur' || p.d.role === 'entrepreneur'; })) {
         creeEntrepreneur = true;
         var pe = B.PROFILS_DEFAUT.filter(function (x) { return x.pid === 'entrepreneur'; })[0];
@@ -154,7 +159,7 @@ geotab.addin.employes = function () {
       rendre();
     });
   }
-  var creeEntrepreneur = false, creeAdmin = false;
+  var creeEntrepreneur = false, creeAdmin = false, creeTechnicien = false;
   var ancienAcces = null, reglesRec = null, reglesEdition = null, reglesDepuis = '';
   function creerProfilsDefaut() {
     var c = Promise.resolve();

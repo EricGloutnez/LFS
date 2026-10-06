@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bonneville - Service</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<script src="https://ericgloutnez.github.io/LFS/bonneville-commun.js?v=1.3.0"></script>
+</head>
+<body style="margin:0">
+<div id="sd">
+<style>
+  #sd { --encre: #18202B; --t2: #4A5565; --t3: #6B7584; --fond: #F3F4F6; --surf: #FFFFFF; --bord: #DDE1E7; --ligne: #E8EBEF; --champ: #C8CED7;
+    --rouge: #9E1F27; --bleu: #1F5FA8; --bleuPale: #DCE8F7; --ambre: #FFF4DC; --ambreBord: #E8C77A; --ambreTexte: #4A3000; --ambrePastille: #8A5A00; --vert: #1E6B3A;
+    font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif; color: var(--encre); background: var(--fond); min-height: 100vh; font-size: 16px; -webkit-text-size-adjust: 100%; }
+  #sd * { box-sizing: border-box; font-family: inherit; }
+  #sd .mono { font-family: 'IBM Plex Mono', Consolas, monospace; font-weight: 500; }
+  #sd button { color: inherit; font-size: inherit; }
+  #sd .entete { position: sticky; top: 0; z-index: 20; background: var(--encre); color: #fff; padding: 12px 14px; display: flex; align-items: center; gap: 12px; min-height: 72px; }
+  #sd .logo { width: 36px; height: 36px; border-radius: 6px; background: var(--rouge); font-weight: 700; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+  #sd .entete b { display: block; font-size: 20px; font-weight: 600; } #sd .entete span.s { font-size: 14px; color: #C9D1DC; }
+  #sd .rond { margin-left: auto; width: 48px; height: 48px; border-radius: 8px; border: 1px solid #3A4656; background: transparent; color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+  #sd .retour { width: 44px; height: 44px; border: none; background: transparent; color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  #sd main { padding: 14px; display: flex; flex-direction: column; gap: 12px; padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+  #sd .carte { background: var(--surf); border: 1px solid var(--bord); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+  #sd .avis { border: 2px solid var(--bleu); }
+  #sd .avis h2 { margin: 0; font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+  #sd .citation { background: var(--fond); border-radius: 8px; padding: 10px 12px; font-size: 15px; }
+  #sd .btn { min-height: 48px; border-radius: 8px; border: 1px solid var(--champ); background: var(--surf); font-weight: 600; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 0 14px; text-decoration: none; color: var(--encre); }
+  #sd .btn.bleu { background: var(--bleu); border-color: var(--bleu); color: #fff; }
+  #sd .semaine { display: flex; align-items: center; gap: 8px; } #sd .semaine h1 { margin: 0; font-size: 20px; font-weight: 600; flex: 1; }
+  #sd .semaine .btn { width: 48px; padding: 0; }
+  #sd .jour { display: flex; gap: 10px; align-items: flex-start; }
+  #sd .jour .j { flex: 0 0 54px; font-weight: 700; font-size: 15px; padding-top: 14px; }
+  #sd .jour .contenu { flex: 1; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  #sd .ferie { color: var(--t2); padding: 14px 0; }
+  #sd .chantier { background: var(--surf); border: 1px solid var(--bord); border-radius: 10px; padding: 12px 14px; display: flex; align-items: center; gap: 8px; text-align: left; width: 100%; cursor: pointer; }
+  #sd .chantier.nouveau { border: 2px solid var(--bleu); }
+  #sd .chantier .l1 { font-size: 14px; color: var(--t2); } #sd .chantier .l2 { font-weight: 600; font-size: 17px; } #sd .chantier .l3 { font-size: 14px; color: var(--t2); }
+  #sd .chantier .l3.ok { color: var(--vert); }
+  #sd .badge { font-size: 12px; font-weight: 700; padding: 2px 6px; border-radius: 3px; background: var(--bleu); color: #fff; text-transform: uppercase; }
+  #sd .vide { color: var(--t2); padding: 14px 0; font-size: 15px; }
+  #sd .rappel { background: var(--ambre); border: 1px solid var(--ambreBord); color: var(--ambreTexte); border-radius: 10px; padding: 12px 14px; }
+  #sd .nav-bas { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; background: var(--surf); border-top: 1px solid var(--bord); display: flex; padding-bottom: env(safe-area-inset-bottom, 0px); }
+  #sd .nav-bas button { flex: 1; min-height: 64px; border: none; background: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 13px; color: var(--t2); cursor: pointer; }
+  #sd .nav-bas button[aria-current="page"] { color: var(--bleu); font-weight: 700; }
+  #sd .liste-f { padding: 0; overflow: hidden; gap: 0; }
+  #sd .liste-f h2 { margin: 0; padding: 14px; font-size: 16px; font-weight: 600; color: var(--t2); border-bottom: 1px solid var(--ligne); }
+  #sd .formulaire { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: none; border-bottom: 1px solid var(--ligne); background: var(--surf); width: 100%; text-align: left; cursor: pointer; }
+  #sd .formulaire.afaire { background: var(--ambre); }
+  #sd .code { width: 40px; height: 40px; border-radius: 6px; border: 2px solid var(--champ); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; flex: 0 0 auto; }
+  #sd .code.plein { background: var(--ambrePastille); border-color: var(--ambrePastille); color: #fff; } #sd .code.besoin { border-style: dashed; }
+  #sd .formulaire b { display: block; font-size: 16px; } #sd .formulaire small { font-size: 14px; color: var(--t2); }
+  #sd .doc { display: flex; align-items: center; gap: 10px; min-height: 48px; color: var(--bleu); text-decoration: none; font-size: 17px; }
+  #sd .msg { border-radius: 8px; padding: 10px 12px; font-weight: 600; background: #E5F2EA; color: var(--vert); }
+  #sd .msg.erreur { background: #FFF7F7; color: var(--rouge); }
+</style>
+<header class="entete" id="sd-entete"></header>
+<main id="sd-main"><div class="vide">Chargement…</div></main>
+<nav class="nav-bas" aria-label="Service">
+  <button type="button" data-n="accueil"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9H4z M10 20v-6h4v6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>Accueil</button>
+  <button type="button" data-n="horaire" aria-current="page"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v14H4z M4 10h16 M8 3v5 M16 3v5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>Horaire</button>
+</nav>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var VERSION = '1.0.0';
+  var B = window.Bonneville, G = null, api = null, moi = '', monNom = '';
+  var blocs = lire('sd-blocs') || [], chantiers = lire('sd-appels') || [], publications = lire('sd-pubs') || [], param = null;
+  var ecran = 'horaire', lundi = null, chantierOuvert = null, message = null, branche = false;
+  var FORMS = [
+    ['F0', 'Pré-évaluation des travaux', 'Avant le chantier', 'plein'], ['F1', 'Inspection des biens', 'À l’arrivée · avec le client', ''],
+    ['F2', 'Vérification du matériel', 'Dans les 4 h suivant l’arrivée', ''], ['F3', 'Demande de travaux en extra', 'Au besoin · attendre l’autorisation', 'besoin'],
+    ['F4', 'Auto-inspection', 'Fin des travaux · sans le client', ''], ['F5', 'Inspection de fin des travaux', 'Fin des travaux · signature du client', '']
+  ];
+  var TEL = '4389782162';
+  function $(id) { return document.getElementById(id); }
+  function h(t) { return String(t === undefined || t === null ? '' : t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function lire(c) { try { var v = localStorage.getItem(c); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+  function ecrire(c, v) { try { localStorage.setItem(c, JSON.stringify(v)); } catch (e) {} }
+  function lundiDe(iso) { var d = B.dateDe(iso), j = d.getDay(); d.setDate(d.getDate() - (j === 0 ? 6 : j - 1)); return B.jourIso(d); }
+  function ferie(iso) { return B.feriesQuebec(+iso.slice(0, 4))[iso] || null; }
+  function ouvrable(iso) { var j = B.dateDe(iso).getDay(); return j !== 0 && j !== 6 && !ferie(iso); }
+  function joursOuvrables(du, au) { var n = 0, d = du; while (d <= au) { if (ouvrable(d)) { n++; } d = B.ajouterJours(d, 1); } return Math.max(1, n); }
+  function rangDuJour(du, jour) { var n = 0, d = du; while (d <= jour) { if (ouvrable(d)) { n++; } d = B.ajouterJours(d, 1); } return n; }
+  function dateCourte(iso) { var d = B.dateDe(iso); return B.JOURS_COURTS[d.getDay()] + '. ' + d.getDate() + ' ' + B.MOIS[d.getMonth()]; }
+  var MOIS_LONGS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+
+  // Ce que voit l'entrepreneur : la version publiée (ou l'ancienne tant qu'une publication programmée n'est pas visible)
+  function versionVisible(d) {
+    var maintenant = new Date().toISOString();
+    if (d.visibleLe && d.visibleLe > maintenant) { return d.avant || null; }
+    return d.retire ? null : d.publie;
+  }
+  function mesBlocs() { return blocs.map(function (b) { return { b: b, v: versionVisible(b.d) }; }).filter(function (x) { return x.v && (x.v.techs || []).indexOf(moi) >= 0; }); }
+  function hFr(hhmm) { var m = B.minutesDe(hhmm), hh = Math.floor(m / 60), mm = m % 60; return hh + ' h' + (mm ? ' ' + ('0' + mm).slice(-2) : ''); }
+  function confirmeParMoi(d) { return !!(d.confirme && d.confirme[moi]); }
+  function avisNonLus() {
+    var maintenant = new Date().toISOString();
+    return publications.filter(function (p) { return p.d.notif !== false && (p.d.destinataires || []).indexOf(moi) >= 0 && (p.d.visibleLe || p.d.le) <= maintenant && !(p.d.accuses || {})[moi]; });
+  }
+  function nouveauxBids() { var o = {}; avisNonLus().forEach(function (p) { (p.d.changements || []).forEach(function (c) { if ((c.techs || []).indexOf(moi) >= 0) { o[c.bid] = true; } }); }); return o; }
+  function chantierDe(b) { return chantiers.filter(function (c) { return c.d.aid === b.d.aid; })[0]; }
+
+  function charger() {
+    return G.lireTypes(['srvBloc', 'srvAppel', 'srvPublication']).then(function (l) {
+      blocs = []; chantiers = []; publications = [];
+      l.forEach(function (x) {
+        var d = x.details;
+        if (d.type === 'srvBloc') { blocs.push({ id: x.id, d: d }); }
+        else if (d.type === 'srvAppel') { chantiers.push({ id: x.id, d: d }); }
+        else if (d.type === 'srvPublication') { publications.push({ id: x.id, d: d }); }
+      });
+      publications.sort(function (a, b) { return String(b.d.le).localeCompare(String(a.d.le)); });
+      // On ne garde sur le téléphone que ce qui concerne cet entrepreneur
+      var mes = blocs.filter(function (b) { var v1 = b.d.publie, v2 = b.d.avant; return (v1 && (v1.techs || []).indexOf(moi) >= 0) || (v2 && (v2.techs || []).indexOf(moi) >= 0); });
+      var ids = {}; mes.forEach(function (b) { ids[b.d.aid] = true; });
+      blocs = mes; chantiers = chantiers.filter(function (c) { return ids[c.d.aid]; });
+      publications = publications.filter(function (p) { return (p.d.destinataires || []).indexOf(moi) >= 0; }).slice(0, 20);
+      ecrire('sd-blocs', blocs); ecrire('sd-appels', chantiers); ecrire('sd-pubs', publications);
+    });
+  }
+
+  // ---------- Rendu
+  function entete() {
+    if (ecran === 'chantier' && chantierOuvert) {
+      var d = chantierOuvert.b.d;
+      $('sd-entete').innerHTML = '<button type="button" class="retour" data-a="retour" aria-label="Retour à l’horaire"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5 L8 12 L15 19" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>'
+        + '<span><span class="s mono">Série ' + h(d.serie) + '</span><b>' + h(d.travail) + (d.ville ? ' · ' + h(d.ville) : '') + '</b></span>';
+      return;
+    }
+    $('sd-entete').innerHTML = '<span class="logo" aria-hidden="true">B</span><span><b>Mon horaire</b><span class="s">' + h(monNom || moi) + ' · profil Service</span></span>'
+      + '<button type="button" class="rond" data-a="actualiser" aria-label="Actualiser"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.7 M20 4v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>';
+  }
+  function rendre() {
+    entete();
+    Array.prototype.forEach.call(document.querySelectorAll('#sd .nav-bas button'), function (b) { if (b.getAttribute('data-n') === (ecran === 'chantier' ? 'horaire' : ecran)) { b.setAttribute('aria-current', 'page'); } else { b.removeAttribute('aria-current'); } });
+    var html = message ? '<div class="msg' + (message.e ? ' erreur' : '') + '" role="status">' + h(message.t) + '</div>' : '';
+    if (ecran === 'chantier' && chantierOuvert) { html += vueChantier(); }
+    else { html += vueHoraire(); }
+    $('sd-main').innerHTML = html;
+  }
+  function vueAvis() {
+    return avisNonLus().map(function (p) {
+      var mes = (p.d.changements || []).filter(function (c) { return (c.techs || []).indexOf(moi) >= 0 || (c.avant && (c.avant.techs || []).indexOf(moi) >= 0); });
+      var resume = mes.map(function (c) {
+        if (c.type === 'retrait' || (c.techs || []).indexOf(moi) < 0) { return 'Série ' + c.serie + ' retirée de ton horaire'; }
+        if (c.type === 'deplacement') { return 'Série ' + c.serie + ' déplacée : ' + dateCourte(c.date) + ', ' + hFr(c.debut) + '–' + hFr(c.fin); }
+        return 'Intervention ajoutée : ' + dateCourte(c.date) + ', ' + hFr(c.debut) + '–' + hFr(c.fin);
+      }).join(' · ');
+      var d = new Date(p.d.visibleLe || p.d.le);
+      return '<section class="carte avis" aria-label="Nouvel horaire publié"><h2><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z M10 20a2 2 0 0 0 4 0" fill="none" stroke="#1F5FA8" stroke-width="1.8" stroke-linejoin="round"/></svg>Nouvel horaire publié</h2>'
+        + '<div style="color:#4A5565">' + h(dateCourte(B.jourIso(d))) + ', ' + d.getHours() + ' h ' + ('0' + d.getMinutes()).slice(-2) + ' · ' + h(resume || 'Ton horaire a changé') + '</div>'
+        + (p.d.message ? '<div class="citation">« ' + h(p.d.message) + ' » — Bureau</div>' : '')
+        + '<button type="button" class="btn bleu" data-ack="' + h(p.d.pid) + '">J’ai pris connaissance</button></section>';
+    }).join('');
+  }
+  function periode(du, au) {
+    if (du === au) { return dateCourte(du); }
+    return dateCourte(du) + ' au ' + dateCourte(au);
+  }
+  function vueHoraire() {
+    var html = vueAvis();
+    var a = B.dateDe(lundi);
+    html += '<div class="semaine"><h1>Semaine du ' + a.getDate() + ' ' + MOIS_LONGS[a.getMonth()] + '</h1><button type="button" class="btn" data-a="prec" aria-label="Semaine précédente">‹</button><button type="button" class="btn" data-a="suiv" aria-label="Semaine suivante">›</button></div>';
+    var mes = mesBlocs(), nouv = nouveauxBids(), rien = true;
+    for (var i = 0; i < 5; i++) {
+      var j = B.ajouterJours(lundi, i), dj = B.dateDe(j), f = ferie(j);
+      var duJour = mes.filter(function (x) { return x.v.date === j; }).sort(function (a, b) { return String(a.v.debut).localeCompare(String(b.v.debut)); });
+      html += '<div class="jour"><div class="j">' + B.JOURS_COURTS[dj.getDay()] + ' ' + dj.getDate() + '</div><div class="contenu">';
+      if (f) { html += '<div class="ferie">Férié · ' + h(f) + '</div>'; }
+      else if (!duJour.length) { html += '<div class="vide">—</div>'; }
+      duJour.forEach(function (x) {
+        rien = false;
+        var d = x.b.d, estNouveau = !!nouv[d.bid], autres = x.v.techs.filter(function (u) { return u !== moi; });
+        var etat = '<span class="l3' + (confirmeParMoi(d) ? ' ok' : '') + '">' + (autres.length ? 'Avec ' + h(autres.map(nomCollegue).join(', ')) + ' · ' : '') + (confirmeParMoi(d) ? 'Confirmé' : 'À confirmer') + '</span>';
+        html += '<button type="button" class="chantier' + (estNouveau ? ' nouveau' : '') + '" data-bloc="' + h(d.bid) + '" data-jour="' + j + '"><span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">'
+          + '<span class="l1 mono">' + h(d.serie) + ' · ' + hFr(x.v.debut) + '–' + hFr(x.v.fin) + '</span><span class="l2">' + h(d.travail) + (d.ville ? ' · ' + h(d.ville) : '') + '</span>' + etat + '</span>'
+          + (estNouveau ? '<span class="badge">Nouveau</span>' : '') + '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5 L16 12 L9 19" fill="none" stroke="#1F5FA8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>';
+      });
+      html += '</div></div>';
+    }
+    if (rien) { html += '<div class="carte"><span style="color:#4A5565">Aucune intervention publiée pour toi cette semaine.</span></div>'; }
+    return html;
+  }
+  function vueChantier() {
+    var x = chantierOuvert, d = x.b.d, c = chantierDe(x.b), cd = c ? c.d : {};
+    var adr = cd.adresse || ((d.ville || '') + ', QC');
+    var autres = x.v.techs.filter(function (u) { return u !== moi; });
+    var html2 = '';
+    var html = '<section class="carte"><b style="font-size:18px">' + h(dateCourte(x.v.date)) + ', ' + hFr(x.v.debut) + '–' + hFr(x.v.fin) + '</b>' + (autres.length ? '<span style="color:#4A5565">Avec ' + h(autres.map(nomCollegue).join(', ')) + '</span>' : '')
+      + '<span style="color:#4A5565">' + h(cd.adresse || d.ville || '') + '</span>' + (cd.client ? '<span style="color:#4A5565">Client : ' + h(cd.client) + '</span>' : '')
+      + '<div style="display:flex;gap:10px;margin-top:6px"><a class="btn bleu" style="flex:1" href="https://www.google.com/maps/dir/?api=1&amp;destination=' + encodeURIComponent(adr) + '" target="_blank" rel="noopener"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 3 L3 10 L11 13 L14 21 Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>Itinéraire</a>'
+      + '<a class="btn" style="flex:1" href="tel:' + TEL + '"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>Coordonnateur</a></div>'
+      + (confirmeParMoi(d) ? '<span style="color:#1E6B3A;font-weight:600">Intervention confirmée</span>' : '<button type="button" class="btn" data-confirmer="' + h(d.bid) + '">Confirmer cette intervention</button>') + (cd.info ? '<span style="color:#4A5565">' + h(cd.info) + '</span>' : '') + '</section>';
+    var docs = cd.documents || [];
+    html += '<section class="carte"><b style="color:#4A5565">Documents du bureau</b>' + (docs.length ? docs.map(function (doc) {
+      return '<a class="doc" href="' + h(doc.url) + '" target="_blank" rel="noopener"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z M14 3v4h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>' + h(doc.nom) + '</a>';
+    }).join('') : '<span style="color:#4A5565;font-size:15px">Aucun document pour cette intervention.</span>') + '</section>';
+    return html;
+  }
+  function vueFormulaires() {
+    return '<section class="carte"><b>Formulaires F0 à F5</b><span style="color:#4A5565;font-size:15px">Les formulaires de Finition seront disponibles ici bientôt. En attendant, ouvre un chantier dans ton horaire pour voir la liste de ses formulaires.</span></section>';
+  }
+
+  // ---------- Actions
+  function accuser(pid) {
+    var p = publications.filter(function (x) { return x.d.pid === pid; })[0]; if (!p) { return; }
+    if (navigator.onLine === false) { message = { t: 'Sans réseau : la confirmation sera possible dès le retour du réseau.', e: true }; rendre(); return; }
+    // On relit la publication avant de l'écrire, pour ne pas effacer la confirmation d'un autre entrepreneur
+    G.lireType('srvPublication').then(function (l) {
+      var rec = l.filter(function (x) { return x.details.pid === pid; })[0]; if (!rec) { throw new Error('Publication introuvable'); }
+      var d = rec.details; d.accuses = d.accuses || {}; d.accuses[moi] = new Date().toISOString();
+      var c = G.modifier(rec.id, d);
+      (d.changements || []).filter(function (ch) { return (ch.techs || []).indexOf(moi) >= 0; }).forEach(function (ch) {
+        var b = blocs.filter(function (x) { return x.d.bid === ch.bid; })[0];
+        if (b && !confirmeParMoi(b.d)) { c = c.then(function () { return confirmerSurServeur(b); }); }
+      });
+      return c.then(function () { p.d = d; ecrire('sd-pubs', publications); ecrire('sd-blocs', blocs); });
+    }).then(function () { message = { t: 'Merci : le bureau sait que tu as pris connaissance de ton horaire.' }; rendre(); })
+      .catch(function (e) { message = { t: 'Confirmation impossible : ' + (e && e.message ? e.message : e), e: true }; rendre(); });
+  }
+  // Relire l'intervention avant d'écrire : l'autre technicien a peut-être déjà confirmé
+  function confirmerSurServeur(b) {
+    return G.lireChamp('srvBloc', 'bid', b.d.bid).then(function (l) {
+      var rec = l[0]; var d = rec ? rec.details : b.d; d.confirme = d.confirme || {}; d.confirme[moi] = new Date().toISOString();
+      return G.modifier(rec ? rec.id : b.id, d).then(function () { b.d = d; });
+    });
+  }
+  function confirmerBloc(bid) {
+    var b = blocs.filter(function (x) { return x.d.bid === bid; })[0]; if (!b) { return; }
+    confirmerSurServeur(b).then(function () { ecrire('sd-blocs', blocs); message = { t: 'Intervention confirmée.' }; rendre(); })
+      .catch(function () { message = { t: 'Confirmation impossible pour l’instant : réessaie avec du réseau.', e: true }; rendre(); });
+  }
+  var collegues = lire('sd-collegues') || {};
+  function nomCollegue(u) { return collegues[u] || u.split('@')[0]; }
+  function actualiser() {
+    message = null;
+    return charger().then(rendre).catch(function () { message = { t: 'Sans réseau : horaire gardé sur le téléphone.', e: true }; rendre(); });
+  }
+  function surClic(e) {
+    var t = e.target.closest('button'); if (!t || !$('sd').contains(t)) { return; }
+    var a = t.getAttribute('data-a');
+    if (t.hasAttribute('data-n')) {
+      var n = t.getAttribute('data-n');
+      if (n === 'accueil') { try { if (window.parent && window.parent !== window && window.parent.bonnevilleAccueil) { window.parent.bonnevilleAccueil(); return; } } catch (x) {} n = 'horaire'; }
+      ecran = n; chantierOuvert = null; message = null; rendre(); window.scrollTo(0, 0); return;
+    }
+    if (t.hasAttribute('data-ack')) { accuser(t.getAttribute('data-ack')); return; }
+    if (t.hasAttribute('data-confirmer')) { confirmerBloc(t.getAttribute('data-confirmer')); return; }
+    if (t.hasAttribute('data-bloc')) { var x = mesBlocs().filter(function (y) { return y.b.d.bid === t.getAttribute('data-bloc'); })[0]; if (x) { chantierOuvert = x; ecran = 'chantier'; message = null; rendre(); window.scrollTo(0, 0); } return; }
+    if (a === 'retour') { ecran = 'horaire'; chantierOuvert = null; rendre(); return; }
+    if (a === 'prec' || a === 'suiv') { lundi = B.ajouterJours(lundi, a === 'prec' ? -7 : 7); rendre(); return; }
+    if (a === 'actualiser') { actualiser(); return; }
+  }
+  function demarrer(a) {
+    api = a; B = window.Bonneville; G = B.creerApi(a);
+    if (!lundi) { var auj = B.jourIso(); lundi = lundiDe([0, 6].indexOf(B.dateDe(auj).getDay()) >= 0 ? B.ajouterJours(auj, 2) : auj); }
+    if (!branche) { document.addEventListener('click', surClic); branche = true; setInterval(function () { if (navigator.onLine !== false && G) { charger().then(rendre).catch(function () {}); } }, 120000); }
+    rendre();
+    G.session().then(function (s) {
+      moi = s.userName || ''; monNom = lire('sd-nom') || '';
+      return G.appel('Get', { typeName: 'User', search: { name: moi } }).then(function (u) { if (u && u[0]) { monNom = ((u[0].firstName || '') + ' ' + (u[0].lastName || '')).trim() || moi; ecrire('sd-nom', monNom); } }).catch(function () {});
+    }).then(charger).then(function () {
+      return G.appel('Get', { typeName: 'User', resultsLimit: 3000 }).then(function (u) { (u || []).forEach(function (x) { collegues[x.name] = ((x.firstName || '') + ' ' + (x.lastName || '')).trim() || x.name; }); ecrire('sd-collegues', collegues); }).catch(function () {});
+    }).then(rendre).catch(function () { rendre(); });
+  }
+  var fabrique = function () {
+    return {
+      initialize: function (a, s, callback) { try { demarrer(a); } catch (e) { console.warn(e); } callback(); },
+      focus: function (a) { api = a; if (G) { actualiser(); } },
+      blur: function () {}
+    };
+  };
+  window.BonnevilleModule = {
+    aller: function () { ecran = 'horaire'; chantierOuvert = null; if (B) { rendre(); } },
+    theme: function () {},
+    etat: function () { var auj = B.jourIso(); return { avis: avisNonLus().length, aujourdhui: mesBlocs().filter(function (x) { return x.v.date === auj; }).length }; }
+  };
+  window.geotab = window.geotab || {}; window.geotab.addin = window.geotab.addin || {};
+  ['serviceDrive', 'ServiceDrive', 'service-drive', 'bonnevilleService'].forEach(function (n) { window.geotab.addin[n] = fabrique; });
+})();
+</script>
+</body>
+</html>
