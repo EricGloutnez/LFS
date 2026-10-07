@@ -95,6 +95,7 @@
 <header class="entete sv-entete"><span class="logo" aria-hidden="true">B</span><span><small>Bonneville</small><b>Service</b></span></header>
 <nav class="sous" aria-label="Service">
   <button type="button" data-o="horaire" aria-current="page">Horaire <span class="compte" id="sv-compte" hidden></span></button>
+  <button type="button" data-o="techniciens">Techniciens et coûts</button>
 </nav>
 <div id="sv-contenu"><div class="page"><div class="aide">Chargement…</div></div></div>
 </div>
@@ -102,10 +103,11 @@
 <script>
 geotab.addin.service = function () {
   'use strict';
-  var VERSION = '1.0.0';
+  var VERSION = '1.1.0';
   var B = window.Bonneville, G = null, api = null, moi = '';
   var TRAVAUX = ['SAV', 'SAV · porte-patio', 'Porte & fenêtre', 'Échangeur d’air', 'Installation échangeur d’air', 'Correctifs après F5', 'Conseiller terrain', 'Ramassage matériaux', 'Autre'];
   var H0 = 7, H1 = 17, PAS = 15; // grille de 7 h à 17 h, par tranches de 15 min
+  var onglet = 'horaire';
   var mode = 'jour', jourSel = null, afficher = 'brouillon', recherche = '', vue = 'horaire';
   var users = [], employes = {}, profils = [], techs = [], blocs = [], appels = [], absences = [], publications = [];
   var carteChoisie = null, message = null, glisse = null, choixPublier = {};
@@ -116,7 +118,8 @@ geotab.addin.service = function () {
 
   function $(id) { return document.getElementById(id); }
   function h(t) { return String(t === undefined || t === null ? '' : t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
-  function nomUser(u) { var x = users.filter(function (y) { return y.user === u; })[0]; return x ? x.nom : u; }
+  function nomUserGeotab(u) { var x = users.filter(function (y) { return y.user === u; })[0]; return x ? x.nom : u; }
+  function nomUser(u) { var t = techniciens.filter(function (y) { return y.d.cle === u; })[0]; return t ? t.d.nom : nomUserGeotab(u); }
   function mn(hhmm) { return B.minutesDe(hhmm); }
   function hFr(m) { var hh = Math.floor(m / 60), mm = m % 60; return hh + ' h' + (mm ? ' ' + ('0' + mm).slice(-2) : ''); }
   function plage(v) { return hFr(mn(v.debut)) + '–' + hFr(mn(v.fin)); }
@@ -129,10 +132,10 @@ geotab.addin.service = function () {
   // ---------- Données
   function charger() {
     return Promise.all([
-      G.lireTypes(['employe', 'profil', 'srvBloc', 'srvAppel', 'srvAbsence', 'srvPublication']),
+      G.lireTypes(['employe', 'profil', 'srvBloc', 'srvAppel', 'srvAbsence', 'srvPublication', 'srvTechnicien', 'srvParametres', 'parametres']),
       G.utilisateurs().catch(function () { return []; })
     ]).then(function (r) {
-      employes = {}; profils = []; blocs = []; appels = []; absences = []; publications = [];
+      employes = {}; profils = []; blocs = []; appels = []; absences = []; publications = []; techniciens = []; parametresSv = null;
       users = r[1];
       r[0].forEach(function (l) {
         var d = l.details;
@@ -142,12 +145,189 @@ geotab.addin.service = function () {
         else if (d.type === 'srvAppel') { appels.push({ id: l.id, d: d }); }
         else if (d.type === 'srvAbsence') { absences.push({ id: l.id, d: d }); }
         else if (d.type === 'srvPublication') { publications.push({ id: l.id, d: d }); }
+        else if (d.type === 'srvTechnicien') { techniciens.push({ id: l.id, d: d }); }
+        else if (d.type === 'srvParametres') { parametresSv = { id: l.id, d: d }; }
+        else if (d.type === 'parametres' && d.cle) { cleOrs = d.cle; }
       });
-      techs = Object.keys(employes).filter(function (u) { return !employes[u].masque && B.droitsEffectifs(employes[u], profils).service; })
-        .map(function (u) { return { user: u, nom: nomUser(u) }; }).sort(function (a, b) { return a.nom.localeCompare(b.nom, 'fr'); });
       publications.sort(function (a, b) { return String(b.d.le).localeCompare(String(a.d.le)); });
+      return creerTechniciensDepart();
     });
   }
+  // ===================== Techniciens de Service et coûts =====================
+  // Les techniciens sont propres au Service (aucun lien avec les fournisseurs de Finition).
+  var techniciens = [], parametresSv = null, creationTechs = false, cleOrs = '';
+  var DEPART_TECHS = [
+    { nom: 'Philippe Major', statut: 'Employé Bonneville', taux: 43.70, personnes: 1, vehicule: 'compagnie', tauxVehicule: 0, perDiemQC: 0, perDiemON: 0, remorque: 0, tauxSupp: 53.70, notes: 'Per diem, hébergement et matériaux sur carte compagnie · pont remboursé · cellulaire 50 $/mois · temps supplémentaire 53,70 $/h' },
+    { nom: 'Martin Vaillancourt', statut: 'À son compte / CCQ', taux: 50.00, personnes: 1, vehicule: 'km', tauxVehicule: 0.74, perDiemQC: 60, perDiemON: 65, remorque: 0, notes: 'Kilométrage 0,68 $ + 0,06 $ de surcharge · hébergement, matériaux et pont remboursés' },
+    { nom: 'Olivier & Maxime Gaboriault', statut: 'À leur compte', taux: 67.50, personnes: 2, vehicule: 'jour', tauxVehicule: 225, perDiemQC: 60, perDiemON: 65, remorque: 0, notes: 'Taux et per diem par personne · remorque remboursée si utilisée · hébergement, matériaux et pont remboursés' },
+    { nom: 'Patrick Boucher', statut: 'À son compte', taux: 55.00, personnes: 1, vehicule: 'compagnie', tauxVehicule: 0, perDiemQC: 60, perDiemON: 65, remorque: 75, notes: 'Pickup compagnie, essence remboursée · remorque 75 $ si utilisée · hébergement, matériaux et pont remboursés' },
+    { nom: 'Sébastien Senay', statut: 'À son compte / CCQ', taux: 75.00, personnes: 1, vehicule: 'km', tauxVehicule: 0.72, perDiemQC: 60, perDiemON: 65, remorque: 0, notes: 'Hébergement, matériaux et pont remboursés' }
+  ];
+  function paramSv() { return Object.assign({ essenceKm: 0.30, perDiemRegle: 'toujours', perDiemKm: 80 }, (parametresSv && parametresSv.d) || {}); }
+  function techDe(cle) { return techniciens.filter(function (t) { return t.d.cle === cle; })[0]; }
+  function compteDe(cle) { var t = techDe(cle); if (t) { return t.d.user || ''; } return String(cle).indexOf('@') > 0 ? cle : ''; }
+  function listeTechs() {
+    techs = techniciens.filter(function (t) { return t.d.actif !== false; }).map(function (t) { return { user: t.d.cle, nom: t.d.nom }; }).sort(function (a, b) { return a.nom.localeCompare(b.nom, 'fr'); });
+  }
+  function creerTechniciensDepart() {
+    if (techniciens.length || creationTechs) { listeTechs(); return Promise.resolve(); }
+    creationTechs = true;
+    var nouveaux = DEPART_TECHS.map(function (x, i) { return Object.assign({ type: 'srvTechnicien', cle: 't-' + Date.now().toString(36) + i, codePostal: '', user: '', actif: true }, x); });
+    // Les techniciens qui ont déjà un compte Geotab (profil Technicien) gardent leurs interventions
+    Object.keys(employes).filter(function (u) { return !employes[u].masque && B.droitsEffectifs(employes[u], profils).service; }).forEach(function (u) {
+      nouveaux.push({ type: 'srvTechnicien', cle: u, nom: nomUserGeotab(u), statut: '', taux: 0, personnes: 1, vehicule: 'compagnie', tauxVehicule: 0, perDiemQC: 0, perDiemON: 0, remorque: 0, notes: '', codePostal: '', user: u, actif: true });
+    });
+    var c = Promise.resolve();
+    nouveaux.forEach(function (d) { c = c.then(function () { return G.ajouter(d).then(function (id) { techniciens.push({ id: id, d: d }); }); }); });
+    return c.then(listeTechs);
+  }
+  // ----- Positions : code postal → coordonnées (OpenRouteService, mémorisé)
+  var geoCache = (function () { try { return JSON.parse(localStorage.getItem('sv-geo') || '{}'); } catch (e) { return {}; } })();
+  function normCP(cp) { var x = String(cp || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); return /^[A-Z]\d[A-Z]\d[A-Z]\d$/.test(x) ? x.slice(0, 3) + ' ' + x.slice(3) : (/^[A-Z]\d[A-Z]$/.test(x) ? x : ''); }
+  function provinceDe(cp) { var l = String(cp || '').toUpperCase().charAt(0); return 'KLMNP'.indexOf(l) >= 0 ? 'ON' : ('GHJ'.indexOf(l) >= 0 ? 'QC' : ''); }
+  function geocoderCP(cp) {
+    var n = normCP(cp); if (!n) { return Promise.reject(new Error('Code postal invalide : ' + cp)); }
+    if (geoCache[n]) { return Promise.resolve(geoCache[n]); }
+    if (!cleOrs) { return Promise.reject(new Error('Clé OpenRouteService absente (Logistique → Paramètres)')); }
+    return fetch('https://api.openrouteservice.org/geocode/search?text=' + encodeURIComponent(n + ', Canada') + '&boundary.country=CA&size=1', { headers: { Authorization: cleOrs } })
+      .then(function (r) { return r.json(); }).then(function (d) {
+        if (!d.features || !d.features.length) { throw new Error('Code postal introuvable : ' + n); }
+        var c = d.features[0].geometry.coordinates; geoCache[n] = { lat: c[1], lon: c[0] };
+        try { localStorage.setItem('sv-geo', JSON.stringify(geoCache)); } catch (e) {}
+        return geoCache[n];
+      });
+  }
+  // Distances et durées de route de chaque technicien vers la destination (aller simple)
+  var trajetsCache = {};
+  function trajets(cpDest, listeCles) {
+    var cle = normCP(cpDest) + '|' + listeCles.join(',');
+    if (trajetsCache[cle]) { return Promise.resolve(trajetsCache[cle]); }
+    var tdefs = listeCles.map(techDe);
+    return Promise.all([geocoderCP(cpDest)].concat(tdefs.map(function (t) { return t && t.d.codePostal ? geocoderCP(t.d.codePostal).catch(function () { return null; }) : Promise.resolve(null); }))).then(function (pos) {
+      var dest = pos[0], origines = pos.slice(1), res = {};
+      var valides = origines.map(function (p, i) { return p ? i : -1; }).filter(function (i) { return i >= 0; });
+      var estimation = function () { valides.forEach(function (i) { var km = B.distanceM(origines[i], dest) / 1000 * 1.25; res[listeCles[i]] = { km: km, heures: km / 80, estime: true }; }); return res; };
+      if (!valides.length) { return res; }
+      if (!cleOrs) { return estimation(); }
+      var locs = valides.map(function (i) { return [origines[i].lon, origines[i].lat]; }).concat([[dest.lon, dest.lat]]);
+      return fetch('https://api.openrouteservice.org/v2/matrix/driving-car', { method: 'POST', headers: { Authorization: cleOrs, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ locations: locs, sources: valides.map(function (x, k) { return k; }), destinations: [valides.length], metrics: ['distance', 'duration'], units: 'km' }) })
+        .then(function (r) { return r.json(); }).then(function (m) {
+          if (!m.distances) { return estimation(); }
+          valides.forEach(function (i, k) { var km = m.distances[k][0], s = m.durations[k][0]; if (km !== null) { res[listeCles[i]] = { km: km, heures: s / 3600 }; } });
+          return res;
+        }).catch(estimation);
+    }).then(function (res) { trajetsCache[cle] = res; return res; });
+  }
+  // Coût estimé d'une intervention pour un technicien
+  function coutPour(cle, trajet, appel, dureeMin) {
+    var t = techDe(cle); if (!t) { return null; }
+    var d = t.d, p = paramSv(), pers = Math.max(1, +d.personnes || 1), prov = provinceDe(appel.codePostal);
+    if (!trajet) { return { manque: d.codePostal ? 'trajet non calculé' : 'code postal de départ manquant' }; }
+    var heuresRoute = Math.ceil(trajet.heures * 2 * 4) / 4, heuresTravail = (dureeMin || appel.duree || 0) / 60, heures = heuresRoute + heuresTravail;
+    var lignes = [];
+    var mo = heures * (+d.taux || 0) * pers; lignes.push(['Main-d’œuvre : ' + fmtH(heures) + ' (dont ' + fmtH(heuresRoute) + ' de route)' + (pers > 1 ? ' × ' + pers + ' personnes' : '') + ' × ' + argent(+d.taux || 0) + '/h', mo]);
+    var kmAR = trajet.km * 2, veh = 0, libVeh = '';
+    if (d.vehicule === 'km') { veh = kmAR * (+d.tauxVehicule || 0); libVeh = 'Kilométrage : ' + Math.round(kmAR) + ' km × ' + argent(+d.tauxVehicule || 0); }
+    else if (d.vehicule === 'jour') { veh = +d.tauxVehicule || 0; libVeh = 'Véhicule : forfait par jour'; }
+    else { veh = kmAR * p.essenceKm; libVeh = 'Pickup compagnie : essence estimée ' + Math.round(kmAR) + ' km × ' + argent(p.essenceKm); }
+    lignes.push([libVeh, veh]);
+    var pd = prov === 'ON' ? +d.perDiemON || 0 : +d.perDiemQC || 0, appliquer = p.perDiemRegle === 'toujours' || trajet.km > (+p.perDiemKm || 0);
+    if (pd && appliquer) { lignes.push(['Per diem ' + (prov || 'QC') + (pers > 1 ? ' × ' + pers + ' personnes' : ''), pd * pers]); }
+    if (appel.remorque) { lignes.push([d.remorque ? 'Remorque' : 'Remorque (selon facture, non incluse)', +d.remorque || 0]); }
+    var total = lignes.reduce(function (s, l) { return s + l[1]; }, 0);
+    return { total: total, lignes: lignes, km: trajet.km, estime: !!trajet.estime };
+  }
+  function fmtH(h) { var m = Math.round(h * 60); return Math.floor(m / 60) + ' h' + (m % 60 ? ' ' + ('0' + (m % 60)).slice(-2) : ''); }
+  function argent(n) { return B.argent(n); }
+  // Panneau de coût dans la fenêtre d'intervention
+  function majCout(b) {
+    var z = $('fb-cout'); if (!z) { return; }
+    var a = appelDe(b.d.aid) || { codePostal: '', duree: 0 };
+    var t1 = $('fb-t1').value, date = $('fb-date').value, de = $('fb-debut').value, fi = $('fb-fin').value;
+    if (!a.d || !normCP(a.d.codePostal)) { z.innerHTML = '<div class="aide">Ajoute le <b>code postal de destination</b> dans l’appel pour voir le coût.</div>'; return; }
+    var appel = a.d, duree = mn(fi) - mn(de);
+    z.innerHTML = '<div class="aide">Calcul du coût…</div>';
+    var cles = techs.map(function (t) { return t.user; });
+    trajets(appel.codePostal, cles).then(function (tr) {
+      var c = coutPour(t1, tr[t1], appel, duree), html = '';
+      if (!c || c.manque) { html += '<div class="message erreur">Coût de ' + h(nomUser(t1)) + ' impossible : ' + h(c ? c.manque : 'technicien inconnu') + ' (onglet Techniciens et coûts).</div>'; }
+      else {
+        html += '<div style="display:flex;justify-content:space-between;align-items:baseline"><b style="font-size:16px">Coût estimé · ' + h(nomUser(t1)) + '</b><b style="font-size:22px">' + argent(c.total) + '</b></div>'
+          + c.lignes.map(function (l) { return '<div style="display:flex;justify-content:space-between;gap:10px;font-size:13px;color:#4A5565"><span>' + h(l[0]) + '</span><span>' + argent(l[1]) + '</span></div>'; }).join('')
+          + '<div class="aide">' + Math.round(c.km) + ' km de route (aller simple)' + (c.estime ? ', estimés à vol d’oiseau' : '') + ' · hébergement, matériaux et pont remboursés sur facture, en sus.</div>';
+      }
+      // Techniciens libres à ce moment qui coûteraient moins cher
+      var autres = techs.filter(function (t) { return t.user !== t1 && !conflit(t.user, date, mn(de), mn(fi), b.d.bid); })
+        .map(function (t) { return { t: t, c: coutPour(t.user, tr[t.user], appel, duree) }; }).filter(function (x) { return x.c && !x.c.manque; })
+        .sort(function (p, q) { return p.c.total - q.c.total; });
+      var moins = c && !c.manque ? autres.filter(function (x) { return x.c.total < c.total - 0.5; }) : autres;
+      if (moins.length) {
+        html += '<div style="margin-top:8px;border-top:1px solid #E8EBEF;padding-top:8px"><b style="color:#1E6B3A">Moins cher et libre à ce moment :</b>'
+          + moins.slice(0, 4).map(function (x) { return '<div style="display:flex;align-items:center;gap:10px;justify-content:space-between;padding:4px 0"><span>' + h(x.t.nom) + ' · <b>' + argent(x.c.total) + '</b>' + (c && !c.manque ? ' <span style="color:#1E6B3A">(' + argent(c.total - x.c.total) + ' de moins)</span>' : '') + '</span><button type="button" class="btn" data-choisir-tech="' + h(x.t.user) + '">Choisir</button></div>'; }).join('') + '</div>';
+      } else if (c && !c.manque) { html += '<div class="aide" style="margin-top:6px;color:#1E6B3A;font-weight:600">Aucun technicien libre à ce moment ne coûterait moins cher.</div>'; }
+      var sansCp = techs.filter(function (t) { var x = techDe(t.user); return x && !x.d.codePostal; }).length;
+      if (sansCp) { html += '<div class="aide">' + sansCp + ' technicien' + (sansCp > 1 ? 's' : '') + ' sans code postal de départ : non comparé' + (sansCp > 1 ? 's' : '') + '.</div>'; }
+      z.innerHTML = html;
+      Array.prototype.forEach.call(z.querySelectorAll('[data-choisir-tech]'), function (bt) { bt.onclick = function () { $('fb-t1').value = bt.getAttribute('data-choisir-tech'); majCout(b); }; });
+    }).catch(function (e) { z.innerHTML = '<div class="message erreur">Coût impossible : ' + h(e && e.message ? e.message : e) + '</div>'; });
+  }
+  // ----- Onglet « Techniciens et coûts »
+  function vueTechniciens() {
+    var p = paramSv(), comptes = users.filter(function (u) { return u.actif !== false && employes[u.user] && B.droitsEffectifs(employes[u.user], profils).service; });
+    var champ = function (t, ch, val, larg, type) { return '<input type="' + (type || 'text') + '" data-te="' + h(t.d.cle) + '" data-ch="' + ch + '" value="' + h(val === undefined || val === null ? '' : String(val).replace('.', ',')) + '" style="width:' + (larg || 90) + 'px" aria-label="' + h(ch) + '">'; };
+    var html = '<div class="page">' + (message ? '<div class="message ' + (message.e ? 'erreur' : 'ok') + '" role="status">' + h(message.t) + '</div>' : '')
+      + '<section class="panneau"><h2>Techniciens de Service et coûts</h2><div class="aide" style="font-size:13px">Propres au Service. Chaque technicien actif est une ligne de l’horaire. Le <b>code postal de départ</b> sert à calculer la route jusqu’à l’appel. Les changements s’enregistrent tout de suite.' + (cleOrs ? '' : ' <b style="color:#9E1F27">Clé OpenRouteService absente (Logistique → Paramètres) : distances estimées à vol d’oiseau.</b>') + '</div>'
+      + '<div style="overflow-x:auto"><table class="semaine-t" style="min-width:1250px"><thead><tr><th>Technicien</th><th>Statut</th><th>Code postal de départ</th><th>Taux $/h</th><th>Personnes</th><th>Véhicule</th><th>Taux véhicule</th><th>Per diem QC</th><th>Per diem ON</th><th>Remorque $</th><th>Compte Drive</th><th>Actif</th><th></th></tr></thead><tbody>';
+    techniciens.slice().sort(function (a, b) { return String(a.d.nom).localeCompare(String(b.d.nom), 'fr'); }).forEach(function (t) {
+      var d = t.d;
+      html += '<tr><td>' + champ(t, 'nom', d.nom, 200) + '<div class="aide" style="max-width:220px">' + h(d.notes || '') + '</div></td><td>' + champ(t, 'statut', d.statut, 150) + '</td><td>' + champ(t, 'codePostal', d.codePostal, 100) + (d.codePostal ? '' : '<div class="aide" style="color:#9E1F27">À remplir</div>') + '</td>'
+        + '<td>' + champ(t, 'taux', d.taux, 80) + '</td><td>' + champ(t, 'personnes', d.personnes, 60) + '</td>'
+        + '<td><select data-te="' + h(d.cle) + '" data-ch="vehicule" aria-label="Véhicule"><option value="km"' + (d.vehicule === 'km' ? ' selected' : '') + '>$ par km</option><option value="jour"' + (d.vehicule === 'jour' ? ' selected' : '') + '>$ par jour</option><option value="compagnie"' + (d.vehicule === 'compagnie' ? ' selected' : '') + '>Pickup compagnie (essence)</option></select></td>'
+        + '<td>' + (d.vehicule === 'compagnie' ? '<span class="aide">essence ' + argent(p.essenceKm) + '/km</span>' : champ(t, 'tauxVehicule', d.tauxVehicule, 80)) + '</td>'
+        + '<td>' + champ(t, 'perDiemQC', d.perDiemQC, 70) + '</td><td>' + champ(t, 'perDiemON', d.perDiemON, 70) + '</td><td>' + champ(t, 'remorque', d.remorque, 70) + '</td>'
+        + '<td><select data-te="' + h(d.cle) + '" data-ch="user" aria-label="Compte Drive"><option value="">Aucun</option>' + comptes.map(function (u) { return '<option value="' + h(u.user) + '"' + (u.user === d.user ? ' selected' : '') + '>' + h(u.nom) + '</option>'; }).join('') + '</select></td>'
+        + '<td><input type="checkbox" data-te="' + h(d.cle) + '" data-ch="actif"' + (d.actif !== false ? ' checked' : '') + ' style="width:22px;height:22px" aria-label="Actif"></td>'
+        + '<td><button type="button" class="lien" style="color:#9E1F27" data-suppr-te="' + h(d.cle) + '">Supprimer</button></td></tr>';
+    });
+    html += '</tbody></table></div><div class="rang"><button type="button" class="btn principal" data-a="te-ajouter">+ Ajouter un technicien</button></div></section>'
+      + '<section class="panneau" style="max-width:760px"><h2>Règles de calcul</h2>'
+      + '<div class="rang"><label>Essence du pickup compagnie ($/km)<input type="text" id="sp-essence" value="' + h(String(p.essenceKm).replace('.', ',')) + '" style="width:100px"></label>'
+      + '<label>Per diem<select id="sp-regle"><option value="toujours"' + (p.perDiemRegle === 'toujours' ? ' selected' : '') + '>Toujours, par jour d’intervention</option><option value="distance"' + (p.perDiemRegle === 'distance' ? ' selected' : '') + '>Seulement au-delà d’une distance</option></select></label>'
+      + '<label>Distance (aller simple, km)<input type="text" id="sp-km" value="' + h(p.perDiemKm) + '" style="width:90px"></label><button type="button" class="btn" data-a="sp-sauver">Enregistrer</button></div>'
+      + '<div class="aide">Coût estimé = heures payées (temps sur place + route aller-retour) × taux × personnes + véhicule + per diem (QC ou ON selon le code postal de destination) + remorque si l’appel en demande une. L’hébergement, les matériaux et le pont restent remboursés sur facture.</div></section></div>';
+    return html;
+  }
+  function nombre(v) { var n = parseFloat(String(v).replace(/\s/g, '').replace(',', '.')); return isNaN(n) ? 0 : n; }
+  function brancherTechniciens() {
+    Array.prototype.forEach.call(document.querySelectorAll('[data-te]'), function (c) {
+      c.onchange = function () {
+        var t = techDe(c.getAttribute('data-te')); if (!t) { return; }
+        var ch = c.getAttribute('data-ch'), v = c.type === 'checkbox' ? c.checked : c.value.trim();
+        if (['taux', 'personnes', 'tauxVehicule', 'perDiemQC', 'perDiemON', 'remorque'].indexOf(ch) >= 0) { v = nombre(v); }
+        if (ch === 'codePostal') { v = normCP(v) || v.toUpperCase(); }
+        t.d[ch] = v; trajetsCache = {};
+        G.modifier(t.id, t.d).then(function () { listeTechs(); dire('« ' + t.d.nom + ' » enregistré.'); });
+      };
+    });
+  }
+  function sauverParamSv() {
+    var d = parametresSv ? JSON.parse(JSON.stringify(parametresSv.d)) : { type: 'srvParametres' };
+    d.essenceKm = nombre($('sp-essence').value); d.perDiemRegle = $('sp-regle').value; d.perDiemKm = nombre($('sp-km').value);
+    G.enregistrer(parametresSv, d).then(function (id) { parametresSv = { id: id, d: d }; dire('Règles de calcul enregistrées.'); });
+  }
+  function ajouterTechnicien() {
+    var d = { type: 'srvTechnicien', cle: 't-' + Date.now().toString(36), nom: 'Nouveau technicien', statut: '', taux: 0, personnes: 1, vehicule: 'km', tauxVehicule: 0, perDiemQC: 0, perDiemON: 0, remorque: 0, notes: '', codePostal: '', user: '', actif: true };
+    G.ajouter(d).then(function (id) { techniciens.push({ id: id, d: d }); listeTechs(); rendre(); });
+  }
+  function supprimerTechnicien(cle) {
+    var t = techDe(cle); if (!t) { return; }
+    var utilise = blocs.some(function (b) { return [b.d.publie, b.d.brouillon].some(function (v) { return v && v.techs.indexOf(cle) >= 0; }); });
+    if (utilise) { if (!confirm('« ' + t.d.nom + ' » a des interventions à l’horaire. Il sera rendu inactif (historique conservé). Continuer ?')) { return; } t.d.actif = false; G.modifier(t.id, t.d).then(function () { listeTechs(); dire('« ' + t.d.nom + ' » est maintenant inactif.'); }); return; }
+    if (!confirm('Supprimer « ' + t.d.nom + ' » ?')) { return; }
+    G.retirer(t.id).then(function () { techniciens = techniciens.filter(function (x) { return x !== t; }); listeTechs(); dire('Technicien supprimé.'); });
+  }
+
   function appelDe(aid) { return appels.filter(function (a) { return a.d.aid === aid; })[0]; }
   // Version affichée d'un bloc selon le mode (brouillon ou publié)
   function vueBloc(b) {
@@ -166,8 +346,10 @@ geotab.addin.service = function () {
   // ---------- Rendu
   function rendre() {
     var n = changements().length, c = $('sv-compte'); c.hidden = !n; c.textContent = n;
-    $('sv-contenu').innerHTML = vue === 'publier' ? vuePublier() : vueHoraire();
+    Array.prototype.forEach.call(document.querySelectorAll('#sv .sous button'), function (x) { if (x.getAttribute('data-o') === onglet) { x.setAttribute('aria-current', 'page'); } else { x.removeAttribute('aria-current'); } });
+    $('sv-contenu').innerHTML = onglet === 'techniciens' ? vueTechniciens() : (vue === 'publier' ? vuePublier() : vueHoraire());
     brancher();
+    if (onglet === 'techniciens') { brancherTechniciens(); }
   }
   function bandeau() {
     var n = changements().length; if (!n || afficher === 'publie') { return ''; }
@@ -209,7 +391,7 @@ geotab.addin.service = function () {
     file.forEach(function (a) {
       var d = a.d;
       html += '<button type="button" class="carte-file' + (carteChoisie === d.aid ? ' choisie' : '') + '" draggable="true" data-carte="' + h(d.aid) + '" aria-pressed="' + (carteChoisie === d.aid) + '"><span class="poignee">' + IC_POIGNEE + '</span><span>'
-        + '<span class="mono">Série ' + h(d.serie) + '</span><b>' + h(d.travail) + '</b><span class="s">' + h(d.ville || '') + ' · ' + hFr(d.duree) + ' · ' + d.nbTech + ' technicien' + (d.nbTech > 1 ? 's' : '') + '</span>'
+        + '<span class="mono">Série ' + h(d.serie) + '</span><b>' + h(d.travail) + '</b><span class="s">' + h(d.ville || '') + (d.codePostal ? ' (' + h(d.codePostal) + ')' : '') + ' · ' + hFr(d.duree) + ' · ' + d.nbTech + ' technicien' + (d.nbTech > 1 ? 's' : '') + '</span>' + (d.codePostal ? '' : '<span class="s" style="color:#9E1F27">Code postal manquant : coût non calculé</span>')
         + (d.info ? '<span class="s">' + h(d.info) + '</span>' : '') + '</span></button>';
     });
     html += '<button type="button" class="btn" data-a="nouvel-appel">+ Ajouter un appel</button><button type="button" class="btn" data-a="absence">+ Absence d’un technicien</button>'
@@ -223,7 +405,7 @@ geotab.addin.service = function () {
     var html = '<div class="grille' + (carteChoisie ? ' choix' : '') + '" style="grid-template-columns:170px repeat(' + nCol + ', minmax(14px, 1fr))"><div class="tete" style="grid-row:1;grid-column:1">Technicien</div>';
     for (var hh = H0; hh < H1; hh++) { html += '<div class="tete" style="grid-row:1;grid-column:' + colDe(hh * 60) + ' / span ' + (60 / PAS) + '">' + hh + ' h</div>'; }
     if (f) { html += '<div class="aide" style="grid-row:2;grid-column:1 / -1;padding:12px">Férié : ' + h(f) + '</div>'; }
-    if (!techs.length) { return html + '</div><div class="aide" style="padding:16px">Aucun technicien. Dans Employés, donne le profil « Technicien (Service) » aux comptes des techniciens.</div>'; }
+    if (!techs.length) { return html + '</div><div class="aide" style="padding:16px">Aucun technicien actif. Ajoute-les dans l’onglet « Techniciens et coûts ».</div>'; }
     var rangee = f ? 3 : 2;
     techs.forEach(function (t) {
       var items = [];
@@ -313,7 +495,8 @@ geotab.addin.service = function () {
         + '<span class="aide">' + (t === 'deplacement' ? '<s>' + h(dateCourte(d.publie.date) + ', ' + plage(d.publie)) + '</s> → ' + h(dateCourte(d.brouillon.date) + ', ' + plage(d.brouillon)) + (Object.keys(d.confirme || {}).length ? ' · déjà confirmé à l’ancienne heure' : '') : (t === 'retrait' ? 'Retiré de l’horaire (était ' + h(dateCourte(d.publie.date) + ', ' + plage(d.publie)) + ')' : h(dateCourte(n.date) + ', ' + plage(n)))) + '</span></span></label>';
     });
     var sel = ch.filter(function (b) { return choixPublier[b.d.bid]; }), avises = {};
-    sel.forEach(function (b) { techsTouches(b).forEach(function (t) { avises[t] = true; }); });
+    var sansCompte = {};
+    sel.forEach(function (b) { techsTouches(b).forEach(function (t) { if (compteDe(t)) { avises[compteDe(t)] = true; } else { sansCompte[nomUser(t)] = true; } }); });
     var demain = new Date(Date.now() + 86400000), prog = B.jourIso(demain) + 'T16:00';
     html += '</section><aside class="panneau" style="width:300px;flex:0 0 auto"><h2>Envoi aux techniciens</h2>'
       + '<fieldset style="border:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px"><legend style="font-weight:600;margin-bottom:6px">Quand publier</legend>'
@@ -322,7 +505,7 @@ geotab.addin.service = function () {
       + '<fieldset style="border:none;padding:0;margin:0;display:flex;flex-direction:column;gap:4px"><legend style="font-weight:600;margin-bottom:6px">Avis</legend>'
       + ['Notification dans Geotab Drive|sv-notif|1', 'Exiger une confirmation de réception|sv-exiger|1', 'Me rappeler si non confirmé après 24 h|sv-rappel|0'].map(function (x) { var p = x.split('|'); return '<label style="display:flex;gap:10px;align-items:center;min-height:44px"><input type="checkbox" id="' + p[1] + '"' + (p[2] === '1' ? ' checked' : '') + ' style="width:22px;height:22px;accent-color:#1F5FA8"> ' + p[0] + '</label>'; }).join('') + '</fieldset>'
       + '<label style="display:flex;flex-direction:column;gap:6px;font-weight:600">Message joint (facultatif)<textarea id="sv-msg" placeholder="Ex. : Apporter le matériel pour la porte-patio."></textarea></label>'
-      + '<div class="aide" style="border-top:1px solid #E8EBEF;padding-top:10px">' + sel.length + ' changement' + (sel.length > 1 ? 's' : '') + ' sélectionné' + (sel.length > 1 ? 's' : '') + ' · ' + Object.keys(avises).length + ' technicien' + (Object.keys(avises).length > 1 ? 's' : '') + ' avisé' + (Object.keys(avises).length > 1 ? 's' : '') + '</div>'
+      + '<div class="aide" style="border-top:1px solid #E8EBEF;padding-top:10px">' + sel.length + ' changement' + (sel.length > 1 ? 's' : '') + ' sélectionné' + (sel.length > 1 ? 's' : '') + ' · ' + Object.keys(avises).length + ' technicien' + (Object.keys(avises).length > 1 ? 's' : '') + ' avisé' + (Object.keys(avises).length > 1 ? 's' : '') + ' dans Drive' + (Object.keys(sansCompte).length ? '<br>Sans compte Drive, à aviser autrement : ' + h(Object.keys(sansCompte).join(', ')) : '') + '</div>'
       + '<button type="button" class="btn principal" data-a="publier"' + (sel.length ? '' : ' disabled') + '>Publier ' + sel.length + ' changement' + (sel.length > 1 ? 's' : '') + '</button>'
       + '<button type="button" class="btn" data-a="retour">Continuer à modifier</button></aside></div></div>';
     return html;
@@ -336,8 +519,8 @@ geotab.addin.service = function () {
     var dest = {}, c = Promise.resolve();
     sel.forEach(function (b) {
       var d = b.d, t = typeChangement(b), n = d.brouillon || d.publie;
-      pub.changements.push({ bid: d.bid, type: t, serie: d.serie, travail: d.travail, ville: d.ville, techs: n.techs.slice(), date: n.date, debut: n.debut, fin: n.fin, avant: d.publie ? JSON.parse(JSON.stringify(d.publie)) : null });
-      techsTouches(b).forEach(function (u) { dest[u] = true; });
+      pub.changements.push({ bid: d.bid, type: t, serie: d.serie, travail: d.travail, ville: d.ville, techs: n.techs.slice(), comptes: n.techs.map(compteDe).filter(Boolean), date: n.date, debut: n.debut, fin: n.fin, avant: d.publie ? JSON.parse(JSON.stringify(d.publie)) : null });
+      techsTouches(b).forEach(function (u) { if (compteDe(u)) { dest[compteDe(u)] = true; } });
       d.avant = d.publie || null; d.visibleLe = visible; d.publication = pid;
       if (d.retrait) { d.publie = null; d.retire = true; } else { d.publie = d.brouillon; }
       d.brouillon = null; d.retrait = false; d.confirme = {};
@@ -365,7 +548,8 @@ geotab.addin.service = function () {
     var corps = '<div class="rang"><label>Série (5 chiffres)<input type="text" id="fa-serie" inputmode="numeric" maxlength="5" class="mono" value="' + h(d.serie) + '" style="width:120px"></label>'
       + '<label>Type d’intervention<select id="fa-travail">' + TRAVAUX.map(function (t) { return '<option' + (t === d.travail ? ' selected' : '') + '>' + h(t) + '</option>'; }).join('') + '</select></label></div>'
       + '<div class="rang"><label>Durée (heures)<input type="number" id="fa-duree" min="0.25" max="10" step="0.25" value="' + (d.duree / 60) + '" style="width:110px"></label><label>Techniciens<select id="fa-nb"><option value="1"' + (d.nbTech === 1 ? ' selected' : '') + '>1 technicien</option><option value="2"' + (d.nbTech === 2 ? ' selected' : '') + '>2 techniciens</option></select></label></div>'
-      + '<div class="rang"><label style="flex:1">Ville<input type="text" id="fa-ville" value="' + h(d.ville) + '"></label><label style="flex:2">Adresse<input type="text" id="fa-adresse" value="' + h(d.adresse) + '"></label></div>'
+      + '<div class="rang"><label style="flex:1">Ville<input type="text" id="fa-ville" value="' + h(d.ville) + '"></label><label style="flex:2">Adresse<input type="text" id="fa-adresse" value="' + h(d.adresse) + '"></label><label>Code postal (destination)<input type="text" id="fa-cp" value="' + h(d.codePostal || '') + '" style="width:110px" placeholder="J2B 1A1"></label></div>'
+      + '<label style="display:flex;align-items:center;gap:8px;font-size:14px"><input type="checkbox" id="fa-remorque"' + (d.remorque ? ' checked' : '') + ' style="width:20px;height:20px"> Remorque requise</label>'
       + '<div class="rang"><label style="flex:1">Client<input type="text" id="fa-client" value="' + h(d.client) + '"></label><label style="flex:2">Information (facultatif)<input type="text" id="fa-info" value="' + h(d.info) + '"></label></div>'
       + '<label style="display:flex;flex-direction:column;gap:4px;font-size:13px;color:#4A5565">Documents (un par ligne : Nom | lien)<textarea id="fa-docs">' + h((d.documents || []).map(function (x) { return x.nom + ' | ' + x.url; }).join('\n')) + '</textarea></label>';
     fenetre(a ? 'Modifier l’appel' : 'Ajouter un appel à planifier', corps, (a ? '<button type="button" class="btn refus" data-f="suppr">Retirer de la file</button>' : '') + '<button type="button" class="btn" data-f="fermer">Annuler</button><button type="button" class="btn principal" data-f="ok">Enregistrer</button>');
@@ -374,6 +558,7 @@ geotab.addin.service = function () {
       var serie = $('fa-serie').value.trim(); if (!/^\d{5}$/.test(serie)) { alert('La Série doit avoir 5 chiffres.'); return; }
       var nd = a ? JSON.parse(JSON.stringify(a.d)) : { type: 'srvAppel', aid: 'a' + Date.now().toString(36), statut: 'a_planifier', cree: new Date().toISOString(), par: moi };
       nd.serie = serie; nd.travail = $('fa-travail').value; nd.duree = Math.max(15, Math.round(parseFloat(String($('fa-duree').value).replace(',', '.')) * 60 / 15) * 15 || 120);
+      nd.codePostal = normCP($('fa-cp').value) || $('fa-cp').value.trim().toUpperCase(); nd.remorque = $('fa-remorque').checked; trajetsCache = {};
       nd.nbTech = +$('fa-nb').value; nd.ville = $('fa-ville').value.trim(); nd.adresse = $('fa-adresse').value.trim(); nd.client = $('fa-client').value.trim(); nd.info = $('fa-info').value.trim();
       nd.documents = $('fa-docs').value.split('\n').map(function (l) { var p = l.split('|'); return p.length > 1 ? { nom: p[0].trim(), url: p.slice(1).join('|').trim() } : null; }).filter(Boolean);
       G.enregistrer(a, nd).then(function (id) { if (a) { a.d = nd; } else { appels.push({ id: id, d: nd }); } fermer(); dire('Appel de la Série ' + serie + ' enregistré.'); });
@@ -386,9 +571,12 @@ geotab.addin.service = function () {
     var corps = '<div class="aide" style="font-size:14px"><span class="mono">Série ' + h(d.serie) + '</span> · ' + h(d.travail) + (d.ville ? ' · ' + h(d.ville) : '') + '</div>'
       + '<div class="rang"><label>Technicien<select id="fb-t1">' + optionsTechs(v.techs[0]) + '</select></label><label>Deuxième technicien<select id="fb-t2">' + optionsTechs(v.techs[1] || '', 'Aucun') + '</select></label></div>'
       + '<div class="rang"><label>Date<input type="date" id="fb-date" value="' + v.date + '"></label><label>Début<input type="time" id="fb-debut" step="900" value="' + v.debut + '"></label><label>Fin<input type="time" id="fb-fin" step="900" value="' + v.fin + '"></label></div>'
+      + '<section id="fb-cout" style="background:#F8F9FB;border:1px solid #DDE1E7;border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:4px"></section>'
       + (d.publie ? '<div class="aide">Publié : ' + h(d.publie.techs.map(nomUser).join(' et ')) + ', ' + h(dateCourte(d.publie.date) + ', ' + plage(d.publie)) + '. Toute modification passe en brouillon jusqu’à la publication.</div>' : '<div class="aide">Cette intervention n’a jamais été publiée.</div>');
     fenetre('Intervention à l’horaire', corps, '<button type="button" class="btn refus" data-f="retirer">Retirer de l’horaire</button>' + (a ? '<button type="button" class="btn" data-f="appel">Détails de l’appel</button>' : '') + '<button type="button" class="btn" data-f="fermer">Fermer</button><button type="button" class="btn principal" data-f="ok">Appliquer en brouillon</button>');
     var m = $('sv-modale');
+    ['fb-t1', 'fb-date', 'fb-debut', 'fb-fin'].forEach(function (id) { $(id).addEventListener('change', function () { majCout(b); }); });
+    majCout(b);
     m.querySelector('[data-f=ok]').onclick = function () {
       var t1 = $('fb-t1').value, t2 = $('fb-t2').value, date = $('fb-date').value, de = $('fb-debut').value, fi = $('fb-fin').value;
       if (!date || !de || !fi || mn(fi) <= mn(de)) { alert('Vérifie la date et les heures.'); return; }
@@ -436,7 +624,7 @@ geotab.addin.service = function () {
     var nd = { type: 'srvBloc', bid: 'b' + Date.now().toString(36), aid: aid, serie: a.d.serie, travail: a.d.travail, ville: a.d.ville, publie: null, brouillon: { techs: [tech], date: jourSel, debut: B.hhmm(debut), fin: B.hhmm(fin) }, retrait: false, confirme: {} };
     var b = { id: null, d: nd };
     blocs.push(b); carteChoisie = null; a.d.statut = 'planifie';
-    Promise.all([sauverBloc(b), G.modifier(a.id, a.d)]).then(function () { if (a.d.nbTech > 1) { formBloc(b); } else { rendre(); } }).catch(function (e) { dire('Enregistrement impossible : ' + (e && e.message ? e.message : e), true); });
+    Promise.all([sauverBloc(b), G.modifier(a.id, a.d)]).then(function () { rendre(); formBloc(b); }).catch(function (e) { dire('Enregistrement impossible : ' + (e && e.message ? e.message : e), true); });
     rendre();
   }
   function deplacer(bid, tech, heure) {
@@ -481,7 +669,10 @@ geotab.addin.service = function () {
   function surClic(e) {
     var t = e.target.closest('button'); if (!t || !$('sv').contains(t) || $('sv-modale')) { return; }
     var a = t.getAttribute('data-a');
-    if (t.hasAttribute('data-o')) { vue = 'horaire'; message = null; rendre(); return; }
+    if (t.hasAttribute('data-o')) { onglet = t.getAttribute('data-o'); vue = 'horaire'; message = null; rendre(); return; }
+    if (t.hasAttribute('data-suppr-te')) { supprimerTechnicien(t.getAttribute('data-suppr-te')); return; }
+    if (a === 'te-ajouter') { ajouterTechnicien(); return; }
+    if (a === 'sp-sauver') { sauverParamSv(); return; }
     if (t.hasAttribute('data-carte')) { var aid = t.getAttribute('data-carte'); carteChoisie = carteChoisie === aid ? null : aid; if (carteChoisie) { mode = 'jour'; } rendre(); return; }
     if (t.hasAttribute('data-poser')) { var p = t.getAttribute('data-poser').split('|'); placer(carteChoisie, p[0], +p[1]); return; }
     if (t.hasAttribute('data-bloc')) { var b = blocs.filter(function (x) { return x.d.bid === t.getAttribute('data-bloc'); })[0]; if (b && afficher === 'brouillon') { formBloc(b); } return; }

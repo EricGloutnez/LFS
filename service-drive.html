@@ -66,7 +66,7 @@
 <script>
 (function () {
   'use strict';
-  var VERSION = '1.0.0';
+  var VERSION = '1.1.0';
   var B = window.Bonneville, G = null, api = null, moi = '', monNom = '';
   var blocs = lire('sd-blocs') || [], chantiers = lire('sd-appels') || [], publications = lire('sd-pubs') || [], param = null;
   var ecran = 'horaire', lundi = null, chantierOuvert = null, message = null, branche = false;
@@ -94,28 +94,35 @@
     if (d.visibleLe && d.visibleLe > maintenant) { return d.avant || null; }
     return d.retire ? null : d.publie;
   }
-  function mesBlocs() { return blocs.map(function (b) { return { b: b, v: versionVisible(b.d) }; }).filter(function (x) { return x.v && (x.v.techs || []).indexOf(moi) >= 0; }); }
+  var mesCles = lire('sd-cles') || [], collegues = lire('sd-collegues') || {};
+  function estMoi(t) { return t === moi || mesCles.indexOf(t) >= 0; }
+  function mesTechs(l) { return (l || []).some(estMoi); }
+  function mesBlocs() { return blocs.map(function (b) { return { b: b, v: versionVisible(b.d) }; }).filter(function (x) { return x.v && mesTechs(x.v.techs); }); }
   function hFr(hhmm) { var m = B.minutesDe(hhmm), hh = Math.floor(m / 60), mm = m % 60; return hh + ' h' + (mm ? ' ' + ('0' + mm).slice(-2) : ''); }
   function confirmeParMoi(d) { return !!(d.confirme && d.confirme[moi]); }
   function avisNonLus() {
     var maintenant = new Date().toISOString();
     return publications.filter(function (p) { return p.d.notif !== false && (p.d.destinataires || []).indexOf(moi) >= 0 && (p.d.visibleLe || p.d.le) <= maintenant && !(p.d.accuses || {})[moi]; });
   }
-  function nouveauxBids() { var o = {}; avisNonLus().forEach(function (p) { (p.d.changements || []).forEach(function (c) { if ((c.techs || []).indexOf(moi) >= 0) { o[c.bid] = true; } }); }); return o; }
+  function nouveauxBids() { var o = {}; avisNonLus().forEach(function (p) { (p.d.changements || []).forEach(function (c) { if (mesTechs(c.techs) || (c.comptes || []).indexOf(moi) >= 0) { o[c.bid] = true; } }); }); return o; }
   function chantierDe(b) { return chantiers.filter(function (c) { return c.d.aid === b.d.aid; })[0]; }
 
   function charger() {
-    return G.lireTypes(['srvBloc', 'srvAppel', 'srvPublication']).then(function (l) {
+    return G.lireTypes(['srvBloc', 'srvAppel', 'srvPublication', 'srvTechnicien']).then(function (l) {
+      mesCles = [];
       blocs = []; chantiers = []; publications = [];
       l.forEach(function (x) {
         var d = x.details;
         if (d.type === 'srvBloc') { blocs.push({ id: x.id, d: d }); }
         else if (d.type === 'srvAppel') { chantiers.push({ id: x.id, d: d }); }
         else if (d.type === 'srvPublication') { publications.push({ id: x.id, d: d }); }
+        else if (d.type === 'srvTechnicien' && d.user === moi && d.cle) { mesCles.push(d.cle); if (d.nom) { collegues[d.cle] = d.nom; } }
+        else if (d.type === 'srvTechnicien' && d.cle && d.nom) { collegues[d.cle] = d.nom; }
       });
       publications.sort(function (a, b) { return String(b.d.le).localeCompare(String(a.d.le)); });
       // On ne garde sur le téléphone que ce qui concerne cet entrepreneur
-      var mes = blocs.filter(function (b) { var v1 = b.d.publie, v2 = b.d.avant; return (v1 && (v1.techs || []).indexOf(moi) >= 0) || (v2 && (v2.techs || []).indexOf(moi) >= 0); });
+      ecrire('sd-cles', mesCles);
+      var mes = blocs.filter(function (b) { var v1 = b.d.publie, v2 = b.d.avant; return (v1 && mesTechs(v1.techs)) || (v2 && mesTechs(v2.techs)); });
       var ids = {}; mes.forEach(function (b) { ids[b.d.aid] = true; });
       blocs = mes; chantiers = chantiers.filter(function (c) { return ids[c.d.aid]; });
       publications = publications.filter(function (p) { return (p.d.destinataires || []).indexOf(moi) >= 0; }).slice(0, 20);
@@ -144,9 +151,9 @@
   }
   function vueAvis() {
     return avisNonLus().map(function (p) {
-      var mes = (p.d.changements || []).filter(function (c) { return (c.techs || []).indexOf(moi) >= 0 || (c.avant && (c.avant.techs || []).indexOf(moi) >= 0); });
+      var mes = (p.d.changements || []).filter(function (c) { return mesTechs(c.techs) || (c.comptes || []).indexOf(moi) >= 0 || (c.avant && mesTechs(c.avant.techs)); });
       var resume = mes.map(function (c) {
-        if (c.type === 'retrait' || (c.techs || []).indexOf(moi) < 0) { return 'Série ' + c.serie + ' retirée de ton horaire'; }
+        if (c.type === 'retrait' || !mesTechs(c.techs)) { return 'Série ' + c.serie + ' retirée de ton horaire'; }
         if (c.type === 'deplacement') { return 'Série ' + c.serie + ' déplacée : ' + dateCourte(c.date) + ', ' + hFr(c.debut) + '–' + hFr(c.fin); }
         return 'Intervention ajoutée : ' + dateCourte(c.date) + ', ' + hFr(c.debut) + '–' + hFr(c.fin);
       }).join(' · ');
@@ -174,7 +181,7 @@
       else if (!duJour.length) { html += '<div class="vide">—</div>'; }
       duJour.forEach(function (x) {
         rien = false;
-        var d = x.b.d, estNouveau = !!nouv[d.bid], autres = x.v.techs.filter(function (u) { return u !== moi; });
+        var d = x.b.d, estNouveau = !!nouv[d.bid], autres = x.v.techs.filter(function (u) { return !estMoi(u); });
         var etat = '<span class="l3' + (confirmeParMoi(d) ? ' ok' : '') + '">' + (autres.length ? 'Avec ' + h(autres.map(nomCollegue).join(', ')) + ' · ' : '') + (confirmeParMoi(d) ? 'Confirmé' : 'À confirmer') + '</span>';
         html += '<button type="button" class="chantier' + (estNouveau ? ' nouveau' : '') + '" data-bloc="' + h(d.bid) + '" data-jour="' + j + '"><span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">'
           + '<span class="l1 mono">' + h(d.serie) + ' · ' + hFr(x.v.debut) + '–' + hFr(x.v.fin) + '</span><span class="l2">' + h(d.travail) + (d.ville ? ' · ' + h(d.ville) : '') + '</span>' + etat + '</span>'
@@ -188,7 +195,7 @@
   function vueChantier() {
     var x = chantierOuvert, d = x.b.d, c = chantierDe(x.b), cd = c ? c.d : {};
     var adr = cd.adresse || ((d.ville || '') + ', QC');
-    var autres = x.v.techs.filter(function (u) { return u !== moi; });
+    var autres = x.v.techs.filter(function (u) { return !estMoi(u); });
     var html2 = '';
     var html = '<section class="carte"><b style="font-size:18px">' + h(dateCourte(x.v.date)) + ', ' + hFr(x.v.debut) + '–' + hFr(x.v.fin) + '</b>' + (autres.length ? '<span style="color:#4A5565">Avec ' + h(autres.map(nomCollegue).join(', ')) + '</span>' : '')
       + '<span style="color:#4A5565">' + h(cd.adresse || d.ville || '') + '</span>' + (cd.client ? '<span style="color:#4A5565">Client : ' + h(cd.client) + '</span>' : '')
@@ -214,7 +221,7 @@
       var rec = l.filter(function (x) { return x.details.pid === pid; })[0]; if (!rec) { throw new Error('Publication introuvable'); }
       var d = rec.details; d.accuses = d.accuses || {}; d.accuses[moi] = new Date().toISOString();
       var c = G.modifier(rec.id, d);
-      (d.changements || []).filter(function (ch) { return (ch.techs || []).indexOf(moi) >= 0; }).forEach(function (ch) {
+      (d.changements || []).filter(function (ch) { return mesTechs(ch.techs) || (ch.comptes || []).indexOf(moi) >= 0; }).forEach(function (ch) {
         var b = blocs.filter(function (x) { return x.d.bid === ch.bid; })[0];
         if (b && !confirmeParMoi(b.d)) { c = c.then(function () { return confirmerSurServeur(b); }); }
       });
@@ -234,7 +241,6 @@
     confirmerSurServeur(b).then(function () { ecrire('sd-blocs', blocs); message = { t: 'Intervention confirmée.' }; rendre(); })
       .catch(function () { message = { t: 'Confirmation impossible pour l’instant : réessaie avec du réseau.', e: true }; rendre(); });
   }
-  var collegues = lire('sd-collegues') || {};
   function nomCollegue(u) { return collegues[u] || u.split('@')[0]; }
   function actualiser() {
     message = null;

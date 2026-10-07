@@ -628,9 +628,9 @@ geotab.addin.finition = function () {
 
   // ---------- Fournisseurs (lignes de l'horaire)
   function vueFournisseurs() {
-    var comptes = users.filter(function (u) { return u.actif !== false; }).sort(function (a, b) { return a.nom.localeCompare(b.nom, 'fr'); });
+    var comptes = users.filter(function (u) { return u.actif !== false && employes[u.user] && B.droitsEffectifs(employes[u.user], profils).finition; }).sort(function (a, b) { return a.nom.localeCompare(b.nom, 'fr'); });
     var html = '<div class="page">' + (message ? '<div class="message ' + (message.e ? 'erreur' : 'ok') + '" role="status">' + h(message.t) + '</div>' : '')
-      + '<section class="panneau" style="max-width:1000px"><h2>Fournisseurs (entrepreneurs de Finition)</h2><div class="aide" style="font-size:13px">Chaque fournisseur actif est une ligne de l’horaire. Le compte Drive est facultatif : s’il est choisi, cette personne reçoit l’horaire publié et remplit les formulaires F0 à F5 sur son cellulaire. Les changements s’enregistrent tout de suite.</div>'
+      + '<section class="panneau" style="max-width:1000px"><h2>Fournisseurs (entrepreneurs de Finition)</h2><div class="aide" style="font-size:13px">Chaque fournisseur actif est une ligne de l’horaire. Propres à Finition. Le compte Drive est facultatif (seuls les comptes au profil Entrepreneur sont proposés) : s’il est choisi, cette personne reçoit l’horaire publié et remplit les formulaires F0 à F5 sur son cellulaire. Les changements s’enregistrent tout de suite.</div>'
       + '<div style="overflow-x:auto"><table class="table-f"><thead><tr><th>Nom</th><th>Spécialité</th><th>Compte Drive (facultatif)</th><th>Actif</th><th></th></tr></thead><tbody>';
     fournisseurs.slice().sort(function (a, b) { return String(a.d.nom).localeCompare(String(b.d.nom), 'fr'); }).forEach(function (f) {
       html += '<tr><td><input type="text" data-fo="' + h(f.d.cle) + '" data-ch="nom" value="' + h(f.d.nom) + '" aria-label="Nom du fournisseur"></td>'
