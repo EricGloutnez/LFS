@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Bonneville - Heures &amp; Dépenses (Drive)</title>
-<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.1.6"></script>
+<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.1.7"></script>
 </head>
 <body style="margin:0">
 <div id="hd" data-theme="jour">
@@ -51,6 +51,13 @@
   #hd input, #hd textarea { font: inherit; font-size: 18px; color: var(--encre); background: var(--champ); border: 2px solid var(--ligne); border-radius: 12px; padding: 12px; width: 100%; min-height: 54px; }
   #hd textarea { min-height: 96px; resize: vertical; }
   #hd input:focus, #hd textarea:focus { outline: none; border-color: var(--accent); }
+  /* iPhone : les champs de date et d'heure gardent leur largeur naturelle et débordent sans ces règles */
+  #hd input, #hd textarea { display: block; max-width: 100%; min-width: 0; -webkit-appearance: none; appearance: none; }
+  #hd input[type="date"], #hd input[type="time"] { text-align: left; line-height: 1.3; }
+  #hd input::-webkit-date-and-time-value { text-align: left; }
+  #hd label.champ { min-width: 0; }
+  #hd .rangee > * { flex: 1 1 0; min-width: 0; }
+  #hd main > h2 { margin-top: 4px; }
   #hd .duree { font-size: 26px; font-weight: 800; }
   #hd .message { border-radius: 12px; padding: 12px 14px; font-size: 15px; font-weight: 600; background: #e7f4ec; color: #14532d; }
   #hd .message.erreur { background: #fde8e7; color: #7a1a12; }
@@ -76,7 +83,7 @@
 <script>
 (function () {
   'use strict';
-  var VERSION = '1.1.6';
+  var VERSION = '1.1.7';
   var B = window.Bonneville;
   var api = null, G = null, moi = '', monNom = '', droits = {}, pret = false;
   var heures = [], depenses = [];

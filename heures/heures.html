@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Bonneville - Heures &amp; Dépenses</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.1.6"></script>
+<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.1.7"></script>
 </head>
 <body style="margin:0;overflow:hidden">
 <div id="bn">
@@ -58,7 +58,7 @@
 <script>
 (function () {
   'use strict';
-  var VERSION = '1.1.6';
+  var VERSION = '1.1.7';
   var B = window.Bonneville;
   var BASE = 'https://ericgloutnez.github.io/LFS/heures/';
   var MODULES = {
@@ -69,7 +69,7 @@
 
   // La bibliothèque commune peut arriver après ce script (Drive et MyGeotab chargent parfois les scripts dans le désordre).
   // On l'attend, on la charge nous-mêmes au besoin, et on en garde une copie pour le hors réseau.
-  var URL_COMMUN = BASE + 'heures-commun.js?v=1.1.6', communTexte = null;
+  var URL_COMMUN = BASE + 'heures-commun.js?v=1.1.7', communTexte = null;
   function chargerCommunTexte() {
     return fetch(URL_COMMUN).then(function (r) { if (!r.ok) { throw new Error('HTTP ' + r.status); } return r.text(); })
       .then(function (t) { communTexte = t; try { localStorage.setItem('hd-commun', t); } catch (e) {} return t; })
