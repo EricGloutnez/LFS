@@ -1,4 +1,4 @@
-/* Bonneville - Heures & Dépenses : bibliothèque commune (version 1.1.8)
+/* Bonneville - Heures & Dépenses : bibliothèque commune (version 1.2.0)
    Utilisée par : heures.html et heures-drive.html (coquilles), tempo.html, tempo-drive.html et employes.html.
    Stockage : AddInData de Geotab, identifiant propre à Heures & Dépenses (séparé de LFS).
    Types enregistrés : employe (accès), heure (une entrée d'heures), depense (une dépense avec reçu).
@@ -8,7 +8,7 @@
   var ADDIN_ID = 'aqKJVB4VwR32I2cfuHWClzw';      // Stockage de Heures & Dépenses
   var LFS_ID = 'aXdeNEZ7tQ7eMPNywYFFKrA';        // Stockage de LFS (lecture seule)
   var TYPES_LFS = ['voyage', 'formresume'];      // Types lus dans LFS, jamais écrits par Heures & Dépenses
-  var VERSION = '1.1.8';
+  var VERSION = '1.2.0';
   var TELEPHONE = '(438) 978-2162';
 
   // ---------- Accès à Geotab
@@ -105,7 +105,8 @@
   var DROITS = [
     { cle: 'heures', nom: 'Heures (saisie dans Geotab Drive)' },
     { cle: 'depenses', nom: 'Dépenses (saisie dans Geotab Drive, avec photo du reçu)' },
-    { cle: 'admin', nom: 'Administrateur (accès au bureau)' }
+    { cle: 'admin', nom: 'Administrateur (accès au bureau)' },
+    { cle: 'hos', nom: 'Heures auto (HOS)' }
   ];
   var ROLES = [{ cle: 'employe', nom: 'Employé' }, { cle: 'administrateur', nom: 'Administrateur' }];
   var PROFILS_DEFAUT = [];
@@ -340,11 +341,63 @@
   function libelleSemaine(s) { var a = dateDe(s.debut), b = dateDe(s.fin); return a.getDate() + ' ' + MOIS[a.getMonth()] + ' au ' + b.getDate() + ' ' + MOIS[b.getMonth()]; }
   // Durée d'une entrée d'heures (une fin plus tôt que le début veut dire après minuit)
   function minutesEntree(e) {
+    // Heures HOS non ajustées : le temps de service réel (les pauses hors service sont déjà retirées)
+    if (e && typeof e.minutes === 'number') { return e.minutes; }
     var a = minutesDe(e.debut), b = minutesDe(e.fin);
     if (a === null || b === null) { return 0; }
     return b >= a ? b - a : b + 1440 - a;
   }
   function heuresDecimales(min) { return Math.round((min || 0) / 60 * 100) / 100; }
+
+  // ---------- Heures automatiques à partir des journaux HOS de Geotab (DutyStatusLog)
+  // Comptent comme travaillées : Conduite (D), En service (ON) et Déplacement dans la cour (YM).
+  // Hors service (OFF), Couchette (SB), Usage personnel (PC) et Attente (WT) arrêtent le compte.
+  var HOS_TRAVAIL = { D: 1, ON: 1, YM: 1 }, HOS_ARRET = { OFF: 1, SB: 1, PC: 1, WT: 1 };
+  function hhmm(d) { return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+  function isoLocal(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  function lireHos(G, userId, debut, fin) {
+    var de = dateDe(ajouterJours(debut, -2)), a = dateDe(ajouterJours(fin, 1));
+    return G.appel('Get', { typeName: 'DutyStatusLog', search: { userSearch: { id: userId }, fromDate: de.toISOString(), toDate: a.toISOString() }, resultsLimit: 5000 })
+      .then(function (l) { return l || []; });
+  }
+  // Transforme les journaux en une entrée par jour : premier début, dernière fin et temps de service réel
+  function joursHos(journaux, debut, fin) {
+    var l = journaux.filter(function (x) { return (!x.state || x.state === 'Active') && (HOS_TRAVAIL[x.status] || HOS_ARRET[x.status]); })
+      .map(function (x) { return { t: new Date(x.dateTime), travail: !!HOS_TRAVAIL[x.status] }; })
+      .sort(function (a, b) { return a.t - b.t; });
+    var maintenant = new Date(), finPlage = dateDe(ajouterJours(fin, 1)), jours = {};
+    l.forEach(function (x, i) {
+      if (!x.travail) { return; }
+      var a = x.t, b = i + 1 < l.length ? l[i + 1].t : (maintenant < finPlage ? maintenant : finPlage);
+      while (a < b) {
+        var minuit = dateDe(ajouterJours(isoLocal(a), 1)), bout = b < minuit ? b : minuit, j = isoLocal(a);
+        if (j >= debut && j <= fin) {
+          var o = jours[j] || (jours[j] = { min: 0, debut: a, fin: bout });
+          o.min += Math.round((bout - a) / 60000);
+          if (a < o.debut) { o.debut = a; } if (bout > o.fin) { o.fin = bout; }
+        }
+        a = bout;
+      }
+    });
+    return jours;
+  }
+  // Entrées virtuelles (non enregistrées) pour les employés « heures auto », avec leurs ajustements éventuels
+  function heuresHos(G, gens, debut, fin, ajustements) {
+    return Promise.all(gens.map(function (g) {
+      return lireHos(G, g.id, debut, fin).then(function (journaux) {
+        var jours = joursHos(journaux, debut, fin), out = [];
+        Object.keys(jours).forEach(function (j) {
+          var o = jours[j]; if (o.min < 1) { return; }
+          var aj = (ajustements || []).filter(function (x) { return x.d.user === g.user && x.d.date === j; })[0];
+          var d = { type: 'heure', user: g.user, nom: g.nom, date: j, hos: true, description: 'Heures HOS (Conduite, En service, Cour)' };
+          if (aj) { d.debut = aj.d.debut; d.fin = aj.d.fin; d.ajuste = true; d.ajustId = aj.id; d.hosDebut = hhmm(o.debut); d.hosFin = hhmm(o.fin); d.hosMinutes = o.min; d.description = 'Heures HOS ajustées'; }
+          else { d.debut = hhmm(o.debut); d.fin = o.fin.getHours() === 0 && o.fin.getMinutes() === 0 && isoLocal(o.fin) !== j ? '00:00' : hhmm(o.fin); d.minutes = o.min; }
+          out.push({ id: 'hos:' + g.user + ':' + j, d: d });
+        });
+        return out;
+      }).catch(function () { return []; });
+    })).then(function (r) { return [].concat.apply([], r); });
+  }
 
   // ---------- Photos des reçus (MediaFile de Geotab)
   // Dans la page d'aperçu seulement : les photos restent dans le navigateur (jamais en production, où aucune fenêtre parente ne fournit apercuMedia)
@@ -421,6 +474,6 @@
     feriesQuebec: feriesQuebec,
     aAcces: function (d) { d = d || {}; return !!(d.heures || d.depenses); },
     PERIODE_ANCRE: PERIODE_ANCRE, periodeDe: periodeDe, periodeVoisine: periodeVoisine, semaineDe: semaineDe, libellePeriode: libellePeriode, libelleSemaine: libelleSemaine, dateLongue: dateLongue,
-    minutesEntree: minutesEntree, heuresDecimales: heuresDecimales, reduirePhoto: reduirePhoto, envoyerRecu: envoyerRecu, lireRecu: lireRecu, retirerRecu: retirerRecu
+    minutesEntree: minutesEntree, heuresHos: heuresHos, joursHos: joursHos, heuresDecimales: heuresDecimales, reduirePhoto: reduirePhoto, envoyerRecu: envoyerRecu, lireRecu: lireRecu, retirerRecu: retirerRecu
   };
 })();

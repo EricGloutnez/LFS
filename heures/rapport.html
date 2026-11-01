@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Bonneville - Rapport</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.1.8"></script>
+<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.2.0"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body style="margin:0">
@@ -92,7 +92,7 @@ geotab.addin.rapport = function () {
   function dansDates(l) { return l.filter(function (x) { return x.d.date >= du && x.d.date <= au && (!choisis || choisis[x.d.user]); }); }
   function gens() {
     var vus = {};
-    users.forEach(function (u) { var e = employes[u.user]; if (u.actif && e && e.d.droits && e.d.droits.heures && !e.d.masque) { vus[u.user] = true; } });
+    users.forEach(function (u) { var e = employes[u.user]; if (u.actif && e && e.d.droits && (e.d.droits.heures || e.d.droits.hos) && !e.d.masque) { vus[u.user] = true; } });
     heures.concat(depenses).forEach(function (x) { if (x.d.date >= du && x.d.date <= au) { vus[x.d.user] = true; } });
     return Object.keys(vus).sort(function (a, b) { return nomUser(a).localeCompare(nomUser(b), 'fr'); });
   }
@@ -105,14 +105,27 @@ geotab.addin.rapport = function () {
     });
   }
 
+  // ---------- Heures automatiques (HOS) pour les dates choisies
+  var ajusts = [], hosPlage = '';
+  function chargerHos() {
+    var gensHos = users.filter(function (u) { var e = employes[u.user]; return e && e.d.droits && e.d.droits.hos; }).map(function (u) { return { id: u.id, user: u.user, nom: u.nom }; });
+    var cle = du + au; hosPlage = cle;
+    if (!gensHos.length) { heures = heures.filter(function (x) { return !x.d.hos; }); rendre(); return; }
+    B.heuresHos(G, gensHos, du, au, ajusts).then(function (l) {
+      if (hosPlage !== cle) { return; }
+      heures = heures.filter(function (x) { return !x.d.hos; }).concat(l).sort(function (a, b) { return (a.d.date + a.d.debut).localeCompare(b.d.date + b.d.debut); });
+      rendre();
+    });
+  }
   // ---------- Chargement
   function charger() {
-    return Promise.all([G.utilisateurs(), G.lireType('employe').catch(function () { return []; }), G.lireType('heure').catch(function () { return []; }), G.lireType('depense').catch(function () { return []; })]).then(function (r) {
+    return Promise.all([G.utilisateurs(), G.lireType('employe').catch(function () { return []; }), G.lireType('heure').catch(function () { return []; }), G.lireType('depense').catch(function () { return []; }), G.lireType('ajusthos').catch(function () { return []; })]).then(function (r) {
+      ajusts = r[4].map(function (l) { return { id: l.id, d: l.details }; });
       users = r[0]; employes = {};
       r[1].forEach(function (l) { employes[l.details.user] = { id: l.id, d: l.details }; });
       heures = r[2].map(function (l) { return { id: l.id, d: l.details }; }).sort(function (a, b) { return (a.d.date + a.d.debut).localeCompare(b.d.date + b.d.debut); });
       depenses = r[3].map(function (l) { return { id: l.id, d: l.details }; }).sort(function (a, b) { return a.d.date.localeCompare(b.d.date); });
-      pret = true; erreur = ''; rendre();
+      pret = true; erreur = ''; rendre(); chargerHos();
     }).catch(function (e) { pret = true; erreur = 'Lecture impossible : ' + (e && e.message ? e.message : e); rendre(); });
   }
 
@@ -159,12 +172,12 @@ geotab.addin.rapport = function () {
 
   // ---------- Événements
   function brancherOutils() {
-    Array.prototype.forEach.call(document.querySelectorAll('#hr .mode [data-c]'), function (b) { b.onclick = function () { appliquerChoix(b.getAttribute('data-c')); rendre(); }; });
+    Array.prototype.forEach.call(document.querySelectorAll('#hr .mode [data-c]'), function (b) { b.onclick = function () { appliquerChoix(b.getAttribute('data-c')); rendre(); if (pret) { chargerHos(); } }; });
     var changer = function () {
       var a = $('hr-du').value, b = $('hr-au').value; if (!a || !b) { return; }
       if (b < a) { var t = a; a = b; b = t; }
       if (Math.round((B.dateDe(b) - B.dateDe(a)) / 86400000) > 366) { alert('Choisis une plage d’un an ou moins.'); rendre(); return; }
-      du = a; au = b; choixDates = 'perso'; page = 0; rendre();
+      du = a; au = b; choixDates = 'perso'; page = 0; rendre(); chargerHos();
     };
     $('hr-du').onchange = changer; $('hr-au').onchange = changer;
     $('hr-gens').onclick = function (e) { e.stopPropagation(); listeOuverte = !listeOuverte; rendre(); };
@@ -200,7 +213,7 @@ geotab.addin.rapport = function () {
       if (avecDepenses) { o['Dépenses ($)'] = Math.round(r.dep * 100) / 100; }
       return o;
     }), 'Sommaire');
-    feuille(lh.map(function (x) { return { 'Employé': nomUser(x.d.user), 'Semaine': nomSem(x.d.date), 'Date': x.d.date, 'Début': x.d.debut, 'Fin': x.d.fin, 'Heures': B.heuresDecimales(B.minutesEntree(x.d)), 'Projet (description)': x.d.description }; }), 'Heures');
+    feuille(lh.map(function (x) { return { 'Employé': nomUser(x.d.user), 'Semaine': nomSem(x.d.date), 'Date': x.d.date, 'Début': x.d.debut, 'Fin': x.d.fin, 'Heures': B.heuresDecimales(B.minutesEntree(x.d)), 'Source': x.d.hos ? (x.d.ajuste ? 'HOS ajustées' : 'HOS') : 'Saisie', 'Projet (description)': x.d.description }; }), 'Heures');
     if (avecDepenses) { feuille(ld.map(function (x) { return { 'Employé': nomUser(x.d.user), 'Semaine': nomSem(x.d.date), 'Date': x.d.date, 'Montant ($)': Number(x.d.montant) || 0, 'Description': x.d.description, 'Reçu': x.d.recu ? 'Oui' : 'Non' }; }), 'Dépenses'); }
     XLSX.writeFile(wb, 'Rapport heures' + (avecDepenses ? ' et dépenses' : '') + ' ' + du + ' au ' + au + '.xlsx');
   }

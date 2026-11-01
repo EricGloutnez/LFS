@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Bonneville - Employés</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.1.8"></script>
+<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.2.0"></script>
 </head>
 <body style="margin:0">
 <div id="be">
@@ -54,7 +54,7 @@
 geotab.addin.employes = function () {
   'use strict';
   var B = window.Bonneville;
-  var VERSION = '1.1.8';
+  var VERSION = '1.2.0';
   var G = null, moi = '', users = [], employes = {}, modifies = {}, filtre = { texte: '', inactifs: false, retires: false }, selection = {}, message = null;
 
   function $(id) { return document.getElementById(id); }
@@ -111,15 +111,16 @@ geotab.addin.employes = function () {
     $('be-pager').innerHTML = nbPages > 1 ? '<button type="button" class="btn petit" data-p="-1" aria-label="Page précédente"' + (page ? '' : ' disabled') + '>‹</button>Page ' + (page + 1) + ' / ' + nbPages + '<button type="button" class="btn petit" data-p="1" aria-label="Page suivante"' + (page < nbPages - 1 ? '' : ' disabled') + '>›</button>' : '';
     Array.prototype.forEach.call($('be-pager').querySelectorAll('[data-p]'), function (b) { b.onclick = function () { page = Math.max(0, Math.min(nbPages - 1, page + Number(b.getAttribute('data-p')))); remplirTable(); }; });
     var tousSel = morceau.length && morceau.every(function (u) { return selection[u.user]; });
-    zone.innerHTML = '<div class="tableau"><table><thead><tr><th class="sel"><input type="checkbox" id="be-tous" aria-label="Tout sélectionner sur cette page"' + (tousSel ? ' checked' : '') + '></th><th>Employé</th><th class="c">Heures</th><th class="c">Dépenses</th><th class="c">Administrateur</th></tr></thead><tbody>'
+    zone.innerHTML = '<div class="tableau"><table><thead><tr><th class="sel"><input type="checkbox" id="be-tous" aria-label="Tout sélectionner sur cette page"' + (tousSel ? ' checked' : '') + '></th><th>Employé</th><th class="c">Heures</th><th class="c">Dépenses</th><th class="c">Administrateur</th><th class="c" title="Les heures de cet employé viennent de ses journaux HOS dans Geotab (Conduite, En service, Cour). Il peut quand même ajuster ou ajouter des heures.">Heures auto (HOS)</th></tr></thead><tbody>'
       + morceau.map(function (u) {
         var d = fiche(u.user).droits || {};
         return '<tr data-u="' + h(u.user) + '" class="' + (modifies[u.user] ? 'modifie' : '') + (u.actif ? '' : ' inactif') + '"><td class="sel"><input type="checkbox" class="be-sel" aria-label="Sélectionner ' + h(u.nom) + '"' + (selection[u.user] ? ' checked' : '') + '></td>'
           + '<td class="qui"><b>' + h(u.nom) + '</b>' + (u.actif ? '' : '<span class="puce">Inactif</span>') + '<span class="courriel">' + h(u.user) + '</span></td>'
           + '<td class="c"><input type="checkbox" data-d="heures" aria-label="Heures : ' + h(u.nom) + '"' + (d.heures ? ' checked' : '') + '></td>'
           + '<td class="c"><input type="checkbox" data-d="depenses" aria-label="Dépenses : ' + h(u.nom) + '"' + (d.depenses ? ' checked' : '') + '></td>'
-          + '<td class="c"><input type="checkbox" data-d="admin" aria-label="Administrateur : ' + h(u.nom) + '"' + (d.admin ? ' checked' : '') + '></td></tr>';
-      }).join('') + (morceau.length ? '' : '<tr><td colspan="5" style="text-align:center;color:var(--doux);padding:24px">' + (filtre.retires ? 'Personne n’a été retiré de la liste.' : 'Aucun employé à afficher.') + '</td></tr>') + '</tbody></table></div>';
+          + '<td class="c"><input type="checkbox" data-d="admin" aria-label="Administrateur : ' + h(u.nom) + '"' + (d.admin ? ' checked' : '') + '></td>'
+          + '<td class="c"><input type="checkbox" data-d="hos" aria-label="Heures auto (HOS) : ' + h(u.nom) + '"' + (d.hos ? ' checked' : '') + '></td></tr>';
+      }).join('') + (morceau.length ? '' : '<tr><td colspan="6" style="text-align:center;color:var(--doux);padding:24px">' + (filtre.retires ? 'Personne n’a été retiré de la liste.' : 'Aucun employé à afficher.') + '</td></tr>') + '</tbody></table></div>';
     $('be-tous').onchange = function () { var c = this.checked; morceau.forEach(function (u) { if (c) { selection[u.user] = true; } else { delete selection[u.user]; } }); rendre(); };
     Array.prototype.forEach.call(zone.querySelectorAll('input.be-sel'), function (c) {
       c.onchange = function () { var u = c.closest('tr').getAttribute('data-u'); if (c.checked) { selection[u] = true; } else { delete selection[u]; } rendre(); };
@@ -129,7 +130,7 @@ geotab.addin.employes = function () {
         var u = c.closest('tr').getAttribute('data-u'), f = JSON.parse(JSON.stringify(fiche(u)));
         f.droits = f.droits || {}; if (c.checked) { f.droits[c.getAttribute('data-d')] = true; } else { delete f.droits[c.getAttribute('data-d')]; }
         var orig = employes[u] ? (employes[u].d.droits || {}) : {};
-        if (!!orig.heures === !!f.droits.heures && !!orig.depenses === !!f.droits.depenses && !!orig.admin === !!f.droits.admin) { delete modifies[u]; } else { modifies[u] = f; }
+        if (['heures', 'depenses', 'admin', 'hos'].every(function (k) { return !!orig[k] === !!f.droits[k]; })) { delete modifies[u]; } else { modifies[u] = f; }
         message = null; rendre();
       };
     });
