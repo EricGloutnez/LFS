@@ -1,4 +1,4 @@
-/* Bonneville - Heures & Dépenses : bibliothèque commune (version 1.2.0)
+/* Bonneville - Heures & Dépenses : bibliothèque commune (version 1.2.1)
    Utilisée par : heures.html et heures-drive.html (coquilles), tempo.html, tempo-drive.html et employes.html.
    Stockage : AddInData de Geotab, identifiant propre à Heures & Dépenses (séparé de LFS).
    Types enregistrés : employe (accès), heure (une entrée d'heures), depense (une dépense avec reçu).
@@ -8,7 +8,7 @@
   var ADDIN_ID = 'aqKJVB4VwR32I2cfuHWClzw';      // Stockage de Heures & Dépenses
   var LFS_ID = 'aXdeNEZ7tQ7eMPNywYFFKrA';        // Stockage de LFS (lecture seule)
   var TYPES_LFS = ['voyage', 'formresume'];      // Types lus dans LFS, jamais écrits par Heures & Dépenses
-  var VERSION = '1.2.0';
+  var VERSION = '1.2.1';
   var TELEPHONE = '(438) 978-2162';
 
   // ---------- Accès à Geotab
@@ -390,7 +390,7 @@
           var o = jours[j]; if (o.min < 1) { return; }
           var aj = (ajustements || []).filter(function (x) { return x.d.user === g.user && x.d.date === j; })[0];
           var d = { type: 'heure', user: g.user, nom: g.nom, date: j, hos: true, description: 'Heures HOS (Conduite, En service, Cour)' };
-          if (aj) { d.debut = aj.d.debut; d.fin = aj.d.fin; d.ajuste = true; d.ajustId = aj.id; d.hosDebut = hhmm(o.debut); d.hosFin = hhmm(o.fin); d.hosMinutes = o.min; d.description = 'Heures HOS ajustées'; }
+          if (aj) { d.debut = aj.d.debut; d.fin = aj.d.fin; d.ajuste = true; d.ajustId = aj.id; d.ajustePar = aj.d.majPar || aj.d.user; d.ajusteLe = aj.d.majLe || ''; d.hosDebut = hhmm(o.debut); d.hosFin = hhmm(o.fin); d.hosMinutes = o.min; d.description = 'Heures HOS ajustées'; }
           else { d.debut = hhmm(o.debut); d.fin = o.fin.getHours() === 0 && o.fin.getMinutes() === 0 && isoLocal(o.fin) !== j ? '00:00' : hhmm(o.fin); d.minutes = o.min; }
           out.push({ id: 'hos:' + g.user + ':' + j, d: d });
         });

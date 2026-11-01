@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Bonneville - Heures &amp; Dépenses</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.2.0"></script>
+<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.2.1"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body style="margin:0">
@@ -79,6 +79,12 @@
   #hb .carte { position: relative; }
   #hb .carte:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
   #hb .badge-hos { display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: .4px; color: #fff; background: #1f4f8a; border-radius: 6px; padding: 1px 6px; vertical-align: 2px; margin-left: 4px; }
+  #hb .carte[draggable="true"] { cursor: grab; }
+  #hb .carte.glisse { opacity: .4; }
+  #hb .carte.cible { box-shadow: -4px 0 0 var(--accent); }
+  #hb .carte.cible.apres { box-shadow: 4px 0 0 var(--accent); }
+  #hb .badge-hos.rouge { background: var(--non); }
+  #hb .tiroir small.modif { color: var(--non); }
   #hb .masquer { position: absolute; top: 8px; right: 8px; width: 30px; height: 30px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: var(--doux); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; opacity: .55; }
   #hb .masquer:hover, #hb .masquer:focus-visible { opacity: 1; border-color: var(--ligne); background: var(--fond); }
   #hb .carte small, #hb .tiroir small { color: var(--doux); font-size: 12px; display: block; }
@@ -86,7 +92,7 @@
   #hb .rond { width: 34px; height: 34px; border-radius: 50%; background: var(--bleu); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-weight: 800; flex: 0 0 auto; }
   #hb .rond.gros { width: 52px; height: 52px; font-size: 18px; }
   #hb .trois { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-  #hb .trois > span { box-shadow: inset 3px 0 0 var(--accent); padding-left: 8px; } #hb .trois b { font-size: 16px; display: block; }
+  #hb .trois > span { box-shadow: inset 3px 0 0 var(--accent); padding-left: 8px; } #hb .trois b { font-size: 16px; display: block; white-space: nowrap; letter-spacing: -.2px; }
   #hb .barre-rempli { height: 8px; background: var(--bande); border-radius: 4px; overflow: hidden; } #hb .barre-rempli span { display: block; height: 100%; }
   #hb .dep { font-size: 13px; font-weight: 600; }
   #hb .fond-tiroir { position: fixed; inset: 0; background: rgba(20,25,30,.4); display: flex; justify-content: flex-end; z-index: 40; }
@@ -119,7 +125,7 @@
 geotab.addin.tempo = function () {
   'use strict';
   var B = window.Bonneville;
-  var VERSION = '1.2.0';
+  var VERSION = '1.2.1';
   var api = null, G = null, moi = '', acces = false, pret = false;
   var users = [], employes = {}, heures = [], depenses = [];
   var periode = null, onglet = 'heures', filtreEmp = '', ouverts = {}, message = null;
@@ -206,8 +212,10 @@ geotab.addin.tempo = function () {
       G.lireType('employe').catch(function () { return []; }),
       G.lireType('heure').catch(function () { return []; }),
       G.lireType('depense').catch(function () { return []; }),
-      G.lireType('ajusthos').catch(function () { return []; })
+      G.lireType('ajusthos').catch(function () { return []; }),
+      G.lireChamp('prefbureau', 'user', moi).catch(function () { return []; })
     ]).then(function (r) {
+      if (r[5] && r[5][0]) { prefRec = { id: r[5][0].id, d: r[5][0].details }; ordre = prefRec.d.ordre || []; }
       ajusts = r[4].map(function (l) { return { id: l.id, d: l.details }; });
       users = r[0]; employes = {};
       r[1].forEach(function (l) { employes[l.details.user] = { id: l.id, d: l.details }; });
@@ -233,7 +241,26 @@ geotab.addin.tempo = function () {
     var vus = {};
     users.forEach(function (u) { var e = employes[u.user]; if (u.actif && e && e.d.droits && (e.d.droits.heures || e.d.droits.hos) && !e.d.masque) { vus[u.user] = true; } });
     dansPeriode(heures).concat(dansPeriode(depenses)).forEach(function (x) { vus[x.d.user] = true; });
-    return Object.keys(vus).filter(function (u) { return (!filtreEmp || u === filtreEmp) && carteMasquee(u) === voirMasquees; }).sort(function (a, b) { return nomUser(a).localeCompare(nomUser(b), 'fr'); });
+    return Object.keys(vus).filter(function (u) { return (!filtreEmp || u === filtreEmp) && carteMasquee(u) === voirMasquees; }).sort(function (a, b) {
+      var ia = ordre.indexOf(a), ib = ordre.indexOf(b);
+      if (ia >= 0 && ib >= 0) { return ia - ib; } if (ia >= 0) { return -1; } if (ib >= 0) { return 1; }
+      return nomUser(a).localeCompare(nomUser(b), 'fr');
+    });
+  }
+  // ---------- Ordre des cartes : chaque administrateur place les cartes comme il veut (glisser-déposer)
+  var ordre = [], prefRec = null, glisse = null;
+  function sauverOrdre() {
+    var d = prefRec ? JSON.parse(JSON.stringify(prefRec.d)) : { type: 'prefbureau', user: moi };
+    d.ordre = ordre; d.majLe = new Date().toISOString();
+    G.enregistrer(prefRec, d).then(function (id) { prefRec = { id: id, d: d }; }).catch(function () { dire('L’ordre des cartes n’a pas pu être enregistré.', true); });
+  }
+  function deplacerCarte(u, cible, apres) {
+    var liste = gensCartes().filter(function (x) { return x !== u; }), i = liste.indexOf(cible);
+    if (i < 0) { return; }
+    liste.splice(apres ? i + 1 : i, 0, u);
+    // garde à la fin les employés qui ne sont pas affichés en ce moment (cartes masquées, autres périodes)
+    ordre = liste.concat(ordre.filter(function (x) { return liste.indexOf(x) < 0; }));
+    sauverOrdre(); rendre();
   }
   // ---------- Cartes masquées : choix partagé par tous les administrateurs (enregistré sur la fiche de l'employé)
   var voirMasquees = false;
@@ -251,7 +278,8 @@ geotab.addin.tempo = function () {
     }).catch(function (e) { dire('Changement impossible : ' + (e && e.message ? e.message : e), true); });
   }
   function joursPeriode() { var P = plage(), l = [], n = nbJours(P); for (var i = 0; i < n; i++) { l.push(B.ajouterJours(P.debut, i)); } return l; }
-  function ouvrables() { var auj = B.jourIso(); return joursPeriode().filter(function (j) { var d = B.dateDe(j).getDay(); return j <= auj && d !== 0 && d !== 6; }); }
+  // Jours écoulés depuis le début de la période jusqu'à aujourd'hui, samedi et dimanche compris
+  function ouvrables() { var auj = B.jourIso(); return joursPeriode().filter(function (j) { return j <= auj; }); }
   function initiales(u) { return nomUser(u).split(/\s+/).filter(Boolean).slice(0, 2).map(function (p) { return p[0].toUpperCase(); }).join('') || '?'; }
   function chiffresDe(u) {
     var P = plage();
@@ -289,13 +317,13 @@ geotab.addin.tempo = function () {
     z.innerHTML = '<div class="cartes" style="grid-template-columns:repeat(' + cols + ', 1fr)">' + gens.slice(debut, debut + par).map(function (u) {
       var c = chiffresDe(u), pct = c.ouv ? Math.round(c.remplis / c.ouv * 100) : 0;
       var coul = !c.ouv ? 'var(--bande)' : (pct >= 80 ? 'var(--ok)' : (pct >= 50 ? 'var(--accent)' : 'var(--non)'));
-      return '<div class="carte" role="button" tabindex="0" data-carte="' + h(u) + '" aria-label="Détail de ' + h(nomUser(u)) + '">'
+      return '<div class="carte" role="button" tabindex="0" draggable="true" data-carte="' + h(u) + '" aria-label="Détail de ' + h(nomUser(u)) + '" title="Glisse la carte pour la déplacer">'
         + '<button type="button" class="masquer" data-masquer="' + h(u) + '" title="' + (voirMasquees ? 'Réafficher cette carte' : 'Masquer cette carte') + '" aria-label="' + (voirMasquees ? 'Réafficher' : 'Masquer') + ' la carte de ' + h(nomUser(u)) + '">'
         + (voirMasquees ? '<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/></svg>'
           : '<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 5.1A10.8 10.8 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6C3.9 8.4 2 12 2 12s3.5 7 10 7c1.8 0 3.4-.5 4.7-1.3M9.9 9.9a3 3 0 0 0 4.2 4.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>')
         + '</button><span class="tete"><span class="rond">' + h(initiales(u)) + '</span><span><b>' + h(nomUser(u)) + (estHos(u) ? ' <span class="badge-hos" title="Heures automatiques tirées des HOS">HOS</span>' : '') + '</b><small>' + h(u) + '</small></span></span>'
         + troisChiffres(c)
-        + '<span class="barre-rempli" title="' + (c.ouv ? c.remplis + ' jour(s) sur ' + c.ouv + ' jours ouvrables à ce jour' : 'Période à venir') + '"><span style="width:' + pct + '%;background:' + coul + '"></span></span>'
+        + '<span class="barre-rempli" title="' + (c.ouv ? c.remplis + ' jour(s) sur ' + c.ouv + ' jours écoulés depuis le début de la période' : 'Période à venir') + '"><span style="width:' + pct + '%;background:' + coul + '"></span></span>'
         + '<span class="dep"><span>' + (c.ouv ? c.remplis + ' / ' + c.ouv + ' jours' : 'À venir') + '</span><span>' + (c.dl.length ? '🧾 ' + c.dl.length + ' · ' + B.argent(c.dTotal) : 'Aucune dépense') + '</span></span></div>';
     }).join('') + '</div>';
   }
@@ -317,8 +345,11 @@ geotab.addin.tempo = function () {
         if (!lj.length && (j > auj || we)) { return; }
         html += '<div class="jour"><span class="jn' + (lj.length ? '' : ' manque') + '">' + h(B.dateCourte(j)) + '</span><span>'
           + (lj.length ? lj.map(function (x) {
+            var bas = x.d.hos
+              ? (x.d.ajuste ? '<small class="modif">Modifié ' + (x.d.ajustePar === x.d.user ? 'par l’employé' : 'par le bureau') + ' · HOS d’origine : ' + h(B.heureFr(x.d.hosDebut)) + ' à ' + h(B.heureFr(x.d.hosFin)) + ' (' + B.duree(x.d.hosMinutes) + ')</small>' : '')
+              : '<small>' + h(x.d.description) + '</small>';
             return '<span class="ent"><span><b>' + h(B.heureFr(x.d.debut)) + ' à ' + h(B.heureFr(x.d.fin)) + '</b> · ' + B.duree(B.minutesEntree(x.d))
-              + (x.d.hos ? ' <span class="sem">(' + (x.d.ajuste ? 'HOS ajustées' : 'HOS') + ')</span>' : (x.d.parBureau ? ' <span class="sem">(saisie par le bureau)</span>' : (x.d.corrigeParBureau ? ' <span class="sem">(corrigée par le bureau)</span>' : ''))) + '<small>' + h(x.d.description) + '</small></span>'
+              + (x.d.hos ? ' <span class="badge-hos' + (x.d.ajuste ? ' rouge' : '') + '" title="' + (x.d.ajuste ? 'Heures HOS modifiées' : 'Heures tirées des HOS') + '">HOS</span>' : (x.d.parBureau ? ' <span class="sem">(saisie par le bureau)</span>' : (x.d.corrigeParBureau ? ' <span class="sem">(corrigée par le bureau)</span>' : ''))) + bas + '</span>'
               + '<button type="button" class="btn petit" data-t="modH" data-id="' + h(x.id) + '">Modifier</button></span>';
           }).join('') : '<span class="manque">Aucune heure</span>') + '</span><span class="jt">' + (lj.length ? B.duree(minutes(lj)) : '') + '</span></div>';
       });
@@ -374,7 +405,7 @@ geotab.addin.tempo = function () {
     var html = message ? '<div class="message' + (message.e ? ' erreur' : '') + '" role="status">' + h(message.t) + '</div>' : '';
     html += '<div class="outils"><div class="per"><button type="button" class="btn" data-a="periode" data-v="-1" aria-label="Période précédente">‹</button><b>Période ' + h(B.libellePeriode(periode)) + '<small>' + (periode.n === cour.n ? 'Période en cours' : (periode.n < cour.n ? 'Période terminée' : 'Période à venir')) + '</small></b><button type="button" class="btn" data-a="periode" data-v="1" aria-label="Période suivante">›</button></div>'
       + (periode.n !== cour.n ? '<button type="button" class="btn" data-a="aujourdhui">Période en cours</button>' : '')
-      + '<span class="maj" id="hb-maj" aria-live="polite">' + h(texteMaj()) + '</span><span class="droite"><span class="pager" id="hb-pager"></span>' + (voirMasquees ? '<button type="button" class="btn" data-a="masquees">‹ Retour aux cartes</button>' : (nbMasquees() ? '<button type="button" class="btn discret" data-a="masquees" title="Voir les cartes masquées">Cartes masquées (' + nbMasquees() + ')</button>' : '')) + '<button type="button" class="btn discret" data-a="ajouterHeure" title="Ajouter des heures"><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Heures</button><button type="button" class="btn discret" data-a="ajouterDepense" title="Ajouter une dépense"><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Dépense</button></span></div>';
+      + '<span class="maj" id="hb-maj" aria-live="polite">' + h(texteMaj()) + '</span><span class="droite"><span class="pager" id="hb-pager"></span>' + (ordre.length && !voirMasquees ? '<button type="button" class="btn discret" data-a="ordreAlpha" title="Remettre les cartes en ordre alphabétique">Ordre alphabétique</button>' : '') + (voirMasquees ? '<button type="button" class="btn" data-a="masquees">‹ Retour aux cartes</button>' : (nbMasquees() ? '<button type="button" class="btn discret" data-a="masquees" title="Voir les cartes masquées">Cartes masquées (' + nbMasquees() + ')</button>' : '')) + '<button type="button" class="btn discret" data-a="ajouterHeure" title="Ajouter des heures"><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Heures</button><button type="button" class="btn discret" data-a="ajouterDepense" title="Ajouter une dépense"><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Dépense</button></span></div>';
     html += '<div class="zone" id="hb-zone"></div>';
     z.innerHTML = html + '<div class="pied">Bonneville - Version ' + B.VERSION + '</div>';
     remplirZone();
@@ -489,6 +520,30 @@ geotab.addin.tempo = function () {
   var minuteur = null;
   window.addEventListener('resize', function () { clearTimeout(minuteur); minuteur = setTimeout(remplirZone, 120); });
   function brancher() {
+    var zoneC = $('hb-contenu');
+    zoneC.addEventListener('dragstart', function (e) {
+      var k = e.target.closest && e.target.closest('.carte[data-carte]'); if (!k) { return; }
+      glisse = k.getAttribute('data-carte'); k.classList.add('glisse');
+      try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', glisse); } catch (x) {}
+    });
+    zoneC.addEventListener('dragover', function (e) {
+      var k = e.target.closest && e.target.closest('.carte[data-carte]'); if (!k || !glisse) { return; }
+      e.preventDefault();
+      Array.prototype.forEach.call(document.querySelectorAll('#hb .carte.cible'), function (c) { if (c !== k) { c.classList.remove('cible', 'apres'); } });
+      if (k.getAttribute('data-carte') === glisse) { return; }
+      var r = k.getBoundingClientRect(), apres = e.clientX > r.left + r.width / 2;
+      k.classList.add('cible'); k.classList.toggle('apres', apres);
+    });
+    zoneC.addEventListener('drop', function (e) {
+      var k = e.target.closest && e.target.closest('.carte[data-carte]'); if (!k || !glisse) { return; }
+      e.preventDefault();
+      var cible = k.getAttribute('data-carte'), r = k.getBoundingClientRect(), apres = e.clientX > r.left + r.width / 2;
+      if (cible !== glisse) { deplacerCarte(glisse, cible, apres); }
+    });
+    zoneC.addEventListener('dragend', function () {
+      glisse = null;
+      Array.prototype.forEach.call(document.querySelectorAll('#hb .carte.glisse, #hb .carte.cible'), function (c) { c.classList.remove('glisse', 'cible', 'apres'); });
+    });
     $('hb-contenu').addEventListener('keydown', function (e) {
       if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.carte[data-carte]')) { e.preventDefault(); ouvrirTiroir(e.target.getAttribute('data-carte')); }
     });
@@ -500,6 +555,7 @@ geotab.addin.tempo = function () {
       var a = b.getAttribute('data-a'), id = b.getAttribute('data-id');
       if (a === 'page') { pages[onglet] = Math.max(0, Math.min(nbPages - 1, pages[onglet] + Number(b.getAttribute('data-v')))); remplirZone(); return; }
       if (false) { mode = b.getAttribute('data-v'); if (mode === 'perso' && !perso) { perso = { debut: periode.debut, fin: periode.fin }; } pages = { heures: 0, depenses: 0 }; message = null; rendre(); return; }
+      if (a === 'ordreAlpha') { if (confirm('Remettre les cartes en ordre alphabétique ?')) { ordre = []; sauverOrdre(); rendre(); } return; }
       if (a === 'masquees') { voirMasquees = !voirMasquees; pages = { heures: 0, depenses: 0 }; rendre(); return; }
       if (a === 'periode') { periode = B.periodeVoisine(periode, Number(b.getAttribute('data-v'))); pages = { heures: 0, depenses: 0 }; message = null; rendre(); chargerHos(); }
       else if (a === 'aujourdhui') { periode = B.periodeDe(B.jourIso()); pages = { heures: 0, depenses: 0 }; message = null; rendre(); chargerHos(); }
