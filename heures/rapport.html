@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Bonneville - Rapport</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.1.1"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body style="margin:0">
+<div id="hr">
+<style>
+  #hr { --encre: #14191e; --doux: #4f5963; --ligne: #d3d8dd; --fond: #eef0f2; --surface: #ffffff; --bande: #e3e6e9; --accent: #f2a900; --ok: #1b7f3b; --non: #b42318;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; color: var(--encre); background: var(--fond); height: 100vh; font-size: 14px; display: flex; flex-direction: column; overflow: hidden; }
+  #hr * { box-sizing: border-box; }
+  #hr .entete { display: flex; align-items: center; gap: 16px; height: 56px; padding: 0 28px; background: var(--surface); border-bottom: 1px solid var(--ligne); }
+  #hr .entete img { height: 18px; } #hr .entete .titre { font-weight: 700; font-size: 16px; }
+  #hr main { flex: 1; min-height: 0; padding: 14px 24px 8px; display: flex; flex-direction: column; gap: 10px; }
+  #hr .outils { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  #hr .mode { display: inline-flex; background: var(--bande); border-radius: 10px; padding: 3px; gap: 3px; }
+  #hr .mode button { border: 0; background: transparent; font: inherit; font-size: 13px; font-weight: 700; color: var(--doux); padding: 7px 12px; border-radius: 8px; cursor: pointer; }
+  #hr .mode button[aria-pressed="true"] { background: var(--surface); color: var(--encre); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+  #hr .dates { display: inline-flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--ligne); border-radius: 10px; padding: 4px 12px; font-weight: 700; font-size: 13px; }
+  #hr .dates label { display: inline-flex; align-items: center; gap: 6px; }
+  #hr .dates small { color: var(--doux); font-weight: 600; font-size: 12px; }
+  #hr input[type=date] { font: inherit; font-size: 14px; height: 34px; padding: 0 8px; border: 1px solid var(--ligne); border-radius: 8px; background: var(--surface); color: var(--encre); }
+  #hr .btn { height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--ligne); background: var(--surface); color: var(--encre); font: inherit; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  #hr .btn.jaune { background: var(--accent); border-color: var(--accent); color: #14191e; }
+  #hr .btn.petit { height: 30px; padding: 0 10px; font-size: 13px; }
+  #hr .btn:disabled { opacity: .4; cursor: default; }
+  #hr .droite { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  #hr label.case { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; cursor: pointer; }
+  #hr input[type=checkbox] { width: 17px; height: 17px; accent-color: #1b7f3b; cursor: pointer; }
+  #hr .choix { position: relative; }
+  #hr .liste-choix { position: absolute; top: 40px; left: 0; z-index: 20; width: 300px; max-height: 340px; overflow: auto; background: var(--surface); border: 1px solid var(--ligne); border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.18); padding: 8px; display: flex; flex-direction: column; gap: 2px; }
+  #hr .liste-choix label { padding: 6px 8px; border-radius: 6px; } #hr .liste-choix label:hover { background: var(--bande); }
+  #hr .liste-choix .haut { display: flex; gap: 6px; padding: 4px 4px 8px; border-bottom: 1px solid var(--ligne); margin-bottom: 4px; }
+  #hr .zone { flex: 1; min-height: 0; overflow: hidden; }
+  #hr .tableau { background: var(--surface); border: 1px solid var(--ligne); border-radius: 12px; overflow-x: auto; }
+  #hr table { width: 100%; border-collapse: collapse; }
+  #hr th { text-align: left; font-size: 12px; color: var(--doux); font-weight: 700; padding: 0 12px; height: 46px; background: var(--bande); white-space: nowrap; }
+  #hr td { padding: 0 12px; height: 42px; border-top: 1px solid var(--ligne); white-space: nowrap; }
+  #hr td.n, #hr th.n { text-align: right; font-variant-numeric: tabular-nums; }
+  #hr tr.total td { font-weight: 800; background: var(--bande); }
+  #hr .courriel { color: var(--doux); font-size: 12px; margin-left: 8px; }
+  #hr .zero { color: var(--non); font-weight: 600; }
+  #hr .vide { padding: 24px; text-align: center; color: var(--doux); }
+  #hr .pager { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; color: var(--doux); }
+  #hr .resume { font-size: 13px; color: var(--doux); }
+  #hr .message { border-radius: 10px; padding: 10px 14px; font-weight: 600; background: #fde8e7; color: #7a1a12; }
+  #hr .pied { text-align: center; font-size: 12px; font-weight: 600; color: var(--doux); }
+  #hr button:focus-visible, #hr input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+</style>
+<div class="entete"><img alt="Bonneville" src="https://ericgloutnez.github.io/LFS/logo-bonneville.png"><span class="titre">Rapport</span></div>
+<main id="hr-contenu"><div class="resume">Chargement…</div></main>
+</div>
+
+<script>
+geotab.addin.rapport = function () {
+  'use strict';
+  var B = window.Bonneville;
+  var api = null, G = null, moi = '', acces = false, pret = false;
+  var users = [], employes = {}, heures = [], depenses = [];
+  var choixDates = 'cours', du = '', au = '', choisis = null, avecDepenses = true, listeOuverte = false, page = 0, nbPages = 1, erreur = '';
+
+  function $(id) { return document.getElementById(id); }
+  function h(t) { return String(t === undefined || t === null ? '' : t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function nomUser(u) { var x = users.filter(function (y) { return y.user === u; })[0]; return x ? x.nom : (u || ''); }
+  function minutes(l) { return l.reduce(function (s, x) { return s + B.minutesEntree(x.d); }, 0); }
+  function argentTotal(l) { return l.reduce(function (s, x) { return s + (Number(x.d.montant) || 0); }, 0); }
+  function courtDate(iso) { var d = B.dateDe(iso); return d.getDate() + ' ' + B.MOIS[d.getMonth()]; }
+  function nbJours() { return Math.round((B.dateDe(au) - B.dateDe(du)) / 86400000) + 1; }
+
+  // ---------- Dates : période de paye en cours, précédente, ou personnalisée
+  function appliquerChoix(c) {
+    choixDates = c;
+    var p = B.periodeDe(B.jourIso());
+    if (c === 'precedente') { p = B.periodeVoisine(p, -1); }
+    if (c !== 'perso') { du = p.debut; au = p.fin; }
+    page = 0;
+  }
+  // Semaines de paye (jeudi au mercredi) coupées aux dates choisies
+  function semaines() {
+    var p0 = B.periodeDe(du), j = du >= p0.s2.debut ? p0.s2.debut : p0.s1.debut, l = [], paye = choixDates !== 'perso', n = 0;
+    while (j <= au && l.length < 60) {
+      var a = j < du ? du : j, f = B.ajouterJours(j, 6); if (f > au) { f = au; } n++;
+      l.push({ debut: a, fin: f, court: paye ? 'Semaine ' + n : 'Sem. du ' + courtDate(a), titre: courtDate(a) + ' au ' + courtDate(f) });
+      j = B.ajouterJours(j, 7);
+    }
+    return l;
+  }
+  function dansDates(l) { return l.filter(function (x) { return x.d.date >= du && x.d.date <= au && (!choisis || choisis[x.d.user]); }); }
+  function gens() {
+    var vus = {};
+    users.forEach(function (u) { var e = employes[u.user]; if (u.actif && e && e.d.droits && e.d.droits.heures && !e.d.masque) { vus[u.user] = true; } });
+    heures.concat(depenses).forEach(function (x) { if (x.d.date >= du && x.d.date <= au) { vus[x.d.user] = true; } });
+    return Object.keys(vus).sort(function (a, b) { return nomUser(a).localeCompare(nomUser(b), 'fr'); });
+  }
+  function lignes() {
+    var sem = semaines(), lh = dansDates(heures), ld = dansDates(depenses);
+    return gens().filter(function (u) { return !choisis || choisis[u]; }).map(function (u) {
+      var l = lh.filter(function (x) { return x.d.user === u; }), jours = {}; l.forEach(function (x) { jours[x.d.date] = true; });
+      var dl = ld.filter(function (x) { return x.d.user === u; });
+      return { u: u, parSem: sem.map(function (s) { return minutes(l.filter(function (x) { return x.d.date >= s.debut && x.d.date <= s.fin; })); }), total: minutes(l), jours: Object.keys(jours).length, dep: argentTotal(dl), nbDep: dl.length };
+    });
+  }
+
+  // ---------- Chargement
+  function charger() {
+    return Promise.all([G.utilisateurs(), G.lireType('employe').catch(function () { return []; }), G.lireType('heure').catch(function () { return []; }), G.lireType('depense').catch(function () { return []; })]).then(function (r) {
+      users = r[0]; employes = {};
+      r[1].forEach(function (l) { employes[l.details.user] = { id: l.id, d: l.details }; });
+      heures = r[2].map(function (l) { return { id: l.id, d: l.details }; }).sort(function (a, b) { return (a.d.date + a.d.debut).localeCompare(b.d.date + b.d.debut); });
+      depenses = r[3].map(function (l) { return { id: l.id, d: l.details }; }).sort(function (a, b) { return a.d.date.localeCompare(b.d.date); });
+      pret = true; erreur = ''; rendre();
+    }).catch(function (e) { pret = true; erreur = 'Lecture impossible : ' + (e && e.message ? e.message : e); rendre(); });
+  }
+
+  // ---------- Rendu (tout tient dans la page : le tableau est paginé)
+  function rendre() {
+    var z = $('hr-contenu'); if (!z) { return; }
+    if (!pret) { z.innerHTML = '<div class="resume">Chargement…</div>'; return; }
+    if (!acces) { z.innerHTML = '<div class="message" role="alert" style="font-size:16px;padding:20px;text-align:center"><b style="font-size:22px">Accès refusé</b><br>Ton compte (' + h(moi) + ') n’a pas accès à cette application. Communique avec le Gestionnaire Livraison pour obtenir l’accès.</div><div class="pied">Bonneville - Version ' + B.VERSION + '</div>'; return; }
+    var tous = gens(), nbChoisis = choisis ? tous.filter(function (u) { return choisis[u]; }).length : tous.length;
+    var html = erreur ? '<div class="message" role="alert">' + h(erreur) + '</div>' : '';
+    html += '<div class="outils"><span class="mode" role="group" aria-label="Dates du rapport">'
+      + [['cours', 'Période en cours'], ['precedente', 'Période précédente'], ['perso', 'Personnalisée']].map(function (c) { return '<button type="button" data-c="' + c[0] + '" aria-pressed="' + (choixDates === c[0]) + '">' + c[1] + '</button>'; }).join('')
+      + '</span><span class="dates"><label>Du <input type="date" id="hr-du" value="' + du + '"></label><label>au <input type="date" id="hr-au" value="' + au + '"></label><small>' + nbJours() + ' jours</small></span></div>';
+    html += '<div class="outils"><span class="choix"><button type="button" class="btn" id="hr-gens" aria-expanded="' + listeOuverte + '">' + (choisis ? nbChoisis + ' employé' + (nbChoisis > 1 ? 's' : '') + ' sur ' + tous.length : 'Tous les employés (' + tous.length + ')') + ' ▾</button>'
+      + (listeOuverte ? '<div class="liste-choix" id="hr-liste"><div class="haut"><button type="button" class="btn petit" data-g="tous">Tout cocher</button><button type="button" class="btn petit" data-g="aucun">Tout décocher</button></div>'
+        + tous.map(function (u) { return '<label class="case"><input type="checkbox" data-u="' + h(u) + '"' + (!choisis || choisis[u] ? ' checked' : '') + '>' + h(nomUser(u)) + '</label>'; }).join('') + '</div>' : '')
+      + '</span><label class="case"><input type="checkbox" id="hr-dep"' + (avecDepenses ? ' checked' : '') + '> Inclure les dépenses</label>'
+      + '<span class="droite"><span class="pager" id="hr-pager"></span><button type="button" class="btn jaune" id="hr-excel"><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0l-4-4m4 4l4-4M5 19h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Exporter en Excel</button></span></div>';
+    html += '<div class="zone" id="hr-zone"></div><div class="pied">Bonneville - Version ' + B.VERSION + '</div>';
+    z.innerHTML = html;
+    brancherOutils();
+    remplirTableau();
+  }
+  function remplirTableau() {
+    var zone = $('hr-zone'); if (!zone) { return; }
+    var sem = semaines(), L = lignes(), colsSem = sem.length <= 6;
+    if (!L.length) { $('hr-pager').innerHTML = ''; zone.innerHTML = '<div class="tableau"><div class="vide">Aucun employé pour ces dates.</div></div>'; return; }
+    var par = Math.max(1, Math.floor((zone.clientHeight - 46 - 42 - 4) / 42));
+    nbPages = Math.max(1, Math.ceil(L.length / par)); if (page > nbPages - 1) { page = nbPages - 1; }
+    $('hr-pager').innerHTML = nbPages > 1 ? '<button type="button" class="btn petit" data-p="-1" aria-label="Page précédente"' + (page ? '' : ' disabled') + '>‹</button>Page ' + (page + 1) + ' / ' + nbPages + '<button type="button" class="btn petit" data-p="1" aria-label="Page suivante"' + (page < nbPages - 1 ? '' : ' disabled') + '>›</button>' : '';
+    Array.prototype.forEach.call($('hr-pager').querySelectorAll('[data-p]'), function (b) { b.onclick = function () { page = Math.max(0, Math.min(nbPages - 1, page + Number(b.getAttribute('data-p')))); remplirTableau(); }; });
+    var tete = '<th>Employé</th>' + (colsSem ? sem.map(function (s) { return '<th class="n" title="' + h(s.titre) + '">' + h(s.court) + '</th>'; }).join('') : '') + '<th class="n">Total</th><th class="n">Jours travaillés</th>' + (avecDepenses ? '<th class="n">Dépenses</th>' : '');
+    var corps = L.slice(page * par, page * par + par).map(function (r) {
+      return '<tr><td><b>' + h(nomUser(r.u)) + '</b><span class="courriel">' + h(r.u) + '</span></td>'
+        + (colsSem ? r.parSem.map(function (m) { return '<td class="n">' + (m ? B.duree(m) : '<span class="zero">0 h 00</span>') + '</td>'; }).join('') : '')
+        + '<td class="n"><b>' + B.duree(r.total) + '</b></td><td class="n">' + r.jours + '</td>' + (avecDepenses ? '<td class="n">' + (r.nbDep ? B.argent(r.dep) + ' <span class="courriel">(' + r.nbDep + ')</span>' : '—') + '</td>' : '') + '</tr>';
+    }).join('');
+    var tot = '<tr class="total"><td>Total (' + L.length + ' employé' + (L.length > 1 ? 's' : '') + ')</td>'
+      + (colsSem ? sem.map(function (s, i) { return '<td class="n">' + B.duree(L.reduce(function (a, r) { return a + r.parSem[i]; }, 0)) + '</td>'; }).join('') : '')
+      + '<td class="n">' + B.duree(L.reduce(function (a, r) { return a + r.total; }, 0)) + '</td><td class="n">' + L.reduce(function (a, r) { return a + r.jours; }, 0) + '</td>'
+      + (avecDepenses ? '<td class="n">' + B.argent(L.reduce(function (a, r) { return a + r.dep; }, 0)) + '</td>' : '') + '</tr>';
+    zone.innerHTML = '<div class="tableau"><table><thead><tr>' + tete + '</tr></thead><tbody>' + corps + tot + '</tbody></table></div>';
+  }
+
+  // ---------- Événements
+  function brancherOutils() {
+    Array.prototype.forEach.call(document.querySelectorAll('#hr .mode [data-c]'), function (b) { b.onclick = function () { appliquerChoix(b.getAttribute('data-c')); rendre(); }; });
+    var changer = function () {
+      var a = $('hr-du').value, b = $('hr-au').value; if (!a || !b) { return; }
+      if (b < a) { var t = a; a = b; b = t; }
+      if (Math.round((B.dateDe(b) - B.dateDe(a)) / 86400000) > 366) { alert('Choisis une plage d’un an ou moins.'); rendre(); return; }
+      du = a; au = b; choixDates = 'perso'; page = 0; rendre();
+    };
+    $('hr-du').onchange = changer; $('hr-au').onchange = changer;
+    $('hr-gens').onclick = function (e) { e.stopPropagation(); listeOuverte = !listeOuverte; rendre(); };
+    if ($('hr-liste')) {
+      $('hr-liste').onclick = function (e) { e.stopPropagation(); };
+      Array.prototype.forEach.call($('hr-liste').querySelectorAll('input[data-u]'), function (c) {
+        c.onchange = function () {
+          var tous = gens(); if (!choisis) { choisis = {}; tous.forEach(function (u) { choisis[u] = true; }); }
+          if (c.checked) { choisis[c.getAttribute('data-u')] = true; } else { delete choisis[c.getAttribute('data-u')]; }
+          if (tous.every(function (u) { return choisis[u]; })) { choisis = null; }
+          page = 0; rendre();
+        };
+      });
+      Array.prototype.forEach.call($('hr-liste').querySelectorAll('[data-g]'), function (b) { b.onclick = function () { choisis = b.getAttribute('data-g') === 'tous' ? null : {}; page = 0; rendre(); }; });
+    }
+    $('hr-dep').onchange = function () { avecDepenses = this.checked; rendre(); };
+    $('hr-excel').onclick = exporter;
+  }
+  document.addEventListener('click', function () { if (listeOuverte) { listeOuverte = false; rendre(); } });
+  var minuteur = null;
+  window.addEventListener('resize', function () { clearTimeout(minuteur); minuteur = setTimeout(remplirTableau, 120); });
+
+  // ---------- Excel
+  function exporter() {
+    if (!window.XLSX) { erreur = 'La bibliothèque Excel n’a pas été chargée. Fais Ctrl + F5 et réessaie.'; rendre(); return; }
+    var sem = semaines(), L = lignes(), lh = dansDates(heures), ld = dansDates(depenses), wb = XLSX.utils.book_new();
+    function feuille(rows, titre) { XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{ 'Aucune donnée': '' }]), titre); }
+    function nomSem(iso) { var s = sem.filter(function (x) { return iso >= x.debut && iso <= x.fin; })[0]; return s ? s.court : ''; }
+    feuille(L.map(function (r) {
+      var o = { 'Employé': nomUser(r.u), 'Courriel': r.u };
+      sem.forEach(function (s, i) { o[s.court + ' (h)'] = B.heuresDecimales(r.parSem[i]); });
+      o['Total (h)'] = B.heuresDecimales(r.total); o['Jours travaillés'] = r.jours;
+      if (avecDepenses) { o['Dépenses ($)'] = Math.round(r.dep * 100) / 100; }
+      return o;
+    }), 'Sommaire');
+    feuille(lh.map(function (x) { return { 'Employé': nomUser(x.d.user), 'Semaine': nomSem(x.d.date), 'Date': x.d.date, 'Début': x.d.debut, 'Fin': x.d.fin, 'Heures': B.heuresDecimales(B.minutesEntree(x.d)), 'Projet (description)': x.d.description }; }), 'Heures');
+    if (avecDepenses) { feuille(ld.map(function (x) { return { 'Employé': nomUser(x.d.user), 'Semaine': nomSem(x.d.date), 'Date': x.d.date, 'Montant ($)': Number(x.d.montant) || 0, 'Description': x.d.description, 'Reçu': x.d.recu ? 'Oui' : 'Non' }; }), 'Dépenses'); }
+    XLSX.writeFile(wb, 'Rapport heures' + (avecDepenses ? ' et dépenses' : '') + ' ' + du + ' au ' + au + '.xlsx');
+  }
+
+  window.BonnevilleModule = { aller: function () { rendre(); } };
+  var branche = false;
+  return {
+    initialize: function (a, s, callback) {
+      api = a; B = window.Bonneville; G = B.creerApi(api); appliquerChoix('cours');
+      G.session().then(function (s2) {
+        moi = s2.userName || '';
+        return G.lireChamp('employe', 'user', moi).catch(function () { return []; });
+      }).then(function (r) {
+        var e = r[0]; acces = !!(e && e.details.droits && e.details.droits.admin);
+        if (acces) { return charger(); }
+        pret = true; rendre();
+      });
+      callback();
+    },
+    focus: function () { if (pret && acces) { charger(); } },
+    blur: function () {}
+  };
+};
+</script>
+</body>
+</html>

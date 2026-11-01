@@ -1,7 +1,7 @@
 {
   "name": "Bonneville - Heures & Dépenses",
-  "supportEmail": "remplacer@bonneville.ca",
-  "version": "1.0.0",
+  "supportEmail": "egloutnez@bonneville.ca",
+  "version": "1.1.1",
   "items": [
     {
       "url": "https://ericgloutnez.github.io/LFS/heures/heures.html",

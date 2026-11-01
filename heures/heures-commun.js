@@ -1,14 +1,14 @@
-/* Bonneville - Heures & Dépenses : bibliothèque commune
+/* Bonneville - Heures & Dépenses : bibliothèque commune (version 1.1.1)
    Utilisée par : heures.html et heures-drive.html (coquilles), tempo.html, tempo-drive.html et employes.html.
    Stockage : AddInData de Geotab, identifiant propre à Heures & Dépenses (séparé de LFS).
-   Les voyages et les résumés de formulaires de LFS (Bonneville - Logistique) sont lus en lecture seule,
-   pour rattacher les heures à une série (facultatif) et calculer le boni à l'installation. */
+   Types enregistrés : employe (accès), heure (une entrée d'heures), depense (une dépense avec reçu).
+   Les photos des reçus sont des MediaFile de Geotab. */
 (function () {
   'use strict';
   var ADDIN_ID = 'aqKJVB4VwR32I2cfuHWClzw';      // Stockage de Heures & Dépenses
   var LFS_ID = 'aXdeNEZ7tQ7eMPNywYFFKrA';        // Stockage de LFS (lecture seule)
   var TYPES_LFS = ['voyage', 'formresume'];      // Types lus dans LFS, jamais écrits par Heures & Dépenses
-  var VERSION = '1.0.0';
+  var VERSION = '1.1.1';
   var TELEPHONE = '(438) 978-2162';
 
   // ---------- Accès à Geotab
@@ -103,24 +103,12 @@
 
   // ---------- Droits et profils
   var DROITS = [
-    { cle: 'admin', nom: 'Administrateur Heures & Dépenses (accès au bureau, approbation finale des heures)' },
-    { cle: 'heures', nom: 'Heures & Dépenses (saisie dans Geotab Drive)' },
-    { cle: 'chef', nom: 'Chef d’équipe (approuve son équipe)' },
-    { cle: 'tousVoyages', nom: 'Commissionnaire (voit tous les voyages, répartit ses heures)' }
+    { cle: 'heures', nom: 'Heures (saisie dans Geotab Drive)' },
+    { cle: 'depenses', nom: 'Dépenses (saisie dans Geotab Drive, avec photo du reçu)' },
+    { cle: 'admin', nom: 'Administrateur (accès au bureau)' }
   ];
-  var ROLES = [
-    { cle: 'chauffeur', nom: 'Chauffeur' }, { cle: 'escorte', nom: 'Escorte' }, { cle: 'chef', nom: 'Chef d’équipe' },
-    { cle: 'installation', nom: 'Installation' }, { cle: 'commissionnaire', nom: 'Commissionnaire' }, { cle: 'bureau', nom: 'Bureau' }, { cle: 'administrateur', nom: 'Administrateur Heures & Dépenses' }
-  ];
-  var PROFILS_DEFAUT = [
-    { pid: 'administrateur', nom: 'Administrateur Heures & Dépenses', role: 'administrateur', droits: { admin: true, heures: true } },
-    { pid: 'chauffeur', nom: 'Chauffeur', role: 'chauffeur', droits: { heures: true } },
-    { pid: 'escorte', nom: 'Escorte', role: 'escorte', droits: { heures: true } },
-    { pid: 'chef', nom: 'Chef d’équipe', role: 'chef', droits: { heures: true, chef: true } },
-    { pid: 'installation', nom: 'Installation', role: 'installation', droits: { heures: true } },
-    { pid: 'commissionnaire', nom: 'Commissionnaire', role: 'commissionnaire', droits: { heures: true, tousVoyages: true } },
-    { pid: 'bureau', nom: 'Bureau', role: 'bureau', droits: { heures: true } }
-  ];
+  var ROLES = [{ cle: 'employe', nom: 'Employé' }, { cle: 'administrateur', nom: 'Administrateur' }];
+  var PROFILS_DEFAUT = [];
   function nomRole(cle) { var r = ROLES.filter(function (x) { return x.cle === cle; })[0]; return r ? r.nom : (cle || ''); }
   // employe : details d'un enregistrement « employe » ; profils : liste de details « profil »
   function droitsEffectifs(employe, profils) {
@@ -334,6 +322,92 @@
     var o = {}; l.forEach(function (x) { o[x[0]] = x[1]; }); return o;
   }
 
+
+  // ---------- Périodes de paye : 14 jours (Semaine 1 et Semaine 2), à partir du jeudi 22 octobre 2026
+  var PERIODE_ANCRE = '2026-10-22';
+  function joursEntre(a, b) { return Math.round((dateDe(b) - dateDe(a)) / 86400000); }
+  function periodeDe(iso) {
+    var n = Math.floor(joursEntre(PERIODE_ANCRE, iso || jourIso()) / 14), d = ajouterJours(PERIODE_ANCRE, n * 14);
+    return { n: n, debut: d, fin: ajouterJours(d, 13), s1: { debut: d, fin: ajouterJours(d, 6) }, s2: { debut: ajouterJours(d, 7), fin: ajouterJours(d, 13) } };
+  }
+  function periodeVoisine(p, k) { return periodeDe(ajouterJours(p.debut, 14 * k)); }
+  function semaineDe(p, iso) { return iso < p.s2.debut ? 1 : 2; }
+  function dateLongue(iso) { var d = dateDe(iso); return d.getDate() + ' ' + MOIS[d.getMonth()] + ' ' + d.getFullYear(); }
+  function libellePeriode(p) {
+    var a = dateDe(p.debut), b = dateDe(p.fin);
+    return 'du ' + a.getDate() + ' ' + MOIS[a.getMonth()] + (a.getFullYear() !== b.getFullYear() ? ' ' + a.getFullYear() : '') + ' au ' + b.getDate() + ' ' + MOIS[b.getMonth()] + ' ' + b.getFullYear();
+  }
+  function libelleSemaine(s) { var a = dateDe(s.debut), b = dateDe(s.fin); return a.getDate() + ' ' + MOIS[a.getMonth()] + ' au ' + b.getDate() + ' ' + MOIS[b.getMonth()]; }
+  // Durée d'une entrée d'heures (une fin plus tôt que le début veut dire après minuit)
+  function minutesEntree(e) {
+    var a = minutesDe(e.debut), b = minutesDe(e.fin);
+    if (a === null || b === null) { return 0; }
+    return b >= a ? b - a : b + 1440 - a;
+  }
+  function heuresDecimales(min) { return Math.round((min || 0) / 60 * 100) / 100; }
+
+  // ---------- Photos des reçus (MediaFile de Geotab)
+  // Dans la page d'aperçu seulement : les photos restent dans le navigateur (jamais en production, où aucune fenêtre parente ne fournit apercuMedia)
+  function apercu() {
+    var w = window;
+    for (var i = 0; i < 5 && w; i++) {
+      try { if (w.apercuMedia) { return w.apercuMedia; } } catch (e) { return null; }
+      if (w === w.parent) { break; } w = w.parent;
+    }
+    return null;
+  }
+  function sessionServeur(api) {
+    return new Promise(function (ok, ko) {
+      try { api.getSession(function (c, srv) { ok({ cred: { database: c.database, userName: c.userName, sessionId: c.sessionId }, serveur: srv || c.server || 'my.geotab.com' }); }); } catch (e) { ko(e); }
+    });
+  }
+  // Réduit la photo (côté le plus long : 1600 px, JPEG) pour un envoi rapide depuis le cellulaire
+  function reduirePhoto(fichier) {
+    return new Promise(function (ok, ko) {
+      var url = URL.createObjectURL(fichier), im = new Image();
+      im.onload = function () {
+        var k = Math.min(1, 1600 / Math.max(im.naturalWidth, im.naturalHeight)), c = document.createElement('canvas');
+        c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k);
+        c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        c.toBlob(function (b) { if (b) { ok(b); } else { ko(new Error('Photo illisible')); } }, 'image/jpeg', 0.8);
+      };
+      im.onerror = function () { URL.revokeObjectURL(url); ko(new Error('Photo illisible')); };
+      im.src = url;
+    });
+  }
+  function envoyerRecu(api, blob, nom, meta) {
+    var ap = apercu(); if (ap) { return ap.envoyer(blob); }
+    var maintenant = new Date().toISOString();
+    return new Promise(function (ok, ko) {
+      api.call('Add', { typeName: 'MediaFile', entity: { name: nom, solutionId: ADDIN_ID, mediaType: 'Image', fromDate: maintenant, toDate: maintenant, metaData: JSON.stringify(meta || {}) } }, ok, ko);
+    }).then(function (id) {
+      return sessionServeur(api).then(function (ses) {
+        var fd = new FormData();
+        fd.append('JSON-RPC', JSON.stringify({ method: 'UploadMediaFile', params: { credentials: ses.cred, mediaFile: { id: id } } }));
+        fd.append('file', blob, nom);
+        return fetch('https://' + ses.serveur + '/apiv1', { method: 'POST', body: fd }).then(function (r) { if (!r.ok) { throw new Error('HTTP ' + r.status); } return r.text(); })
+          .then(function (t) { if (/"error"/.test(t)) { throw new Error(t.slice(0, 160)); } return id; });
+      });
+    });
+  }
+  function lireRecu(api, id) {
+    var ap = apercu(); if (ap) { return ap.lire(id); }
+    return sessionServeur(api).then(function (ses) {
+      var fd = new FormData();
+      fd.append('JSON-RPC', JSON.stringify({ method: 'DownloadMediaFile', params: { credentials: ses.cred, mediaFile: { id: id } } }));
+      return fetch('https://' + ses.serveur + '/apiv1', { method: 'POST', body: fd }).then(function (r) {
+        if (!r.ok) { throw new Error('HTTP ' + r.status); }
+        if (/json/.test(r.headers.get('content-type') || '')) { return r.text().then(function (t) { throw new Error(t.slice(0, 160)); }); }
+        return r.blob();
+      });
+    });
+  }
+  function retirerRecu(api, id) {
+    var ap = apercu(); if (ap) { return Promise.resolve(); }
+    return new Promise(function (ok) { api.call('Remove', { typeName: 'MediaFile', entity: { id: id } }, ok, function () { ok(); }); });
+  }
+
   window.Bonneville = {
     ADDIN_ID: ADDIN_ID, LFS_ID: LFS_ID, TYPES_LFS: TYPES_LFS, VERSION: VERSION, TELEPHONE: TELEPHONE,
     creerApi: creerApi,
@@ -344,6 +418,9 @@
     JOURS: JOURS, JOURS_COURTS: JOURS_COURTS, MOIS: MOIS, dateCourte: dateCourte, argent: argent,
     tauxA: tauxA, tauxHoraireA: tauxHoraireA, calculer: calculer, STATUTS: STATUTS, modifiable: modifiable, chefDe: chefDe,
     REGLES_DEFAUT: REGLES_DEFAUT, reglesA: reglesA, remunA: remunA, tauxRegles: tauxRegles, calculerPaie: calculerPaie, typeSortie: typeSortie, NOMS_SORTIE: NOMS_SORTIE, distanceM: distanceM, pointDe: pointDe,
-    feriesQuebec: feriesQuebec
+    feriesQuebec: feriesQuebec,
+    aAcces: function (d) { d = d || {}; return !!(d.heures || d.depenses); },
+    PERIODE_ANCRE: PERIODE_ANCRE, periodeDe: periodeDe, periodeVoisine: periodeVoisine, semaineDe: semaineDe, libellePeriode: libellePeriode, libelleSemaine: libelleSemaine, dateLongue: dateLongue,
+    minutesEntree: minutesEntree, heuresDecimales: heuresDecimales, reduirePhoto: reduirePhoto, envoyerRecu: envoyerRecu, lireRecu: lireRecu, retirerRecu: retirerRecu
   };
 })();

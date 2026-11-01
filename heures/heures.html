@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <title>Bonneville - Heures &amp; Dépenses</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.0.0"></script>
+<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.1.1"></script>
 </head>
-<body style="margin:0">
+<body style="margin:0;overflow:hidden">
 <div id="bn">
 <style>
   #bn { --encre: #14191e; --doux: #4f5963; --ligne: #d3d8dd; --fond: #eef0f2; --surface: #ffffff; --bande: #e3e6e9; --accent: #f2a900; --ok: #1b7f3b; --non: #b42318; --orange: #9a5b00; --bleu: #1f4f8a;
@@ -44,8 +44,8 @@
 <div id="bn-entete">
   <img alt="Bonneville" src="https://ericgloutnez.github.io/LFS/logo-bonneville.png"><span class="sep"></span>
   <nav id="bn-nav" aria-label="Menus principaux">
-    <button type="button" data-m="accueil" class="on" aria-current="page">Accueil</button>
-    <button type="button" data-m="tempo" hidden>Heures &amp; Dépenses</button>
+    <button type="button" data-m="accueil" class="on" aria-current="page">Tableau de bord</button>
+    <button type="button" data-m="rapport" hidden>Rapport</button>
     <button type="button" data-m="employes" hidden>Employés <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>
   </nav>
   <span id="bn-qui"></span>
@@ -58,17 +58,18 @@
 <script>
 (function () {
   'use strict';
-  var VERSION = '1.0.0';
+  var VERSION = '1.1.1';
   var B = window.Bonneville;
   var BASE = 'https://ericgloutnez.github.io/LFS/heures/';
   var MODULES = {
-    tempo: { fichier: 'tempo.html', nom: 'tempo', cache: '#hb .entete img, #hb .entete .sep, #hb .entete .titre, #hb .version { display: none !important; }' },
-    employes: { fichier: 'employes.html', nom: 'employes', cache: '#be .entete img, #be .entete .sep, #be .entete .titre { display: none !important; }' }
+    tempo: { fichier: 'tempo.html', nom: 'tempo', cache: '#hb .entete { display: none !important; }' },
+    rapport: { fichier: 'rapport.html', nom: 'rapport', cache: '#hr .entete { display: none !important; }' },
+    employes: { fichier: 'employes.html', nom: 'employes', cache: '#be .entete { display: none !important; }' }
   };
 
   // La bibliothèque commune peut arriver après ce script (Drive et MyGeotab chargent parfois les scripts dans le désordre).
   // On l'attend, on la charge nous-mêmes au besoin, et on en garde une copie pour le hors réseau.
-  var URL_COMMUN = BASE + 'heures-commun.js?v=1.0.0', communTexte = null;
+  var URL_COMMUN = BASE + 'heures-commun.js?v=1.1.1', communTexte = null;
   function chargerCommunTexte() {
     return fetch(URL_COMMUN).then(function (r) { if (!r.ok) { throw new Error('HTTP ' + r.status); } return r.text(); })
       .then(function (t) { communTexte = t; try { localStorage.setItem('hd-commun', t); } catch (e) {} return t; })
@@ -128,8 +129,11 @@
     return enChargement[cle].catch(function (e) { delete enChargement[cle]; throw e; });
   }
   function ouvrir(cle, sousOnglet, valeur) {
+    // L'accueil d'un administrateur est l'écran Heures & Dépenses
+    var bouton = cle === 'tempo' ? 'accueil' : cle;
+    if (cle === 'accueil' && acces.tempo) { cle = 'tempo'; }
     courant = cle;
-    Array.prototype.forEach.call(document.querySelectorAll('#bn-nav button'), function (b) { var on = b.getAttribute('data-m') === cle; b.className = on ? 'on' : ''; if (on) { b.setAttribute('aria-current', 'page'); } else { b.removeAttribute('aria-current'); } });
+    Array.prototype.forEach.call(document.querySelectorAll('#bn-nav button'), function (b) { var on = b.getAttribute('data-m') === bouton; b.className = on ? 'on' : ''; if (on) { b.setAttribute('aria-current', 'page'); } else { b.removeAttribute('aria-current'); } });
     $('bn-accueil').style.display = cle === 'accueil' ? '' : 'none';
     Array.prototype.forEach.call(document.querySelectorAll('#bn-modules iframe'), function (f) { f.className = f.getAttribute('data-m') === cle ? 'on' : ''; });
     if (cle === 'accueil') { $('bn-chargement').style.display = 'none'; chargerAccueil(); return; }
@@ -161,38 +165,40 @@
   function chargerAccueil() {
     if (!G) { return; }
     if (!acces.tempo && !acces.employes) {
-      $('bn-accueil').innerHTML = '<section class="bn-afaire"><h3>Accès à demander</h3><div class="bn-aide">Ton compte n’a pas encore accès au bureau de Heures &amp; Dépenses. Un administrateur MyGeotab doit te donner le profil « Administrateur Heures &amp; Dépenses » dans l’onglet Employés.</div></section><div class="bn-aide">Version ' + VERSION + '.</div>';
+      $('bn-accueil').innerHTML = '<section class="bn-afaire" role="alert" style="border:3px solid #b42318;text-align:center;padding:28px"><h3 style="color:#b42318;font-size:24px;border:0">Accès refusé</h3><div style="font-size:16px;font-weight:600">Ton compte (' + h(moi) + ') n’a pas accès à cette application. Communique avec le Gestionnaire Livraison pour obtenir l’accès.</div></section>' + '<div class="bn-aide" style="text-align:center;font-weight:600;margin-top:8px">Bonneville - Version ' + VERSION + '</div>';
       return;
     }
     Promise.all([
-      G.lireTypes(['employe', 'profil']),
-      acces.tempo ? G.lireType('journee').catch(function () { return []; }) : Promise.resolve([]),
-      acces.employes ? G.utilisateurs().catch(function () { return []; }) : Promise.resolve([])
+      G.lireType('employe').catch(function () { return []; }),
+      acces.tempo ? G.lireType('heure').catch(function () { return []; }) : Promise.resolve([]),
+      acces.tempo ? G.lireType('depense').catch(function () { return []; }) : Promise.resolve([]),
+      G.utilisateurs().catch(function () { return []; })
     ]).then(function (r) {
-      var emps = {}, todo = [];
-      r[0].forEach(function (l) { var d = l.details; if (d.type === 'employe') { emps[d.user] = d; } });
-      var jr = r[1].map(function (l) { return l.details; });
-      var fin = jr.filter(function (j) { return j.statut === 'attente_admin'; }), chef = jr.filter(function (j) { return j.statut === 'attente_chef'; }), corr = jr.filter(function (j) { return j.statut === 'a_corriger'; });
-      var actifs = r[2].filter(function (u) { return u.actif && !(emps[u.user] && emps[u.user].masque); });
-      var sansProfil = actifs.filter(function (u) { return !emps[u.user] || (!emps[u.user].profil && !emps[u.user].droits); });
+      var emps = {}, todo = [], p = B.periodeDe(B.jourIso());
+      r[0].forEach(function (l) { emps[l.details.user] = l.details; });
+      var hP = r[1].map(function (l) { return l.details; }).filter(function (d) { return d.date >= p.debut && d.date <= p.fin; });
+      var dP = r[2].map(function (l) { return l.details; }).filter(function (d) { return d.date >= p.debut && d.date <= p.fin; });
+      var min = function (l) { return l.reduce(function (s, d) { return s + B.minutesEntree(d); }, 0); };
+      var actifs = r[3].filter(function (u) { return u.actif; });
+      var avec = actifs.filter(function (u) { var e = emps[u.user]; return e && e.droits && (e.droits.heures || e.droits.depenses || e.droits.admin); });
+      var saisi = {}; hP.forEach(function (d) { saisi[d.user] = true; });
+      var sansHeures = avec.filter(function (u) { return emps[u.user].droits.heures && !saisi[u.user]; });
       var d = new Date();
       var html = '<div style="display:flex;align-items:baseline;gap:12px"><span style="font-size:26px;font-weight:800">Bonjour</span><span class="bn-aide">' + h(B.JOURS[d.getDay()]) + ' ' + d.getDate() + ' ' + B.MOIS[d.getMonth()] + ' ' + d.getFullYear() + '</span></div><div class="bn-blocs">';
       if (acces.tempo) {
-        html += bloc('#1b7f3b', IC.tempo, 'Heures & Dépenses', [[fin.length, 'à approuver (finale)', '#9a5b00'], [chef.length, 'chez les chefs d’équipe'], [corr.length, 'à corriger', '#b42318']],
-          [['Journées', 'tempo', 'journees', true]]);
+        html += bloc('#1b7f3b', IC.tempo, 'Période ' + B.libellePeriode(p), [[B.duree(min(hP.filter(function (x) { return x.date <= p.s1.fin; }))), 'Semaine 1'], [B.duree(min(hP.filter(function (x) { return x.date >= p.s2.debut; }))), 'Semaine 2'], [B.argent(dP.reduce(function (s, x) { return s + (Number(x.montant) || 0); }, 0)), dP.length + ' dépense' + (dP.length > 1 ? 's' : '')]],
+          [['Heures', 'tempo', 'heures', true], ['Dépenses', 'tempo', 'depenses']]);
       }
       if (acces.employes) {
-        html += bloc('#1f4f8a', IC.emp, 'Employés', [[actifs.length - sansProfil.length, 'avec un profil'], [sansProfil.length, 'sans profil', '#b42318'], [r[2].length - actifs.length, 'inactifs ou masqués']],
-          [['Employés', 'employes', 'employes', !acces.tempo], ['Profils', 'employes', 'profils'], ['Règles de rémunération', 'employes', 'regles']]);
+        html += bloc('#1f4f8a', IC.emp, 'Employés', [[avec.length, 'avec accès'], [actifs.length - avec.length, 'comptes sans accès'], [r[3].length - actifs.length, 'comptes inactifs']],
+          [['Gérer les accès', 'employes', 'employes', !acces.tempo]]);
       }
       html += '</div>';
-      if (fin.length) { todo.push(['#9a5b00', fin.length + ' journée(s) attendent l’approbation finale', 'Approuver', 'tempo', 'journees']); }
-      if (corr.length) { todo.push(['#b42318', corr.length + ' journée(s) renvoyée(s) pour correction', 'Voir', 'tempo', 'journees']); }
-      if (sansProfil.length) { todo.push(['#4f5963', sansProfil.length + ' compte(s) MyGeotab sans profil', 'Donner un profil', 'employes', 'employes', 'sansProfil']); }
-      html += '<section class="bn-afaire"><h3>À faire aujourd’hui</h3>' + (todo.length ? todo.map(function (t) {
-        return '<div class="bn-ligne"><span class="bn-point" style="background:' + t[0] + '"></span><span style="flex:1">' + h(t[1]) + '</span><button type="button" class="bn-lien" data-aller="' + t[3] + '" data-sous="' + t[4] + '" data-val="' + (t[5] || '') + '">' + h(t[2]) + '</button></div>';
-      }).join('') : '<div class="bn-aide">Rien d’urgent pour l’instant.</div>') + '</section>';
-      html += '<div class="bn-aide">Version ' + VERSION + '.</div>';
+      if (acces.tempo && sansHeures.length) { todo.push(['#9a5b00', sansHeures.length + ' employé(s) avec accès n’ont encore aucune heure cette période : ' + sansHeures.slice(0, 6).map(function (u) { return u.nom; }).join(', ') + (sansHeures.length > 6 ? '…' : ''), 'Voir les heures', 'tempo', 'heures']); }
+      html += '<section class="bn-afaire"><h3>À surveiller</h3>' + (todo.length ? todo.map(function (t) {
+        return '<div class="bn-ligne"><span class="bn-point" style="background:' + t[0] + '"></span><span style="flex:1">' + h(t[1]) + '</span><button type="button" class="bn-lien" data-aller="' + t[3] + '" data-sous="' + t[4] + '" data-val="">' + h(t[2]) + '</button></div>';
+      }).join('') : '<div class="bn-aide">Rien à signaler.</div>') + '</section>';
+      html += '<div class="bn-aide" style="text-align:center;font-weight:600;margin-top:8px">Bonneville - Version ' + VERSION + '</div>';
       $('bn-accueil').innerHTML = html;
     }).catch(function (e) { $('bn-accueil').innerHTML = '<div class="bn-aide">Lecture impossible : ' + h(e && e.message ? e.message : e) + '</div>'; });
   }
@@ -219,10 +225,10 @@
       r[1].forEach(function (l) { if (l.details.type === 'employe' && l.details.user === moi) { emp = l.details; } else if (l.details.type === 'profil') { profils.push(l.details); } });
       acces.employes = !!r[0];
       acces.tempo = !!B.droitsEffectifs(emp, profils).admin;
-      document.querySelector('#bn-nav [data-m=tempo]').hidden = !acces.tempo;
       document.querySelector('#bn-nav [data-m=employes]').hidden = !acces.employes;
-      $('bn-qui').textContent = moi + (acces.tempo ? ' · Administrateur Heures & Dépenses' : '') + ' · version ' + VERSION;
-      if (courant === 'accueil') { chargerAccueil(); }
+      document.querySelector('#bn-nav [data-m=rapport]').hidden = !acces.tempo;
+      $('bn-qui').textContent = moi + (acces.tempo ? ' · Administrateur' : '');
+      if (courant === 'accueil') { ouvrir('accueil'); }
     });
   }
   var fabrique = function () {
