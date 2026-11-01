@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Bonneville - Heures &amp; Dépenses</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.0.0"></script>
+</head>
+<body style="margin:0">
+<div id="bn">
+<style>
+  #bn { --encre: #14191e; --doux: #4f5963; --ligne: #d3d8dd; --fond: #eef0f2; --surface: #ffffff; --bande: #e3e6e9; --accent: #f2a900; --ok: #1b7f3b; --non: #b42318; --orange: #9a5b00; --bleu: #1f4f8a;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; color: var(--encre); background: var(--fond); min-height: 100vh; }
+  #bn * { box-sizing: border-box; }
+  #bn-entete { position: sticky; top: 0; z-index: 50; height: 64px; display: flex; align-items: center; gap: 16px; padding: 0 28px; background: var(--surface); border-bottom: 1px solid var(--ligne); }
+  #bn-entete img { height: 18px; } #bn-entete .sep { width: 1px; height: 26px; background: var(--ligne); }
+  #bn-nav { display: flex; gap: 4px; }
+  #bn-nav button { height: 40px; padding: 0 14px; border: none; border-radius: 8px; background: transparent; color: var(--doux); font-size: 14px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; font-family: inherit; }
+  #bn-nav button.on { background: var(--bande); color: var(--encre); }
+  #bn-nav button[hidden] { display: none; }
+  #bn-qui { margin-left: auto; font-size: 13px; color: var(--doux); }
+  #bn-accueil { padding: 22px 28px; display: flex; flex-direction: column; gap: 16px; }
+  .bn-blocs { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; align-items: start; }
+  @media (max-width: 1000px) { .bn-blocs { grid-template-columns: 1fr; } }
+  .bn-bloc { background: var(--surface); border: 1px solid var(--ligne); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+  .bn-bloc h2 { margin: 0; font-size: 19px; display: flex; align-items: center; gap: 10px; }
+  .bn-ic { width: 40px; height: 40px; border-radius: 10px; color: #fff; display: inline-flex; align-items: center; justify-content: center; }
+  .bn-chiffres { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .bn-chiffres div { display: flex; flex-direction: column; padding-left: 10px; box-shadow: inset 4px 0 0 var(--accent); }
+  .bn-chiffres b { font-size: 24px; } .bn-chiffres span { font-size: 12px; font-weight: 600; color: var(--doux); }
+  .bn-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .bn-btn { height: 40px; padding: 0 16px; border-radius: 8px; border: 1px solid var(--ligne); background: var(--surface); color: var(--encre); font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; }
+  .bn-btn.jaune { background: var(--accent); border-color: var(--accent); }
+  .bn-afaire { background: var(--surface); border: 1px solid var(--ligne); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; }
+  .bn-afaire h3 { margin: 0 0 6px; font-size: 16px; }
+  .bn-ligne { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--ligne); font-size: 14px; }
+  .bn-point { width: 10px; height: 10px; border-radius: 5px; flex: 0 0 auto; }
+  .bn-lien { color: var(--bleu); font-weight: 700; font-size: 13px; background: none; border: none; text-decoration: underline; cursor: pointer; font-family: inherit; }
+  .bn-aide { font-size: 13px; color: var(--doux); }
+  #bn-modules iframe { display: none; width: 100%; height: calc(100vh - 64px); border: none; background: var(--fond); }
+  #bn-modules iframe.on { display: block; }
+  #bn-chargement { padding: 40px; text-align: center; color: var(--doux); display: none; }
+</style>
+<div id="bn-entete">
+  <img alt="Bonneville" src="https://ericgloutnez.github.io/LFS/logo-bonneville.png"><span class="sep"></span>
+  <nav id="bn-nav" aria-label="Menus principaux">
+    <button type="button" data-m="accueil" class="on" aria-current="page">Accueil</button>
+    <button type="button" data-m="tempo" hidden>Heures &amp; Dépenses</button>
+    <button type="button" data-m="employes" hidden>Employés <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>
+  </nav>
+  <span id="bn-qui"></span>
+</div>
+<div id="bn-accueil"><div class="bn-aide">Chargement…</div></div>
+<div id="bn-chargement">Ouverture du module…</div>
+<div id="bn-modules"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var VERSION = '1.0.0';
+  var B = window.Bonneville;
+  var BASE = 'https://ericgloutnez.github.io/LFS/heures/';
+  var MODULES = {
+    tempo: { fichier: 'tempo.html', nom: 'tempo', cache: '#hb .entete img, #hb .entete .sep, #hb .entete .titre, #hb .version { display: none !important; }' },
+    employes: { fichier: 'employes.html', nom: 'employes', cache: '#be .entete img, #be .entete .sep, #be .entete .titre { display: none !important; }' }
+  };
+
+  // La bibliothèque commune peut arriver après ce script (Drive et MyGeotab chargent parfois les scripts dans le désordre).
+  // On l'attend, on la charge nous-mêmes au besoin, et on en garde une copie pour le hors réseau.
+  var URL_COMMUN = BASE + 'heures-commun.js?v=1.0.0', communTexte = null;
+  function chargerCommunTexte() {
+    return fetch(URL_COMMUN).then(function (r) { if (!r.ok) { throw new Error('HTTP ' + r.status); } return r.text(); })
+      .then(function (t) { communTexte = t; try { localStorage.setItem('hd-commun', t); } catch (e) {} return t; })
+      .catch(function () { try { communTexte = localStorage.getItem('hd-commun'); } catch (e) {} return communTexte; });
+  }
+  function attendreCommun() {
+    var texte = chargerCommunTexte();
+    return new Promise(function (ok, ko) {
+      var essais = 0;
+      var t = setInterval(function () {
+        if (window.Bonneville) { clearInterval(t); B = window.Bonneville; ok(); return; }
+        essais++;
+        if (essais === 15) { texte.then(function (src) { if (!window.Bonneville && src) { try { (0, eval)(src); } catch (e) {} } }); }
+        if (essais > 150) { clearInterval(t); ko(new Error('La bibliothèque Heures & Dépenses n’a pas pu être chargée. Vérifie le réseau puis rouvre l’application.')); }
+      }, 100);
+    });
+  }
+  var api = null, state = null, G = null, moi = '', courant = 'accueil', instances = {}, enChargement = {};
+  var acces = { tempo: false, employes: false };
+  function $(id) { return document.getElementById(id); }
+  function h(t) { return String(t === undefined || t === null ? '' : t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+
+  // ---------- Modules : chaque page existante est chargée dans un cadre de la même origine
+  function chargerModule(cle) {
+    if (instances[cle]) { return Promise.resolve(instances[cle]); }
+    if (enChargement[cle]) { return enChargement[cle]; }
+    var m = MODULES[cle];
+    enChargement[cle] = fetch(BASE + m.fichier + '?v=' + VERSION + '-' + Date.now().toString(36).slice(0, 5)).then(function (r) {
+      if (!r.ok) { throw new Error('Module ' + m.fichier + ' introuvable (' + r.status + ')'); }
+      return r.text();
+    }).then(function (html) {
+      // Les balises sont assemblées en morceaux : MyGeotab lit le texte de la page et prendrait sinon ces chaînes pour de vraies balises.
+      var SCR = 'scr' + 'ipt';
+      var avant = '<' + SCR + '>window.geotab = { addin: {} }; window.__bonnevilleIntegre = true;</' + SCR + '><style>' + m.cache + '</style>';
+      html = html.replace(/<head>/i, '<head>' + avant);
+      if (communTexte) { html = html.replace(new RegExp('<' + SCR + ' src="[^"]*heures-commun[.]js[^"]*"></' + SCR + '>'), function () { return '<' + SCR + '>' + communTexte + '</' + SCR + '>'; }); }
+      return new Promise(function (ok, ko) {
+        var cadre = document.createElement('iframe');
+        cadre.title = 'Heures & Dépenses - ' + cle;
+        cadre.setAttribute('data-m', cle);
+        cadre.onload = function () {
+          try {
+            var w = cadre.contentWindow, fab = w.geotab && w.geotab.addin && w.geotab.addin[m.nom];
+            if (!fab) { throw new Error('Le module ' + cle + ' ne s’est pas annoncé.'); }
+            var inst = fab();
+            inst.initialize(api, state || {}, function () {
+              try { inst.focus(api, state || {}); } catch (e) { console.warn(e); }
+              instances[cle] = { cadre: cadre, inst: inst, fenetre: w };
+              ok(instances[cle]);
+            });
+          } catch (e) { ko(e); }
+        };
+        cadre.srcdoc = html;
+        $('bn-modules').appendChild(cadre);
+      });
+    });
+    return enChargement[cle].catch(function (e) { delete enChargement[cle]; throw e; });
+  }
+  function ouvrir(cle, sousOnglet, valeur) {
+    courant = cle;
+    Array.prototype.forEach.call(document.querySelectorAll('#bn-nav button'), function (b) { var on = b.getAttribute('data-m') === cle; b.className = on ? 'on' : ''; if (on) { b.setAttribute('aria-current', 'page'); } else { b.removeAttribute('aria-current'); } });
+    $('bn-accueil').style.display = cle === 'accueil' ? '' : 'none';
+    Array.prototype.forEach.call(document.querySelectorAll('#bn-modules iframe'), function (f) { f.className = f.getAttribute('data-m') === cle ? 'on' : ''; });
+    if (cle === 'accueil') { $('bn-chargement').style.display = 'none'; chargerAccueil(); return; }
+    var dejaLa = !!instances[cle];
+    $('bn-chargement').style.display = dejaLa ? 'none' : 'block';
+    chargerModule(cle).then(function (x) {
+      $('bn-chargement').style.display = 'none';
+      if (courant !== cle) { return; }
+      x.cadre.className = 'on';
+      if (dejaLa) { try { x.inst.focus(api, state || {}); } catch (e) {} }
+      if (sousOnglet && x.fenetre.BonnevilleModule) { setTimeout(function () { try { x.fenetre.BonnevilleModule.aller(sousOnglet, valeur); } catch (e) {} }, dejaLa ? 0 : 600); }
+    }).catch(function (e) {
+      $('bn-chargement').style.display = 'block';
+      $('bn-chargement').textContent = 'Ouverture impossible : ' + (e && e.message ? e.message : e);
+    });
+  }
+
+  // ---------- Accueil
+  function bloc(couleur, icone, titre, chiffres, boutons) {
+    return '<section class="bn-bloc"><h2><span class="bn-ic" style="background:' + couleur + '">' + icone + '</span>' + h(titre) + '</h2>'
+      + '<div class="bn-chiffres">' + chiffres.map(function (c) { return '<div style="box-shadow:inset 4px 0 0 ' + (c[2] || '#f2a900') + '"><b style="color:' + (c[2] && c[2] !== '#f2a900' ? c[2] : '#14191e') + '">' + h(c[0]) + '</b><span>' + h(c[1]) + '</span></div>'; }).join('') + '</div>'
+      + '<div class="bn-btns">' + boutons.map(function (b) { return '<button type="button" class="bn-btn' + (b[3] ? ' jaune' : '') + '" data-aller="' + b[1] + '" data-sous="' + (b[2] || '') + '">' + h(b[0]) + '</button>'; }).join('') + '</div></section>';
+  }
+  var IC = {
+    log: '<svg width="22" height="22" viewBox="0 0 24 24"><path d="M12 3l7 18-7-4-7 4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>',
+    tempo: '<svg width="22" height="22" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+    emp: '<svg width="22" height="22" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>'
+  };
+  function chargerAccueil() {
+    if (!G) { return; }
+    if (!acces.tempo && !acces.employes) {
+      $('bn-accueil').innerHTML = '<section class="bn-afaire"><h3>Accès à demander</h3><div class="bn-aide">Ton compte n’a pas encore accès au bureau de Heures &amp; Dépenses. Un administrateur MyGeotab doit te donner le profil « Administrateur Heures &amp; Dépenses » dans l’onglet Employés.</div></section><div class="bn-aide">Version ' + VERSION + '.</div>';
+      return;
+    }
+    Promise.all([
+      G.lireTypes(['employe', 'profil']),
+      acces.tempo ? G.lireType('journee').catch(function () { return []; }) : Promise.resolve([]),
+      acces.employes ? G.utilisateurs().catch(function () { return []; }) : Promise.resolve([])
+    ]).then(function (r) {
+      var emps = {}, todo = [];
+      r[0].forEach(function (l) { var d = l.details; if (d.type === 'employe') { emps[d.user] = d; } });
+      var jr = r[1].map(function (l) { return l.details; });
+      var fin = jr.filter(function (j) { return j.statut === 'attente_admin'; }), chef = jr.filter(function (j) { return j.statut === 'attente_chef'; }), corr = jr.filter(function (j) { return j.statut === 'a_corriger'; });
+      var actifs = r[2].filter(function (u) { return u.actif && !(emps[u.user] && emps[u.user].masque); });
+      var sansProfil = actifs.filter(function (u) { return !emps[u.user] || (!emps[u.user].profil && !emps[u.user].droits); });
+      var d = new Date();
+      var html = '<div style="display:flex;align-items:baseline;gap:12px"><span style="font-size:26px;font-weight:800">Bonjour</span><span class="bn-aide">' + h(B.JOURS[d.getDay()]) + ' ' + d.getDate() + ' ' + B.MOIS[d.getMonth()] + ' ' + d.getFullYear() + '</span></div><div class="bn-blocs">';
+      if (acces.tempo) {
+        html += bloc('#1b7f3b', IC.tempo, 'Heures & Dépenses', [[fin.length, 'à approuver (finale)', '#9a5b00'], [chef.length, 'chez les chefs d’équipe'], [corr.length, 'à corriger', '#b42318']],
+          [['Journées', 'tempo', 'journees', true]]);
+      }
+      if (acces.employes) {
+        html += bloc('#1f4f8a', IC.emp, 'Employés', [[actifs.length - sansProfil.length, 'avec un profil'], [sansProfil.length, 'sans profil', '#b42318'], [r[2].length - actifs.length, 'inactifs ou masqués']],
+          [['Employés', 'employes', 'employes', !acces.tempo], ['Profils', 'employes', 'profils'], ['Règles de rémunération', 'employes', 'regles']]);
+      }
+      html += '</div>';
+      if (fin.length) { todo.push(['#9a5b00', fin.length + ' journée(s) attendent l’approbation finale', 'Approuver', 'tempo', 'journees']); }
+      if (corr.length) { todo.push(['#b42318', corr.length + ' journée(s) renvoyée(s) pour correction', 'Voir', 'tempo', 'journees']); }
+      if (sansProfil.length) { todo.push(['#4f5963', sansProfil.length + ' compte(s) MyGeotab sans profil', 'Donner un profil', 'employes', 'employes', 'sansProfil']); }
+      html += '<section class="bn-afaire"><h3>À faire aujourd’hui</h3>' + (todo.length ? todo.map(function (t) {
+        return '<div class="bn-ligne"><span class="bn-point" style="background:' + t[0] + '"></span><span style="flex:1">' + h(t[1]) + '</span><button type="button" class="bn-lien" data-aller="' + t[3] + '" data-sous="' + t[4] + '" data-val="' + (t[5] || '') + '">' + h(t[2]) + '</button></div>';
+      }).join('') : '<div class="bn-aide">Rien d’urgent pour l’instant.</div>') + '</section>';
+      html += '<div class="bn-aide">Version ' + VERSION + '.</div>';
+      $('bn-accueil').innerHTML = html;
+    }).catch(function (e) { $('bn-accueil').innerHTML = '<div class="bn-aide">Lecture impossible : ' + h(e && e.message ? e.message : e) + '</div>'; });
+  }
+
+  function brancher() {
+    Array.prototype.forEach.call(document.querySelectorAll('#bn-nav button'), function (b) { b.addEventListener('click', function () { ouvrir(b.getAttribute('data-m')); }); });
+    $('bn-accueil').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-aller]'); if (!b) { return; }
+      ouvrir(b.getAttribute('data-aller'), b.getAttribute('data-sous'), b.getAttribute('data-val'));
+    });
+  }
+
+  var branche = false;
+  function demarrer() {
+    G = B.creerApi(api);
+    G.session().then(function (s) {
+      moi = s.userName || '';
+      return Promise.all([
+        G.estAdministrateur(moi).catch(function () { return false; }),
+        G.lireTypes(['employe', 'profil']).catch(function () { return []; })
+      ]);
+    }).then(function (r) {
+      var emp = null, profils = [];
+      r[1].forEach(function (l) { if (l.details.type === 'employe' && l.details.user === moi) { emp = l.details; } else if (l.details.type === 'profil') { profils.push(l.details); } });
+      acces.employes = !!r[0];
+      acces.tempo = !!B.droitsEffectifs(emp, profils).admin;
+      document.querySelector('#bn-nav [data-m=tempo]').hidden = !acces.tempo;
+      document.querySelector('#bn-nav [data-m=employes]').hidden = !acces.employes;
+      $('bn-qui').textContent = moi + (acces.tempo ? ' · Administrateur Heures & Dépenses' : '') + ' · version ' + VERSION;
+      if (courant === 'accueil') { chargerAccueil(); }
+    });
+  }
+  var fabrique = function () {
+    return {
+      initialize: function (a, s, callback) {
+        api = a; state = s;
+        try { if (!branche) { brancher(); branche = true; } } catch (e) { console.warn(e); }
+        attendreCommun().then(demarrer).catch(function (e) { $('bn-accueil').innerHTML = '<div class="bn-aide">' + h(e && e.message ? e.message : e) + '</div>'; });
+        callback();
+      },
+      focus: function (a, s) { api = a; state = s; if (!B) { return; } if (courant === 'accueil') { try { demarrer(); } catch (e) {} } else if (instances[courant]) { try { instances[courant].inst.focus(api, state || {}); } catch (e) {} } },
+      blur: function () {}
+    };
+  };
+
+  // Geotab peut fournir « geotab » comme variable locale (MyGeotab) ou sur window (Drive) : on s'annonce aux deux endroits.
+  var cibles = [];
+  try { if (typeof geotab !== 'undefined' && geotab && geotab.addin) { cibles.push(geotab.addin); } } catch (e) {}
+  window.geotab = window.geotab || {}; window.geotab.addin = window.geotab.addin || {};
+  if (cibles.indexOf(window.geotab.addin) < 0) { cibles.push(window.geotab.addin); }
+  function annoncer(noms, f) { noms.forEach(function (n) { cibles.forEach(function (c) { try { c[n] = f; } catch (e) {} }); }); }
+  annoncer(['heures', 'Heures', 'HEURES', 'heuresDepenses', 'bonnevilleHeures'], fabrique);
+})();
+</script>
+</body>
+</html>

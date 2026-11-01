@@ -1,0 +1,20 @@
+{
+  "name": "Bonneville - Heures & Dépenses",
+  "supportEmail": "remplacer@bonneville.ca",
+  "version": "1.0.0",
+  "items": [
+    {
+      "url": "https://ericgloutnez.github.io/LFS/heures/heures.html",
+      "path": "ActivityLink/",
+      "menuName": { "fr": "Heures & Dépenses", "en": "Hours & Expenses" },
+      "svgIcon": "https://ericgloutnez.github.io/LFS/bonneville-icone.svg"
+    },
+    {
+      "url": "https://ericgloutnez.github.io/LFS/heures/heures-drive.html",
+      "path": "DriveAppLink/",
+      "menuName": { "fr": "Heures & Dépenses", "en": "Hours & Expenses" },
+      "svgIcon": "https://ericgloutnez.github.io/LFS/bonneville-icone.svg"
+    }
+  ],
+  "isSigned": false
+}

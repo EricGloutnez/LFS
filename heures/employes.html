@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Bonneville - Employés</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.0.0"></script>
+</head>
+<body>
+<div id="be">
+<style>
+  #be { --encre: #14191e; --doux: #4f5963; --ligne: #d3d8dd; --fond: #eef0f2; --surface: #ffffff; --bande: #e3e6e9; --accent: #f2a900; --ok: #1b7f3b; --non: #b42318; --orange: #9a5b00; --bleu: #1f4f8a;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; color: var(--encre); background: var(--fond); min-height: 100vh; }
+  #be * { box-sizing: border-box; }
+  #be button, #be input, #be select { font-family: inherit; }
+  #be .entete { height: 60px; display: flex; align-items: center; gap: 16px; padding: 0 24px; background: var(--surface); border-bottom: 1px solid var(--ligne); position: sticky; top: 0; z-index: 20; }
+  #be .entete img { height: 18px; }
+  #be .entete .sep { width: 1px; height: 26px; background: var(--ligne); }
+  #be .entete .titre { font-size: 19px; font-weight: 800; }
+  #be .onglets { display: flex; gap: 4px; margin-left: 16px; }
+  #be .onglets button { height: 38px; padding: 0 14px; border: none; border-radius: 8px; background: transparent; color: var(--doux); font-size: 14px; font-weight: 700; cursor: pointer; }
+  #be .onglets button.on { background: var(--bande); color: var(--encre); }
+  #be .version { margin-left: auto; font-size: 12px; color: var(--doux); }
+  #be main { padding: 20px 24px; display: flex; flex-direction: column; gap: 14px; }
+  #be .barre { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+  #be label.champ { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: var(--doux); }
+  #be input[type=text], #be input[type=date], #be input[type=number], #be select { height: 38px; border: 1px solid var(--ligne); border-radius: 8px; padding: 0 10px; font-size: 14px; color: var(--encre); background: var(--surface); }
+  #be .btn { height: 38px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--ligne); background: var(--surface); color: var(--encre); font-size: 14px; font-weight: 700; cursor: pointer; }
+  #be .btn.noir { background: var(--encre); color: #fff; border-color: var(--encre); }
+  #be .btn.jaune { background: var(--accent); border-color: var(--accent); color: var(--encre); }
+  #be .btn.rouge { color: var(--non); border-color: var(--non); }
+  #be .btn:disabled { opacity: .5; cursor: default; }
+  #be .tableau { background: var(--surface); border: 1px solid var(--ligne); border-radius: 12px; overflow: auto; }
+  #be table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  #be th { background: var(--bande); color: var(--doux); font-size: 12px; font-weight: 700; text-align: left; padding: 9px 10px; position: sticky; top: 0; }
+  #be th.c, #be td.c { text-align: center; }
+  #be td { border-top: 1px solid var(--ligne); padding: 8px 10px; vertical-align: middle; }
+  #be tr.modifie td { background: #fffaf0; }
+  #be td input[type=checkbox], #be th input[type=checkbox] { width: 17px; height: 17px; }
+  #be .puce { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 11px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+  #be .puce.gris { background: var(--bande); color: var(--encre); }
+  #be .puce.orange { background: #fff3dc; color: var(--orange); }
+  #be .puce.vert { background: #e6f2ea; color: var(--ok); }
+  #be .puce.noir { background: var(--encre); color: #fff; }
+  #be .aide { font-size: 13px; color: var(--doux); }
+  #be .message { padding: 10px 14px; border-radius: 10px; background: #e6f2ea; color: var(--ok); font-weight: 600; font-size: 14px; }
+  #be .message.erreur { background: #fdecea; color: var(--non); }
+  #be .refus { margin: 80px auto; max-width: 520px; background: var(--surface); border: 1px solid var(--ligne); border-radius: 16px; padding: 28px; text-align: center; }
+  #be .refus h2 { margin: 10px 0; font-size: 22px; }
+  #be .fond-panneau { position: fixed; inset: 0; background: rgba(10,14,18,.45); z-index: 50; display: flex; justify-content: flex-end; }
+  #be .panneau { width: min(900px, 100%); height: 100%; overflow: auto; background: var(--fond); padding: 20px 24px; display: flex; flex-direction: column; gap: 14px; }
+  #be .grille2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
+  @media (max-width: 900px) { #be .grille2 { grid-template-columns: 1fr; } }
+  #be .carte { background: var(--surface); border: 1px solid var(--ligne); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+  #be .carte.conf { border: 2px solid var(--orange); }
+  #be .carte h3 { margin: 0; font-size: 16px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  #be .conf-badge { font-size: 12px; color: var(--orange); font-weight: 700; display: inline-flex; gap: 6px; align-items: center; }
+  #be .ligne-case { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; }
+  #be .liste-cases { border: 1px solid var(--ligne); border-radius: 8px; padding: 6px; max-height: 260px; overflow: auto; display: flex; flex-direction: column; gap: 2px; }
+  #be .liste-cases label { display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 14px; }
+  #be .liste-cases .note { margin-left: auto; font-size: 12px; color: var(--doux); }
+  #be .mini { width: 100%; border-collapse: collapse; font-size: 13px; border: 1px solid var(--ligne); border-radius: 8px; overflow: hidden; }
+  #be .mini th { position: static; }
+  #be .jours7 { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+  #be .jours7 input { width: 100%; }
+  #be .btn.be-note { background: #ffffff; }
+  #be .btn.be-note.pleine { background: #c9ced4; border-color: #a7aeb6; color: var(--encre); }
+  #be .fond-modale { position: fixed; inset: 0; z-index: 60; background: rgba(10,14,18,.45); display: flex; align-items: center; justify-content: center; padding: 20px; }
+  #be .modale { width: min(560px, 100%); background: var(--surface); border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.3); }
+  #be .modale h2 { margin: 0; font-size: 20px; }
+  #be .modale textarea { width: 100%; min-height: 180px; border: 1px solid var(--ligne); border-radius: 10px; padding: 10px; font-size: 14px; font-family: inherit; resize: vertical; }
+  #be td select.be-profil { max-width: 190px; }
+  #be .actions-sel { position: sticky; bottom: 12px; z-index: 15; align-items: center; gap: 12px; background: var(--encre); color: #fff; border-radius: 12px; padding: 12px 16px; box-shadow: 0 6px 20px rgba(0,0,0,.25); flex-wrap: wrap; }
+  #be .actions-sel .btn { border-color: #2c343c; background: #2c343c; color: #fff; }
+  #be .actions-sel .btn.jaune { background: var(--accent); border-color: var(--accent); color: var(--encre); }
+  #be .actions-sel select { height: 38px; }
+  #be .profils { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+</style>
+
+<div class="entete">
+  <img id="be-logo" alt="Bonneville" src="https://ericgloutnez.github.io/LFS/logo-bonneville.png">
+  <span class="sep"></span>
+  <span class="titre">Employés</span>
+  <nav class="onglets" id="be-onglets">
+    <button type="button" data-o="employes" class="on">Employés</button>
+    <button type="button" data-o="profils">Profils</button>
+    <button type="button" data-o="regles">Règles de rémunération</button>
+    <button type="button" data-o="parametres">Paramètres</button>
+  </nav>
+  <span class="version" style="margin-left:auto;margin-right:12px;">Réservé au rôle Administrateur de MyGeotab</span>
+  <span class="version" id="be-version" style="margin-left:0"></span>
+</div>
+<div id="be-contenu"><main><div class="aide">Chargement…</div></main></div>
+</div>
+
+<script>
+geotab.addin.employes = function () {
+  'use strict';
+  var B = window.Bonneville;
+  var VERSION = '2.0.0';
+  var G = null, moi = '', onglet = 'employes';
+  var users = [], employes = {}, profils = [], paies = {}, param = null, groupesGeotab = [];
+  var modifies = {}, filtre = { texte: '', profil: '', inactifs: false, masques: false }, message = null, notes = {}, selection = {};
+
+  function $(id) { return document.getElementById(id); }
+  function h(t) { return String(t === undefined || t === null ? '' : t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function nomUser(u) { var x = users.filter(function (y) { return y.user === u; })[0]; return x ? x.nom : u; }
+  function profilDe(pid) { return profils.filter(function (p) { return p.d.pid === pid; })[0]; }
+  function profilsD() { return profils.map(function (p) { return p.d; }); }
+  function empD(u) { return (modifies[u]) || (employes[u] ? employes[u].d : null); }
+  function droits(u) { return B.droitsEffectifs(empD(u), profilsD()); }
+  function dire(t, erreur) { message = { t: t, e: !!erreur }; rendre(); }
+
+  // ---------- Chargement
+  function charger() {
+    return Promise.all([
+      G.utilisateurs(),
+      G.lireTypes(['employe', 'profil', 'parametresEmployes', 'acces', 'reglesPaie']),
+      G.lireType('paie').catch(function () { return []; }),
+      G.appel('Get', { typeName: 'Group' }).catch(function () { return []; }),
+      G.lireType('noteEmploye').catch(function () { return []; })
+    ]).then(function (r) {
+      users = r[0]; employes = {}; profils = []; param = null; paies = {}; notes = {};
+      (r[4] || []).forEach(function (l) { var su = l.details.sujet || l.details.user; if (su) { notes[su] = { id: l.id, d: l.details }; } });
+      r[1].forEach(function (l) {
+        var d = l.details;
+        if (d.type === 'employe' && d.user) { employes[d.user] = { id: l.id, d: d }; }
+        else if (d.type === 'profil') { profils.push({ id: l.id, d: d }); }
+        else if (d.type === 'parametresEmployes') { param = { id: l.id, d: d }; }
+        else if (d.type === 'acces') { /* ancien type « acces » de LFS : ignoré */ }
+        else if (d.type === 'reglesPaie') { reglesRec = { id: l.id, d: d }; }
+      });
+      r[2].forEach(function (l) { if (l.details.user) { paies[l.details.user] = { id: l.id, d: l.details, groups: l.groups }; } });
+      groupesGeotab = (r[3] || []).filter(function (g) { return g.name && g.id; }).map(function (g) { return { id: g.id, nom: g.name }; })
+        .sort(function (a, b) { return a.nom.localeCompare(b.nom, 'fr'); });
+      if (!profils.length) { return creerProfilsDefaut().then(charger); }
+      if (!creeAdmin && !profils.some(function (p) { return p.d.pid === 'administrateur' || p.d.role === 'administrateur'; })) {
+        creeAdmin = true;
+        var pa = B.PROFILS_DEFAUT.filter(function (x) { return x.pid === 'administrateur'; })[0];
+        return G.ajouter({ type: 'profil', pid: pa.pid, nom: pa.nom, role: pa.role, droits: pa.droits }).then(charger);
+      }
+      modifies = {};
+      rendre();
+    });
+  }
+  var creeAdmin = false;
+  var ancienAcces = null, reglesRec = null, reglesEdition = null, reglesDepuis = '';
+  function creerProfilsDefaut() {
+    var c = Promise.resolve();
+    B.PROFILS_DEFAUT.forEach(function (p) {
+      c = c.then(function () { return G.ajouter({ type: 'profil', pid: p.pid, nom: p.nom, role: p.role, droits: p.droits }); });
+    });
+    return c;
+  }
+
+  // ---------- Rendu général
+  function rendre() {
+    Array.prototype.forEach.call(document.querySelectorAll('#be-onglets button'), function (b) { b.className = b.getAttribute('data-o') === onglet ? 'on' : ''; });
+    var html = '<main>' + (message ? '<div class="message' + (message.e ? ' erreur' : '') + '">' + h(message.t) + '</div>' : '');
+    if (onglet === 'employes') { html += vueEmployes(); }
+    else if (onglet === 'profils') { html += vueProfils(); }
+    else if (onglet === 'regles') { html += vueRegles(); }
+    else { html += vueParametres(); }
+    $('be-contenu').innerHTML = html + '</main>';
+    brancherVue();
+  }
+
+  // ---------- Employés
+  function usersFiltres() {
+    var t = filtre.texte.toLowerCase();
+    return users.filter(function (u) {
+      if (!filtre.inactifs && !u.actif) { return false; }
+      var em = empD(u.user);
+      if (!filtre.masques && em && em.masque) { return false; }
+      if (t && u.nom.toLowerCase().indexOf(t) < 0 && u.user.toLowerCase().indexOf(t) < 0) { return false; }
+      if (filtre.profil) { var e = empD(u.user); if (filtre.profil === '-') { return !e || !e.profil; } if (!e || e.profil !== filtre.profil) { return false; } }
+      return true;
+    });
+  }
+  function optionsProfils(sel, vide) {
+    return (vide ? '<option value="">' + h(vide) + '</option>' : '') + profils.map(function (p) { return '<option value="' + h(p.d.pid) + '"' + (p.d.pid === sel ? ' selected' : '') + '>' + h(p.d.nom) + '</option>'; }).join('');
+  }
+  function vueEmployes() {
+    var nbMod = Object.keys(modifies).length;
+    var html = '<div class="barre">'
+      + '<label class="champ">Rechercher<input type="text" id="be-f-texte" value="' + h(filtre.texte) + '" placeholder="Nom ou courriel"></label>'
+      + '<label class="champ">Profil<select id="be-f-profil"><option value="">Tous</option><option value="-"' + (filtre.profil === '-' ? ' selected' : '') + '>Sans profil</option>' + optionsProfils(filtre.profil) + '</select></label>'
+      + '<label class="ligne-case" style="height:38px"><input type="checkbox" id="be-f-inactifs"' + (filtre.inactifs ? ' checked' : '') + '> Comptes inactifs</label>'
+      + '<label class="ligne-case" style="height:38px"><input type="checkbox" id="be-f-masques"' + (filtre.masques ? ' checked' : '') + '> Personnes masquées (' + Object.keys(employes).filter(function (k) { return employes[k].d.masque; }).length + ')</label>'
+      + '<span style="margin-left:auto"></span>'
+      + '<button type="button" class="btn jaune" id="be-sauver"' + (nbMod ? '' : ' disabled') + '>Enregistrer les changements' + (nbMod ? ' (' + nbMod + ')' : '') + '</button></div>';
+    html += '<div class="tableau"><table><thead><tr><th class="c"><input type="checkbox" id="be-tout" aria-label="Tout sélectionner"></th><th>Employé</th><th>Profil</th>'
+      + B.DROITS.map(function (d) { return '<th class="c" style="min-width:70px">' + h(d.nom.replace(/ \(.*\)$/, '')) + '</th>'; }).join('') + '<th></th></tr></thead><tbody>';
+    usersFiltres().forEach(function (u) {
+      var e = empD(u.user), dr = droits(u.user), perso = e && e.droits;
+      html += '<tr data-u="' + h(u.user) + '"' + (modifies[u.user] ? ' class="modifie"' : '') + '>'
+        + '<td class="c"><input type="checkbox" class="be-sel" aria-label="Sélectionner ' + h(u.nom) + '"' + (selection[u.user] ? ' checked' : '') + '></td>'
+        + '<td><b>' + h(u.nom) + '</b>' + (e && e.masque ? ' <span class="puce gris">Masqué</span>' : '') + '<div class="aide">' + h(u.user) + '</div></td>'
+        + '<td><select class="be-profil">' + optionsProfils(e ? e.profil : '', 'Aucun') + '</select>' + (perso ? ' <span class="puce orange" title="Droits modifiés par rapport au profil">Personnalisé</span>' : '') + '</td>'
+        + B.DROITS.map(function (d) { return '<td class="c"><input type="checkbox" class="be-droit" data-d="' + d.cle + '" aria-label="' + h(d.nom) + ' : ' + h(u.nom) + '"' + (dr[d.cle] ? ' checked' : '') + '></td>'; }).join('')
+        + '<td style="white-space:nowrap"><button type="button" class="btn be-fiche">Fiche</button> '
+        + '<button type="button" class="btn be-note' + (notes[u.user] && notes[u.user].d.texte ? ' pleine' : '') + '" title="' + (notes[u.user] && notes[u.user].d.texte ? 'Une note est inscrite' : 'Aucune note') + '">Notes</button></td></tr>';
+    });
+    html += '</tbody></table></div><div class="actions-sel" id="be-actions" style="display:none"></div><div class="aide">Ces accès sont lus par Heures &amp; Dépenses (bureau et Geotab Drive). Un droit modifié à la main rend l’employé « Personnalisé » : il ne suit plus les changements de son profil.</div>';
+    return html;
+  }
+  function modifierEmploye(u, f) {
+    var base = empD(u) ? JSON.parse(JSON.stringify(empD(u))) : { type: 'employe', user: u, profil: '', tauxKm: [] };
+    f(base);
+    modifies[u] = base;
+  }
+
+  // ---------- Fiche
+  var ficheUser = null, ficheEmp = null, fichePaie = null;
+  function ouvrirFiche(u) {
+    ficheUser = u;
+    ficheEmp = JSON.parse(JSON.stringify(empD(u) || { type: 'employe', user: u, profil: '', tauxKm: [] }));
+    ficheEmp.tauxKm = ficheEmp.tauxKm || [];
+    fichePaie = JSON.parse(JSON.stringify(paies[u] ? paies[u].d : { type: 'paie', user: u, mode: 'unique', unique: [], jours: [], exceptions: [] }));
+    rendreFiche();
+  }
+  function fermerFiche() { var f = $('be-fiche'); if (f) { f.parentNode.removeChild(f); } ficheUser = null; }
+  function equipeDe(chefUser) { return (chefUser === ficheUser ? ficheEmp.equipe : (empD(chefUser) || {}).equipe) || []; }
+  function rendreFiche() {
+    fermerFicheDom();
+    var u = ficheUser, dr = B.droitsEffectifs(ficheEmp, profilsD());
+    var aujour = B.jourIso();
+    var html = '<div class="panneau" role="dialog" aria-label="Fiche de ' + h(nomUser(u)) + '">'
+      + '<div class="barre" style="align-items:center"><button type="button" class="btn" id="bf-fermer">‹ Fermer</button><span style="font-size:22px;font-weight:800">' + h(nomUser(u)) + '</span><span class="aide">' + h(u) + '</span><span style="margin-left:auto"></span><button type="button" class="btn jaune" id="bf-sauver">Enregistrer la fiche</button></div>'
+      + '<div class="grille2"><div style="display:flex;flex-direction:column;gap:14px">'
+      + '<section class="carte"><h3>Profil et accès</h3><label class="champ">Profil<select id="bf-profil">' + optionsProfils(ficheEmp.profil, 'Aucun') + '</select></label>'
+      + B.DROITS.map(function (d) { return '<label class="ligne-case"><input type="checkbox" class="bf-droit" data-d="' + d.cle + '"' + (dr[d.cle] ? ' checked' : '') + '>' + h(d.nom) + '</label>'; }).join('')
+      + (ficheEmp.droits ? '<button type="button" class="btn" id="bf-profil-retour">Revenir aux droits du profil</button>' : '') + '</section>';
+    if (dr.chef) {
+      var eq = ficheEmp.equipe || [];
+      html += '<section class="carte"><h3>Son équipe</h3><input type="text" id="bf-eq-filtre" placeholder="Rechercher un employé"><div class="liste-cases" id="bf-equipe">'
+        + users.filter(function (x) { return x.actif && x.user !== u; }).map(function (x) {
+          var autre = Object.keys(employes).filter(function (k) { return k !== u && (empD(k) && (empD(k).equipe || []).indexOf(x.user) >= 0); })[0];
+          return '<label data-nom="' + h(x.nom.toLowerCase()) + '"><input type="checkbox" class="bf-membre" value="' + h(x.user) + '"' + (eq.indexOf(x.user) >= 0 ? ' checked' : '') + '>' + h(x.nom) + (autre ? '<span class="note">équipe de ' + h(nomUser(autre)) + '</span>' : '') + '</label>';
+        }).join('') + '</div><div class="aide">Un employé ne peut appartenir qu’à une équipe : le cocher ici le retire de son autre équipe à l’enregistrement.</div>'
+        + '<label class="champ">Remplaçant pendant une absence (facultatif)<select id="bf-remplacant"><option value="">Aucun</option>'
+        + users.filter(function (x) { return x.user !== u && droits(x.user).chef; }).map(function (x) { return '<option value="' + h(x.user) + '"' + (ficheEmp.remplacant === x.user ? ' selected' : '') + '>' + h(x.nom) + '</option>'; }).join('')
+        + '</select></label></section>';
+    }
+    html += '<section class="carte"><h3>Taux kilométrage ($/km)</h3>' + tableTaux(ficheEmp.tauxKm, 'km')
+      + '<div class="barre"><label class="champ">Taux ($/km)<input type="number" step="0.01" min="0" id="bf-km-taux" style="width:120px"></label><label class="champ">En vigueur à partir du<input type="date" id="bf-km-depuis" value="' + aujour + '"></label><button type="button" class="btn noir" id="bf-km-ajouter">Ajouter ce taux</button></div>'
+      + '<div class="aide">Visible par l’employé dans Drive pour calculer son remboursement. Chaque journée utilise le taux en vigueur à sa date.</div></section>';
+    html += '</div><div style="display:flex;flex-direction:column;gap:14px">' + carteRemun() + carteConfidentielle() + '</div></div></div>';
+    var fond = document.createElement('div');
+    fond.className = 'fond-panneau'; fond.id = 'be-fiche'; fond.innerHTML = html;
+    $('be').appendChild(fond);
+    brancherFiche();
+  }
+  function fermerFicheDom() { var f = $('be-fiche'); if (f) { f.parentNode.removeChild(f); } }
+  function tableTaux(liste, quoi) {
+    if (!liste || !liste.length) { return '<div class="aide">Aucun taux inscrit.</div>'; }
+    return '<table class="mini"><thead><tr><th>Taux</th><th>En vigueur depuis</th><th></th></tr></thead><tbody>'
+      + liste.slice().sort(function (a, b) { return String(b.depuis).localeCompare(String(a.depuis)); }).map(function (t) {
+        return '<tr><td><b>' + h(Number(t.taux).toLocaleString('fr-CA', { minimumFractionDigits: 2, maximumFractionDigits: 4 })) + ' $' + (quoi === 'km' ? '/km' : '/h') + '</b></td><td>' + h(t.depuis) + '</td><td><button type="button" class="btn rouge bf-retirer-taux" data-q="' + quoi + '" data-depuis="' + h(t.depuis) + '">Retirer</button></td></tr>';
+      }).join('') + '</tbody></table>';
+  }
+  function carteConfidentielle() {
+    var pg = param && param.d.paieGroupe;
+    var badge = '<span class="conf-badge">🔒 ' + (pg ? 'Groupe Paie seulement' : 'Visible seulement par l’employé lui-même et l’Administrateur Heures &amp; Dépenses') + '</span>';
+    var p = fichePaie, aujour = B.jourIso();
+    var html = '<section class="carte conf"><h3>Rémunération (taux horaire)' + badge + '</h3>'
+      + '<div class="aide">Dans Heures &amp; Dépenses, l’employé voit seulement sa propre paye brute estimée. Son chef d’équipe ne reçoit que les heures.</div>'
+      + '<div class="barre"><label class="ligne-case"><input type="radio" name="bf-mode" value="unique"' + (p.mode !== 'jour' ? ' checked' : '') + '> Même taux tous les jours</label>'
+      + '<label class="ligne-case"><input type="radio" name="bf-mode" value="jour"' + (p.mode === 'jour' ? ' checked' : '') + '> Taux selon le jour de la semaine</label></div>';
+    if (p.mode === 'jour') {
+      var der = (p.jours || []).slice().sort(function (a, b) { return String(b.depuis).localeCompare(String(a.depuis)); })[0];
+      html += '<div class="jours7">' + B.JOURS.map(function (j, i) { return '<label class="champ">' + j + '<input type="number" step="0.01" min="0" class="bf-jour" data-i="' + i + '" value="' + h(der ? der.t[i] : '') + '"></label>'; }).join('') + '</div>'
+        + '<div class="barre"><button type="button" class="btn" id="bf-copier-lundi">Copier le lundi aux jours de semaine</button><label class="champ">En vigueur à partir du<input type="date" id="bf-jour-depuis" value="' + aujour + '"></label><button type="button" class="btn noir" id="bf-jour-ajouter">Enregistrer cette grille</button></div>'
+        + (p.jours && p.jours.length ? '<table class="mini"><thead><tr><th>Depuis</th>' + B.JOURS_COURTS.map(function (j) { return '<th>' + j + '</th>'; }).join('') + '<th></th></tr></thead><tbody>'
+          + p.jours.slice().sort(function (a, b) { return String(b.depuis).localeCompare(String(a.depuis)); }).map(function (g) {
+            return '<tr><td>' + h(g.depuis) + '</td>' + g.t.map(function (v) { return '<td>' + h(v) + '</td>'; }).join('') + '<td><button type="button" class="btn rouge bf-retirer-grille" data-depuis="' + h(g.depuis) + '">Retirer</button></td></tr>';
+          }).join('') + '</tbody></table>' : '');
+    } else {
+      html += tableTaux(p.unique, 'h')
+        + '<div class="barre"><label class="champ">Taux horaire ($/h)<input type="number" step="0.01" min="0" id="bf-h-taux" style="width:120px"></label><label class="champ">En vigueur à partir du<input type="date" id="bf-h-depuis" value="' + aujour + '"></label><button type="button" class="btn noir" id="bf-h-ajouter">Ajouter ce taux</button></div>';
+    }
+    html += '<h3 style="margin-top:6px">Exceptions (une date précise)</h3>'
+      + (p.exceptions && p.exceptions.length ? '<table class="mini"><thead><tr><th>Date</th><th>Note</th><th>Taux</th><th></th></tr></thead><tbody>' + p.exceptions.slice().sort(function (a, b) { return a.date.localeCompare(b.date); }).map(function (e) {
+        return '<tr><td>' + h(e.date) + '</td><td>' + h(e.note || '') + '</td><td>' + h(e.taux) + ' $/h</td><td><button type="button" class="btn rouge bf-retirer-exc" data-date="' + h(e.date) + '">Retirer</button></td></tr>';
+      }).join('') + '</tbody></table>' : '<div class="aide">Aucune exception.</div>')
+      + '<div class="barre"><label class="champ">Date<input type="date" id="bf-exc-date"></label><label class="champ">Note<input type="text" id="bf-exc-note" placeholder="ex. Noël"></label><label class="champ">Taux ($/h)<input type="number" step="0.01" min="0" id="bf-exc-taux" style="width:110px"></label><button type="button" class="btn noir" id="bf-exc-ajouter">Ajouter</button></div>'
+      + '<div class="aide">Ordre de calcul d’une journée : 1) exception de la date, 2) taux de ce jour de la semaine, 3) taux unique. Une journée approuvée garde le taux appliqué à l’approbation.</div></section>';
+    return html;
+  }
+  function lireDroitsFiche() {
+    var d = {};
+    Array.prototype.forEach.call(document.querySelectorAll('.bf-droit'), function (c) { if (c.checked) { d[c.getAttribute('data-d')] = true; } });
+    return d;
+  }
+  function egalDroits(a, b) { return B.DROITS.every(function (x) { return !!(a || {})[x.cle] === !!(b || {})[x.cle]; }); }
+  function captureFiche() {
+    // garde ce qui est à l'écran avant de redessiner
+    var p = $('bf-profil'); if (p) { ficheEmp.profil = p.value; }
+    var dr = lireDroitsFiche(), prof = profilDe(ficheEmp.profil);
+    if (document.querySelector('.bf-droit')) { ficheEmp.droits = prof && egalDroits(dr, prof.d.droits) ? undefined : dr; if (!ficheEmp.droits) { delete ficheEmp.droits; } }
+    var membres = document.querySelectorAll('.bf-membre');
+    if (membres.length) { ficheEmp.equipe = Array.prototype.filter.call(membres, function (c) { return c.checked; }).map(function (c) { return c.value; }); }
+    var r = $('bf-remplacant'); if (r) { ficheEmp.remplacant = r.value; }
+  }
+  function brancherFiche() {
+    if ($('bf-r-ajouter')) {
+      $('bf-r-ajouter').onclick = function () {
+        captureFiche();
+        var d = $('bf-r-depuis').value; if (!d) { alert('Choisis la date.'); return; }
+        var e = { depuis: d, role: $('bf-r-role').value, niveau: $('bf-r-niveau').value, chef: $('bf-r-chef').checked, domicile: $('bf-r-dom').checked };
+        ficheEmp.remun = (ficheEmp.remun || []).filter(function (x) { return x.depuis !== d; }).concat([e]);
+        rendreFiche();
+      };
+    }
+    Array.prototype.forEach.call(document.querySelectorAll('.bf-r-suppr'), function (b) { b.onclick = function () { captureFiche(); var d = b.getAttribute('data-depuis'); ficheEmp.remun = (ficheEmp.remun || []).filter(function (x) { return x.depuis !== d; }); rendreFiche(); }; });
+    $('bf-fermer').onclick = fermerFicheDom;
+    $('bf-profil').onchange = function () { captureFiche(); delete ficheEmp.droits; rendreFiche(); };
+    Array.prototype.forEach.call(document.querySelectorAll('.bf-droit'), function (c) { c.onchange = function () { captureFiche(); rendreFiche(); }; });
+    if ($('bf-profil-retour')) { $('bf-profil-retour').onclick = function () { captureFiche(); delete ficheEmp.droits; rendreFiche(); }; }
+    if ($('bf-eq-filtre')) {
+      $('bf-eq-filtre').oninput = function () {
+        var t = this.value.toLowerCase();
+        Array.prototype.forEach.call(document.querySelectorAll('#bf-equipe label'), function (l) { l.style.display = !t || l.getAttribute('data-nom').indexOf(t) >= 0 ? '' : 'none'; });
+      };
+    }
+    $('bf-km-ajouter').onclick = function () {
+      var t = parseFloat($('bf-km-taux').value), d = $('bf-km-depuis').value;
+      if (isNaN(t) || t < 0 || !d) { alert('Inscris un taux et une date.'); return; }
+      captureFiche();
+      ficheEmp.tauxKm = (ficheEmp.tauxKm || []).filter(function (x) { return x.depuis !== d; }).concat([{ taux: t, depuis: d }]);
+      rendreFiche();
+    };
+    Array.prototype.forEach.call(document.querySelectorAll('.bf-retirer-taux'), function (b) {
+      b.onclick = function () {
+        captureFiche();
+        var d = b.getAttribute('data-depuis');
+        if (b.getAttribute('data-q') === 'km') { ficheEmp.tauxKm = ficheEmp.tauxKm.filter(function (x) { return x.depuis !== d; }); }
+        else { fichePaie.unique = (fichePaie.unique || []).filter(function (x) { return x.depuis !== d; }); }
+        rendreFiche();
+      };
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('input[name=bf-mode]'), function (r) { r.onchange = function () { captureFiche(); fichePaie.mode = r.value; rendreFiche(); }; });
+    if ($('bf-h-ajouter')) {
+      $('bf-h-ajouter').onclick = function () {
+        var t = parseFloat($('bf-h-taux').value), d = $('bf-h-depuis').value;
+        if (isNaN(t) || t < 0 || !d) { alert('Inscris un taux et une date.'); return; }
+        captureFiche();
+        fichePaie.unique = (fichePaie.unique || []).filter(function (x) { return x.depuis !== d; }).concat([{ taux: t, depuis: d }]);
+        rendreFiche();
+      };
+    }
+    if ($('bf-copier-lundi')) {
+      $('bf-copier-lundi').onclick = function () {
+        var champs = document.querySelectorAll('.bf-jour'), lundi = champs[1].value;
+        for (var i = 2; i <= 5; i++) { champs[i].value = lundi; }
+      };
+      $('bf-jour-ajouter').onclick = function () {
+        var t = Array.prototype.map.call(document.querySelectorAll('.bf-jour'), function (c) { return c.value === '' ? '' : Number(c.value); });
+        var d = $('bf-jour-depuis').value;
+        if (!d || t.every(function (v) { return v === ''; })) { alert('Inscris au moins un taux et la date.'); return; }
+        captureFiche();
+        fichePaie.jours = (fichePaie.jours || []).filter(function (x) { return x.depuis !== d; }).concat([{ depuis: d, t: t }]);
+        rendreFiche();
+      };
+    }
+    Array.prototype.forEach.call(document.querySelectorAll('.bf-retirer-grille'), function (b) {
+      b.onclick = function () { captureFiche(); var d = b.getAttribute('data-depuis'); fichePaie.jours = fichePaie.jours.filter(function (x) { return x.depuis !== d; }); rendreFiche(); };
+    });
+    if ($('bf-exc-ajouter')) {
+      $('bf-exc-ajouter').onclick = function () {
+        var d = $('bf-exc-date').value, t = parseFloat($('bf-exc-taux').value);
+        if (!d || isNaN(t)) { alert('Inscris la date et le taux.'); return; }
+        captureFiche();
+        fichePaie.exceptions = (fichePaie.exceptions || []).filter(function (x) { return x.date !== d; }).concat([{ date: d, taux: t, note: $('bf-exc-note').value.trim() }]);
+        rendreFiche();
+      };
+    }
+    Array.prototype.forEach.call(document.querySelectorAll('.bf-retirer-exc'), function (b) {
+      b.onclick = function () { captureFiche(); var d = b.getAttribute('data-date'); fichePaie.exceptions = fichePaie.exceptions.filter(function (x) { return x.date !== d; }); rendreFiche(); };
+    });
+    $('bf-sauver').onclick = sauverFiche;
+  }
+  function sauverFiche() {
+    captureFiche();
+    var u = ficheUser, e = ficheEmp;
+    e.type = 'employe'; e.user = u; e.maj = new Date().toISOString(); e.majPar = moi;
+    if (!B.droitsEffectifs(e, profilsD()).chef) { delete e.equipe; delete e.remplacant; }
+    var c = G.enregistrer(employes[u], e).then(function (id) { employes[u] = { id: id, d: e }; delete modifies[u]; });
+    // Retirer les membres des autres équipes
+    (e.equipe || []).forEach(function (m) {
+      Object.keys(employes).forEach(function (k) {
+        if (k === u) { return; }
+        var o = employes[k].d;
+        if ((o.equipe || []).indexOf(m) >= 0) {
+          var n = JSON.parse(JSON.stringify(o)); n.equipe = n.equipe.filter(function (x) { return x !== m; });
+          c = c.then(function () { return G.modifier(employes[k].id, n).then(function () { employes[k].d = n; }); });
+        }
+      });
+    });
+    var pg = param && param.d.paieGroupe;
+    var paieRemplie = (fichePaie.unique && fichePaie.unique.length) || (fichePaie.jours && fichePaie.jours.length) || (fichePaie.exceptions && fichePaie.exceptions.length) || paies[u];
+    if (paieRemplie) {
+      fichePaie.type = 'paie'; fichePaie.user = u; fichePaie.maj = new Date().toISOString(); fichePaie.majPar = moi;
+      c = c.then(function () { return G.enregistrer(paies[u], fichePaie, pg ? [{ id: pg }] : null).then(function (id) { paies[u] = { id: id, d: fichePaie }; }); });
+    }
+    c.then(function () { fermerFicheDom(); dire('Fiche de ' + nomUser(u) + ' enregistrée.'); })
+      .catch(function (er) { alert('Enregistrement impossible : ' + (er && er.message ? er.message : er)); });
+  }
+
+  // ---------- Barre d'actions de la sélection (n'apparaît que si des employés sont cochés)
+  function choisis() { return Object.keys(selection).filter(function (u) { return selection[u]; }); }
+  function majActionsSel() {
+    var z = $('be-actions'); if (!z) { return; }
+    var l = choisis();
+    if (!l.length) { z.style.display = 'none'; z.innerHTML = ''; return; }
+    var tousMasques = l.every(function (u) { var e = empD(u); return e && e.masque; });
+    z.style.display = 'flex';
+    z.innerHTML = '<b>' + l.length + ' employé' + (l.length > 1 ? 's' : '') + ' sélectionné' + (l.length > 1 ? 's' : '') + '</b><span style="margin-left:auto"></span>'
+      + '<select id="be-profil-lot" aria-label="Profil à appliquer">' + optionsProfils('', 'Appliquer un profil…') + '</select><button type="button" class="btn" id="be-appliquer">Appliquer</button>'
+      + '<button type="button" class="btn jaune" id="be-masquer-lot">' + (tousMasques ? 'Afficher de nouveau' : 'Masquer de la liste') + '</button>'
+      + '<button type="button" class="btn" id="be-desel">Annuler la sélection</button>';
+    $('be-desel').onclick = function () { selection = {}; rendre(); };
+    $('be-masquer-lot').onclick = function () { var l2 = choisis(); selection = {}; masquer(l2, !tousMasques); };
+    $('be-appliquer').onclick = function () {
+      var pid = $('be-profil-lot').value; if (!pid) { alert('Choisis d’abord le profil.'); return; }
+      choisis().forEach(function (u) { modifierEmploye(u, function (e) { e.profil = pid; delete e.droits; }); });
+      selection = {}; rendre();
+    };
+  }
+
+  // ---------- Masquer des personnes de la liste
+  function masquer(liste, valeur) {
+    var c = Promise.resolve();
+    liste.forEach(function (u) {
+      var e = JSON.parse(JSON.stringify(empD(u) || { type: 'employe', user: u, profil: '', tauxKm: [] }));
+      if (valeur) { e.masque = true; } else { delete e.masque; }
+      e.type = 'employe'; e.user = u; e.maj = new Date().toISOString(); e.majPar = moi;
+      c = c.then(function () { return G.enregistrer(employes[u], e).then(function (id) { employes[u] = { id: id, d: e }; if (modifies[u]) { modifies[u].masque = e.masque; if (!valeur) { delete modifies[u].masque; } } }); });
+    });
+    c.then(function () { dire(liste.length + ' personne(s) ' + (valeur ? 'masquée(s). Coche « Personnes masquées » pour les revoir.' : 'de nouveau affichée(s).')); })
+      .catch(function (er) { dire('Enregistrement impossible : ' + (er && er.message ? er.message : er), true); });
+  }
+
+  // ---------- Notes (confidentielles, groupe Paie)
+  function ouvrirNote(u) {
+    var pg = param && param.d.paieGroupe, n = notes[u];
+    var fond = document.createElement('div'); fond.className = 'fond-modale'; fond.id = 'be-modale-note';
+    fond.innerHTML = '<section class="modale" role="dialog" aria-label="Notes"><h2>Notes – ' + h(nomUser(u)) + '</h2>'
+      + '<div class="aide">🔒 Visible seulement dans Bonneville - Employés (rôle Administrateur de MyGeotab).</div><textarea id="be-note-texte" placeholder="Écrire une note…">' + h(n ? n.d.texte : '') + '</textarea>'
+        + (n && n.d.maj ? '<div class="aide">Dernière modification : ' + h(new Date(n.d.maj).toLocaleString('fr-CA')) + ' par ' + h(nomUser(n.d.majPar)) + '</div>' : '')
+      + '<div class="barre">' + (n ? '<button type="button" class="btn rouge" id="be-note-suppr">Effacer la note</button>' : '') + '<span style="margin-left:auto"></span><button type="button" class="btn" id="be-note-fermer">Fermer</button>'
+      + '<button type="button" class="btn jaune" id="be-note-sauver">Enregistrer</button></div></section>';
+    $('be').appendChild(fond);
+    var fermer = function () { if (fond.parentNode) { fond.parentNode.removeChild(fond); } };
+    fond.addEventListener('click', function (e) { if (e.target === fond) { fermer(); } });
+    $('be-note-fermer').onclick = fermer;
+    if ($('be-note-texte')) { $('be-note-texte').focus(); }
+    if ($('be-note-sauver')) {
+      $('be-note-sauver').onclick = function () {
+        var t = $('be-note-texte').value.trim();
+        var d = { type: 'noteEmploye', sujet: u, texte: t, maj: new Date().toISOString(), majPar: moi };
+        var p = !t && n ? G.retirer(n.id).then(function () { delete notes[u]; }) : (!t ? Promise.resolve() : G.enregistrer(n, d, pg ? [{ id: pg }] : null).then(function (id) { notes[u] = { id: id, d: d }; }));
+        p.then(function () { fermer(); dire('Note de ' + nomUser(u) + ' enregistrée.'); }).catch(function (er) { alert('Enregistrement impossible : ' + (er && er.message ? er.message : er)); });
+      };
+    }
+    if ($('be-note-suppr')) {
+      $('be-note-suppr').onclick = function () {
+        if (!confirm('Effacer la note de ' + nomUser(u) + ' ?')) { return; }
+        G.retirer(n.id).then(function () { delete notes[u]; fermer(); dire('Note effacée.'); });
+      };
+    }
+  }
+
+
+  // ===================== Règles de rémunération =====================
+  function hm(min) { min = Math.round(Number(min) || 0); return Math.floor(min / 60) + ':' + ('0' + (min % 60)).slice(-2); }
+  function lireHm(t) { var p = String(t || '').replace(',', ':').split(':'); var hh = parseInt(p[0], 10) || 0, mm = parseInt(p[1], 10) || 0; return hh * 60 + mm; }
+  function nb(t) { var v = parseFloat(String(t).replace(',', '.')); return isNaN(v) ? 0 : v; }
+  function versionsRegles() { return (reglesRec && reglesRec.d.versions) || []; }
+  function reglesCourantes() {
+    if (!reglesEdition) {
+      var v = versionsRegles().length ? B.reglesA(reglesRec.d, B.jourIso()) : B.REGLES_DEFAUT;
+      reglesEdition = JSON.parse(JSON.stringify(v));
+      reglesDepuis = B.jourIso();
+    }
+    return reglesEdition;
+  }
+  var JOURS_SEL = B.JOURS;
+  function selJour(k, v) { return '<select data-k="' + k + '">' + JOURS_SEL.map(function (j, i) { return '<option value="' + i + '"' + (Number(v) === i ? ' selected' : '') + '>' + j + '</option>'; }).join('') + '</select>'; }
+  function champR(k, v, w, suf) { return '<span style="display:inline-flex;align-items:center;gap:4px"><input type="text" data-k="' + k + '" value="' + h(v) + '" style="width:' + (w || 80) + 'px;text-align:right">' + (suf ? '<span class="aide">' + suf + '</span>' : '') + '</span>'; }
+  function caseR(k, v, lab) { return '<label class="ligne-case"><input type="checkbox" data-k="' + k + '"' + (v ? ' checked' : '') + '>' + lab + '</label>'; }
+  function carteR(n, titre, corps, note) {
+    return '<section class="carte"><h3><span style="display:flex;align-items:center;gap:8px"><span class="puce noir">' + n + '</span>' + titre + '</span></h3>' + corps + (note ? '<div class="aide">' + note + '</div>' : '') + '</section>';
+  }
+  function vueRegles() {
+    var r = reglesCourantes(), niv = r.niveaux || [];
+    var t = '<table class="mini"><thead><tr><th>Rôle</th><th>Avance au départ</th>' + niv.map(function (x, i) { return '<th><input type="text" data-k="niveaux.' + i + '.nom" value="' + h(x.nom) + '" style="width:110px"></th>'; }).join('') + '<th></th></tr></thead><tbody>'
+      + (r.roles || []).map(function (ro, i) {
+        return '<tr><td><input type="text" data-k="roles.' + i + '.nom" value="' + h(ro.nom) + '" style="width:260px"></td><td>' + champR('roles.' + i + '.avanceMin', hm(ro.avanceMin), 60, 'h') + '</td>'
+          + niv.map(function (x) { return '<td>' + champR('roles.' + i + '.taux.' + x.cle, String((ro.taux || {})[x.cle] === undefined ? '' : ro.taux[x.cle]).replace('.', ','), 70, '$/h') + '</td>'; }).join('')
+          + '<td><button type="button" class="btn rouge br-suppr-role" data-i="' + i + '">Retirer</button></td></tr>';
+      }).join('') + '</tbody></table>';
+    var c1 = carteR(1, 'Taux horaires par rôle et niveau', t
+      + '<div class="barre"><button type="button" class="btn" id="br-plus-role">+ Ajouter un rôle</button><button type="button" class="btn" id="br-plus-niveau">+ Ajouter un niveau</button></div>'
+      + '<div class="barre" style="align-items:center">Chef d’équipe et/ou formateur : + ' + champR('chefPlus', String(r.chefPlus).replace('.', ','), 70, '$/h, ajouté au taux du rôle') + '</div>',
+      'Le taux inclut 0,50 $/h pour les équipements de protection fournis par l’employé. L’« avance au départ » est le temps payé avant le départ de l’usine (rôle 1 : 1 h, rôle 2 : 2 h).');
+    var b = r.boni || {};
+    var c2 = carteR(2, 'Boni à l’installation', '<div class="barre" style="align-items:center">Montant par module installé : ' + champR('boni.montant', String(b.montant).replace('.', ','), 80, '$') + '</div>'
+      + '<label class="champ">Versé<select data-k="boni.mode"><option value="chaque"' + (b.mode !== 'partage' ? ' selected' : '') + '>à chaque membre de l’équipe</option><option value="partage"' + (b.mode === 'partage' ? ' selected' : '') + '>partagé entre les membres de l’équipe</option></select></label>'
+      + '<label class="champ">Module compté comme installé quand<select data-k="boni.declencheur">' + ['L5', 'L4', 'L3'].map(function (x) { return '<option value="' + x + '"' + (b.declencheur === x ? ' selected' : '') + '>le formulaire ' + x + ' du module est approuvé</option>'; }).join('') + '</select></label>'
+      + '<div class="message" style="background:#fff3dc;color:var(--orange)">Aucun autre montant n’est accepté (pointe de murs, déchargement, pancarte, beams…). Une entente spéciale exige l’approbation du gestionnaire.</div>'
+      + caseR('specialAutorise', r.specialAutorise, 'Permettre un montant spécial approuvé par le gestionnaire (commentaire obligatoire)'));
+    var td = r.tempsDemi || {};
+    var c3 = carteR(3, 'Temps supplémentaire', caseR('tempsDemi.inclus', td.inclus, 'Le taux horaire et le boni incluent déjà le temps et demi (pas de majoration automatique)')
+      + '<div class="barre" style="align-items:center">Temps et demi possible, sur approbation du gestionnaire, du ' + selJour('tempsDemi.debutJour', td.debutJour) + champR('tempsDemi.debutHeure', td.debutHeure, 70) + ' au ' + selJour('tempsDemi.finJour', td.finJour) + champR('tempsDemi.finHeure', td.finHeure, 70) + '</div>');
+    var H = r.heures || {};
+    var c4 = carteR(4, 'Calcul des heures travaillées',
+      '<table class="mini"><thead><tr><th>Sortie</th><th>Début des heures payées</th><th>Fin des heures payées</th></tr></thead><tbody>'
+      + '<tr><td><b>Sortie d’un jour</b></td><td>Départ de l’usine − avance du rôle</td><td>Retour à l’usine (ou domicile si entente)</td></tr>'
+      + '<tr><td><b>Jour 1</b></td><td>Départ de l’usine − avance du rôle</td><td>Départ du chantier + ' + champR('heures.apresDepartChantier', hm(H.apresDepartChantier), 60, 'h') + '</td></tr>'
+      + '<tr><td><b>Jours 2 et suivants</b></td><td>Arrivée au chantier − ' + champR('heures.avantArriveeChantier', hm(H.avantArriveeChantier), 60, 'h') + '</td><td>Départ du chantier + même délai</td></tr>'
+      + '<tr><td><b>Dernier jour</b></td><td>Arrivée au chantier − même délai</td><td>Arrivée à l’usine (ou domicile si entente)</td></tr></tbody></table>'
+      + caseR('heures.dinerNonDeduit', H.dinerNonDeduit, 'Ne pas déduire le dîner (le gestionnaire peut le déduire en cas d’abus)')
+      + '<div class="barre" style="align-items:center">Minimum payé en cas d’annulation ou d’interruption : ' + champR('heures.minAnnulation', hm(H.minAnnulation), 60, 'h') + ' · en région éloignée : ' + champR('heures.minEloigne', hm(H.minEloigne), 60, 'h') + '</div>'
+      + '<div id="br-exemple" class="message" style="background:var(--bande);color:var(--encre)"></div>');
+    var R = r.repas || {};
+    var c5 = carteR(5, 'Allocation pour repas', '<table class="mini"><thead><tr><th>À partir de (heures payées)</th><th>Allocation par jour</th><th></th></tr></thead><tbody>'
+      + (R.paliers || []).map(function (p, i) { return '<tr><td>' + champR('repas.paliers.' + i + '.min', hm(p.min), 60, 'h') + '</td><td>' + champR('repas.paliers.' + i + '.montant', String(p.montant).replace('.', ','), 80, '$') + '</td><td><button type="button" class="btn rouge br-suppr-palier" data-i="' + i + '">Retirer</button></td></tr>'; }).join('')
+      + '</tbody></table><div class="barre"><button type="button" class="btn" id="br-plus-palier">+ Ajouter un palier</button></div>'
+      + '<div class="barre" style="align-items:center">En région éloignée (peu importe le nombre d’heures) : ' + champR('repas.eloigne', String(R.eloigne).replace('.', ','), 80, '$') + '</div>',
+      'Pour les employés qui livrent, cette allocation remplace la saisie des repas dans Heures & Dépenses. « Plus de 6 h » s’écrit 6:01.');
+    var E = r.eloigne || {};
+    var c6 = carteR(6, 'Région éloignée et zone du chantier', '<div class="aide">La région éloignée se coche sur le voyage, dans LFS (Bonneville - Logistique). Elle s’applique seulement aux journées rattachées à une série.</div>'
+      + caseR('eloigne.distanceActive', E.distanceActive, 'Aussi automatiquement si le chantier est à plus de ' + champR('eloigne.distanceKm', E.distanceKm, 70, 'km de l’usine'))
+      + '<div class="barre" style="align-items:center">Zone du chantier (détection d’arrivée et de départ dans Drive) : ' + champR('zoneChantierM', r.zoneChantierM, 70, 'm') + '</div>');
+    var vers = versionsRegles().slice().sort(function (a, b) { return String(b.depuis).localeCompare(String(a.depuis)); });
+    var histo = '<section class="carte"><h3>Historique des versions</h3>' + (vers.length ? vers.map(function (v, i) {
+      return '<div class="barre" style="align-items:center;justify-content:space-between;border-top:1px solid var(--ligne);padding-top:6px"><span>En vigueur depuis le <b>' + h(v.depuis) + '</b>' + (v.majPar ? ' · ' + h(nomUser(v.majPar)) : '') + '</span><button type="button" class="btn br-charger" data-depuis="' + h(v.depuis) + '">Ouvrir</button></div>';
+    }).join('') : '<div class="aide">Aucune version enregistrée : les valeurs affichées sont celles du programme de rémunération.</div>') + '</section>';
+    return '<div class="barre" style="align-items:center"><div><div style="font-size:22px;font-weight:800">Règles de rémunération</div><div class="aide">Programme de rémunération pour équipes d’installation · employés qui livrent</div></div><span style="margin-left:auto"></span>'
+      + '<label class="champ">En vigueur à partir du<input type="date" id="br-depuis" value="' + h(reglesDepuis) + '"></label><button type="button" class="btn jaune" id="br-sauver">✓ Enregistrer les règles</button></div>'
+      + '<div class="grille2"><div style="display:flex;flex-direction:column;gap:14px">' + c1 + c2 + c3 + '</div><div style="display:flex;flex-direction:column;gap:14px">' + c4 + c5 + c6 + histo + '</div></div>';
+  }
+  function poser(obj, chemin, valeur) {
+    var p = chemin.split('.'), o = obj;
+    for (var i = 0; i < p.length - 1; i++) { var k = /^\d+$/.test(p[i]) ? +p[i] : p[i]; if (o[k] === undefined) { o[k] = {}; } o = o[k]; }
+    o[/^\d+$/.test(p[p.length - 1]) ? +p[p.length - 1] : p[p.length - 1]] = valeur;
+  }
+  var CHAMPS_HM = /avanceMin$|apresDepartChantier$|avantArriveeChantier$|minAnnulation$|minEloigne$|paliers\.\d+\.min$/;
+  var CHAMPS_TEXTE = /\.nom$|debutHeure$|finHeure$|boni\.mode$|boni\.declencheur$/;
+  function lireRegles() {
+    var r = reglesEdition;
+    Array.prototype.forEach.call(document.querySelectorAll('[data-k]'), function (c) {
+      var k = c.getAttribute('data-k'), v;
+      if (c.type === 'checkbox') { v = c.checked; }
+      else if (/debutJour$|finJour$/.test(k)) { v = Number(c.value); }
+      else if (CHAMPS_HM.test(k)) { v = lireHm(c.value); }
+      else if (CHAMPS_TEXTE.test(k)) { v = c.value; }
+      else { v = nb(c.value); }
+      poser(r, k, v);
+    });
+    reglesDepuis = ($('br-depuis') || {}).value || reglesDepuis;
+    return r;
+  }
+  function majExemple() {
+    var z = $('br-exemple'); if (!z) { return; }
+    var r = lireRegles(), rg = { versions: [{ depuis: '2000-01-01', r: r }] };
+    var e1 = { remun: [{ depuis: '2000-01-01', role: (r.roles[0] || {}).cle, niveau: (r.niveaux[1] || r.niveaux[0] || {}).cle }] }, e2 = { remun: [{ depuis: '2000-01-01', role: (r.roles[1] || r.roles[0] || {}).cle, niveau: (r.niveaux[1] || r.niveaux[0] || {}).cle }] };
+    var jours = [['Lundi (jour 1)', { date: '2026-10-05', departUsine: '08:00', departChantier: '15:00', arriveeChantier: '15:00' }], ['Mardi (jour 2)', { date: '2026-10-06', arriveeChantier: '07:00', departChantier: '16:00' }], ['Mercredi (dernier)', { date: '2026-10-07', arriveeChantier: '06:30', retourUsine: '14:00' }]];
+    var attendu = [[510, 570], [600, 600], [480, 480]], ok = true;
+    z.innerHTML = '<b>Vérification avec l’exemple du programme</b>' + jours.map(function (x, i) {
+      var a = B.calculerPaie(x[1], e1, rg), b = B.calculerPaie(x[1], e2, rg);
+      if (!a || !b || a.minutes !== attendu[i][0] || b.minutes !== attendu[i][1]) { ok = false; }
+      return '<div style="display:grid;grid-template-columns:140px 1fr 1fr;gap:8px;font-weight:500"><b>' + x[0] + '</b><span>' + h((r.roles[0] || {}).nom || 'Rôle 1').split(':')[0] + ' : ' + B.duree(a ? a.minutes : 0) + '</span><span>' + h((r.roles[1] || {}).nom || 'Rôle 2').split(':')[0] + ' : ' + B.duree(b ? b.minutes : 0) + '</span></div>';
+    }).join('') + '<div style="color:' + (ok ? 'var(--ok)' : 'var(--orange)') + ';font-weight:700;margin-top:4px">' + (ok ? '✓ Les règles donnent les résultats de l’exemple du programme (8 h 30 / 9 h 30, 10 h, 8 h).' : 'Les règles modifiées ne donnent plus les résultats de l’exemple du programme : vérifie que c’est voulu.') + '</div>';
+  }
+  function brancherRegles() {
+    var rerendre = function () { lireRegles(); rendre(); };
+    Array.prototype.forEach.call(document.querySelectorAll('[data-k]'), function (c) { c.addEventListener('change', majExemple); });
+    majExemple();
+    $('br-plus-role').onclick = function () { var r = lireRegles(); var n = r.roles.length + 1; var t = {}; r.niveaux.forEach(function (x) { t[x.cle] = 0; }); r.roles.push({ cle: 'r' + Date.now().toString(36), nom: 'Rôle ' + n, avanceMin: 60, taux: t }); rendre(); };
+    $('br-plus-niveau').onclick = function () { var r = lireRegles(); var cle = 'n' + Date.now().toString(36); r.niveaux.push({ cle: cle, nom: 'Nouveau niveau' }); r.roles.forEach(function (ro) { ro.taux[cle] = 0; }); rendre(); };
+    $('br-plus-palier').onclick = function () { var r = lireRegles(); r.repas.paliers.push({ min: 480, montant: 0 }); rendre(); };
+    Array.prototype.forEach.call(document.querySelectorAll('.br-suppr-role'), function (b) { b.onclick = function () { var r = lireRegles(); var i = +b.getAttribute('data-i'); var cle = r.roles[i].cle; var utilise = Object.keys(employes).some(function (k) { return (employes[k].d.remun || []).some(function (x) { return x.role === cle; }); }); if (utilise && !confirm('Des employés ont ce rôle dans leur fiche. Le retirer quand même ?')) { return; } r.roles.splice(i, 1); rendre(); }; });
+    Array.prototype.forEach.call(document.querySelectorAll('.br-suppr-palier'), function (b) { b.onclick = function () { var r = lireRegles(); r.repas.paliers.splice(+b.getAttribute('data-i'), 1); rendre(); }; });
+    Array.prototype.forEach.call(document.querySelectorAll('.br-charger'), function (b) { b.onclick = function () { var v = versionsRegles().filter(function (x) { return x.depuis === b.getAttribute('data-depuis'); })[0]; if (v) { reglesEdition = JSON.parse(JSON.stringify(v.r)); reglesDepuis = v.depuis; message = { t: 'Version du ' + v.depuis + ' ouverte : enregistre pour la modifier, ou change la date pour créer une nouvelle version.', e: false }; rendre(); } }; });
+    $('br-sauver').onclick = function () {
+      var r = lireRegles(); if (!reglesDepuis) { alert('Choisis la date d’entrée en vigueur.'); return; }
+      r.repas.paliers.sort(function (a, b) { return a.min - b.min; });
+      var d = reglesRec ? JSON.parse(JSON.stringify(reglesRec.d)) : { type: 'reglesPaie', versions: [] };
+      d.versions = (d.versions || []).filter(function (v) { return v.depuis !== reglesDepuis; });
+      d.versions.push({ depuis: reglesDepuis, r: JSON.parse(JSON.stringify(r)), maj: new Date().toISOString(), majPar: moi });
+      G.enregistrer(reglesRec, d).then(function (id) { reglesRec = { id: id, d: d }; dire('Règles de rémunération enregistrées, en vigueur à partir du ' + reglesDepuis + '. Les journées déjà approuvées gardent leur calcul.'); })
+        .catch(function (e) { dire('Enregistrement impossible : ' + (e && e.message ? e.message : e), true); });
+    };
+  }
+
+  // ----- Fiche : rémunération selon les règles
+  function carteRemun() {
+    var r = B.reglesA(reglesRec ? reglesRec.d : null, B.jourIso()), rem = B.remunA(ficheEmp, B.jourIso()) || {};
+    var liste = (ficheEmp.remun || []).slice().sort(function (a, b) { return String(b.depuis).localeCompare(String(a.depuis)); });
+    var taux = B.tauxRegles(r, rem);
+    return '<section class="carte" style="border:2px solid var(--orange)"><h3>Rémunération (programme des employés qui livrent)</h3>'
+      + '<div class="grille2"><label class="champ">Rôle<select id="bf-r-role"><option value="">— Pas dans le programme —</option>' + (r.roles || []).map(function (x) { return '<option value="' + h(x.cle) + '"' + (rem.role === x.cle ? ' selected' : '') + '>' + h(x.nom) + '</option>'; }).join('') + '</select></label>'
+      + '<label class="champ">Niveau<select id="bf-r-niveau">' + (r.niveaux || []).map(function (x) { return '<option value="' + h(x.cle) + '"' + (rem.niveau === x.cle ? ' selected' : '') + '>' + h(x.nom) + '</option>'; }).join('') + '</select></label></div>'
+      + '<label class="ligne-case"><input type="checkbox" id="bf-r-chef"' + (rem.chef ? ' checked' : '') + '>Chef d’équipe et/ou formateur (+' + h(String(r.chefPlus).replace('.', ',')) + ' $/h)</label>'
+      + '<label class="ligne-case"><input type="checkbox" id="bf-r-dom"' + (rem.domicile ? ' checked' : '') + '>Entente : heures calculées jusqu’au domicile (au lieu de l’usine)</label>'
+      + '<div class="barre"><label class="champ">En vigueur à partir du<input type="date" id="bf-r-depuis" value="' + B.jourIso() + '"></label><button type="button" class="btn noir" id="bf-r-ajouter">Appliquer ce changement</button></div>'
+      + (taux !== null ? '<div class="message" style="background:var(--bande);color:var(--encre);display:flex;justify-content:space-between"><span>Taux horaire appliqué aujourd’hui</span><b>' + h(B.argent(taux)) + '/h</b></div>' : '')
+      + (liste.length ? '<table class="mini"><thead><tr><th>Depuis</th><th>Rôle</th><th>Niveau</th><th>Chef</th><th></th></tr></thead><tbody>' + liste.map(function (x) {
+        var ro = (r.roles || []).filter(function (y) { return y.cle === x.role; })[0], nv = (r.niveaux || []).filter(function (y) { return y.cle === x.niveau; })[0];
+        return '<tr><td>' + h(x.depuis) + '</td><td>' + h(ro ? ro.nom.split(':')[0] : (x.role || '—')) + '</td><td>' + h(nv ? nv.nom : x.niveau || '') + '</td><td>' + (x.chef ? 'oui' : '') + '</td><td><button type="button" class="btn rouge bf-r-suppr" data-depuis="' + h(x.depuis) + '">Retirer</button></td></tr>';
+      }).join('') + '</tbody></table>' : '')
+      + '<div class="aide">Pour les employés du programme, le taux vient des règles de rémunération (pas du taux horaire de l’encadré confidentiel), les heures sont calculées selon les règles et l’allocation repas remplace la saisie des repas.</div></section>';
+  }
+
+  // ---------- Profils
+  function vueProfils() {
+    var html = '<div class="barre"><span class="aide">Un profil est un ensemble de droits déjà prévus. En choisissant un profil pour un employé, il reçoit ces droits. Modifier un profil met à jour tous les employés qui le suivent (sauf ceux « Personnalisé »).</span><span style="margin-left:auto"></span><button type="button" class="btn noir" id="bp-nouveau">+ Nouveau profil</button></div><div class="profils">';
+    profils.forEach(function (p, i) {
+      var nb = Object.keys(employes).filter(function (k) { return employes[k].d.profil === p.d.pid; }).length;
+      html += '<section class="carte" data-i="' + i + '"><h3><input type="text" class="bp-nom" value="' + h(p.d.nom) + '" aria-label="Nom du profil" style="font-weight:800;font-size:16px;flex:1"><span class="puce gris">' + nb + ' employé' + (nb > 1 ? 's' : '') + '</span></h3>'
+        + '<label class="champ">Rôle<select class="bp-role">' + B.ROLES.map(function (r) { return '<option value="' + r.cle + '"' + (r.cle === p.d.role ? ' selected' : '') + '>' + h(r.nom) + '</option>'; }).join('') + '</select></label>'
+        + B.DROITS.map(function (d) { return '<label class="ligne-case"><input type="checkbox" class="bp-droit" data-d="' + d.cle + '"' + ((p.d.droits || {})[d.cle] ? ' checked' : '') + '>' + h(d.nom) + '</label>'; }).join('')
+        + (p.d.role === 'administrateur' ? '<div class="aide">Administrateur Heures &amp; Dépenses : donne accès à Heures &amp; Dépenses au bureau (liste des journées, approbation finale, export Excel, archivage). À ne pas confondre avec le rôle Administrateur de MyGeotab, qui donne accès à Bonneville - Employés.</div>' : '')
+        + (p.d.role === 'commissionnaire' ? '<div class="aide">Commissionnaire : dans Drive, il voit tous les voyages, change de voyage pendant la journée et répartit ses heures et kilomètres entre les voyages.</div>' : '')
+        + '<div class="barre"><button type="button" class="btn jaune bp-sauver">Enregistrer</button>' + (nb ? '' : '<button type="button" class="btn rouge bp-suppr">Supprimer</button>') + '</div></section>';
+    });
+    return html + '</div>';
+  }
+  function brancherProfils() {
+    $('bp-nouveau').onclick = function () {
+      var n = window.prompt('Nom du nouveau profil :'); if (!n) { return; }
+      var d = { type: 'profil', pid: 'p' + Date.now().toString(36), nom: n.trim(), role: 'chauffeur', droits: {} };
+      G.ajouter(d).then(function (id) { profils.push({ id: id, d: d }); dire('Profil « ' + d.nom + ' » créé : coche ses droits puis Enregistrer.'); });
+    };
+    Array.prototype.forEach.call(document.querySelectorAll('.profils .carte'), function (c) {
+      var p = profils[+c.getAttribute('data-i')];
+      c.querySelector('.bp-sauver').onclick = function () {
+        var d = JSON.parse(JSON.stringify(p.d));
+        d.nom = c.querySelector('.bp-nom').value.trim() || d.nom;
+        d.role = c.querySelector('.bp-role').value;
+        d.droits = {};
+        Array.prototype.forEach.call(c.querySelectorAll('.bp-droit'), function (x) { if (x.checked) { d.droits[x.getAttribute('data-d')] = true; } });
+        G.modifier(p.id, d).then(function () { p.d = d; dire('Profil « ' + d.nom + ' » enregistré.'); });
+      };
+      var s = c.querySelector('.bp-suppr');
+      if (s) { s.onclick = function () { if (!confirm('Supprimer le profil « ' + p.d.nom + ' » ?')) { return; } G.retirer(p.id).then(function () { profils = profils.filter(function (x) { return x !== p; }); dire('Profil supprimé.'); }); }; }
+    });
+  }
+
+  // ---------- Paramètres
+  function vueParametres() {
+    var pg = param ? param.d.paieGroupe : '';
+    var html = '<section class="carte" style="max-width:720px"><h3>Protection renforcée des taux et des notes (facultatif)</h3>'
+      + '<div class="aide">Sans groupe : les applications n’affichent le taux horaire qu’à l’employé lui-même et à l’Administrateur Heures &amp; Dépenses, et les notes seulement dans Bonneville - Employés. Avec un groupe Geotab réservé au bureau : ces données deviennent illisibles même par une lecture directe de la base. Laisser vide si ce n’est pas nécessaire.</div>'
+      + '<label class="champ">Groupe<select id="bs-groupe"><option value="">Aucun (protection par l’application)</option>' + groupesGeotab.filter(function (g) { return g.id !== 'GroupCompanyId'; }).map(function (g) { return '<option value="' + h(g.id) + '"' + (g.id === pg ? ' selected' : '') + '>' + h(g.nom) + '</option>'; }).join('') + '</select></label>'
+      + '<div class="barre"><button type="button" class="btn jaune" id="bs-sauver">Enregistrer</button></div></section>';
+    return html;
+  }
+  function brancherParametres() {
+    $('bs-sauver').onclick = function () {
+      var d = param ? JSON.parse(JSON.stringify(param.d)) : { type: 'parametresEmployes' };
+      d.paieGroupe = $('bs-groupe').value;
+      G.enregistrer(param, d).then(function (id) { param = { id: id, d: d }; dire('Paramètres enregistrés.'); });
+    };
+  }
+
+  // ---------- Branchements
+  function brancherVue() {
+    if (onglet === 'profils') { brancherProfils(); return; }
+    if (onglet === 'regles') { brancherRegles(); return; }
+    if (onglet === 'parametres') { brancherParametres(); return; }
+    var garderFocus = function (id, f) { var el = $(id); el.oninput = el.onchange = function () { f(el); rendre(); var n = $(id); if (n && n.type === 'text') { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }; };
+    garderFocus('be-f-texte', function (el) { filtre.texte = el.value; });
+    $('be-f-profil').onchange = function () { filtre.profil = this.value; rendre(); };
+    $('be-f-inactifs').onchange = function () { filtre.inactifs = this.checked; rendre(); };
+    $('be-f-masques').onchange = function () { filtre.masques = this.checked; rendre(); };
+    $('be-tout').onchange = function () { var v = this.checked; Array.prototype.forEach.call(document.querySelectorAll('.be-sel'), function (c) { c.checked = v; selection[c.closest('tr').getAttribute('data-u')] = v; }); majActionsSel(); };
+    Array.prototype.forEach.call(document.querySelectorAll('.be-sel'), function (c) { c.onchange = function () { selection[c.closest('tr').getAttribute('data-u')] = c.checked; majActionsSel(); }; });
+    majActionsSel();
+    Array.prototype.forEach.call(document.querySelectorAll('tr[data-u]'), function (tr) {
+      var u = tr.getAttribute('data-u');
+      tr.querySelector('.be-profil').onchange = function () { var v = this.value; modifierEmploye(u, function (e) { e.profil = v; delete e.droits; }); rendre(); };
+      Array.prototype.forEach.call(tr.querySelectorAll('.be-droit'), function (c) {
+        c.onchange = function () {
+          modifierEmploye(u, function (e) {
+            var dr = JSON.parse(JSON.stringify(B.droitsEffectifs(e, profilsD())));
+            if (c.checked) { dr[c.getAttribute('data-d')] = true; } else { delete dr[c.getAttribute('data-d')]; }
+            var p = profilDe(e.profil);
+            if (p && egalDroits(dr, p.d.droits)) { delete e.droits; } else { e.droits = dr; }
+          });
+          rendre();
+        };
+      });
+      tr.querySelector('.be-fiche').onclick = function () { ouvrirFiche(u); };
+      tr.querySelector('.be-note').onclick = function () { ouvrirNote(u); };
+    });
+    $('be-sauver').onclick = function () {
+      var liste = Object.keys(modifies), c = Promise.resolve(), n = 0;
+      liste.forEach(function (u) {
+        c = c.then(function () {
+          var e = modifies[u]; e.type = 'employe'; e.user = u; e.maj = new Date().toISOString(); e.majPar = moi;
+          return G.enregistrer(employes[u], e).then(function (id) { employes[u] = { id: id, d: e }; delete modifies[u]; n++; });
+        });
+      });
+      c.then(function () { dire(n + ' employé(s) enregistré(s).'); }).catch(function (er) { dire('Enregistrement interrompu : ' + (er && er.message ? er.message : er), true); });
+    };
+  }
+
+  window.BonnevilleModule = { aller: function (nom, valeur) { onglet = nom || 'employes'; if (onglet === 'regles') { reglesEdition = null; } if (valeur === 'sansProfil') { filtre.profil = '-'; } message = null; if (users.length) { rendre(); } } };
+  function refuser() {
+    $('be-onglets').style.display = 'none';
+    $('be-contenu').innerHTML = '<div class="refus"><div style="font-size:40px">🔒</div><h2>Accès réservé aux administrateurs MyGeotab</h2><p class="aide">Bonneville - Employés demande le rôle de sécurité <b>Administrateur dans MyGeotab</b> (Utilisateurs → Autorisation de sécurité). Le profil « Administrateur Heures &amp; Dépenses » ne suffit pas. Adresse-toi à un administrateur Geotab de Bonneville.</p></div>';
+  }
+
+  return {
+    initialize: function (api, state, callback) {
+      try {
+        G = B.creerApi(api);
+        $('be-version').textContent = 'version ' + VERSION;
+        Array.prototype.forEach.call(document.querySelectorAll('#be-onglets button'), function (b) {
+          b.onclick = function () { onglet = b.getAttribute('data-o'); message = null; rendre(); };
+        });
+      } catch (e) { console.warn(e); }
+      callback();
+    },
+    focus: function (api) {
+      G = B.creerApi(api);
+      G.session().then(function (s) {
+        moi = s.userName || '';
+        return G.estAdministrateur(moi);
+      }).then(function (admin) {
+        if (!admin) { refuser(); return; }
+        $('be-onglets').style.display = '';
+        return charger();
+      }).catch(function (e) {
+        $('be-contenu').innerHTML = '<main><div class="message erreur">Lecture impossible : ' + h(e && e.message ? e.message : e) + '</div></main>';
+      });
+    },
+    blur: function () {}
+  };
+};
+
+// Noms possibles donnés par MyGeotab ou Drive selon la configuration (nom de l'extension ou du fichier)
+(function (noms, f) {
+  var vus = {};
+  noms.forEach(function (n) {
+    var sans = n.normalize ? n.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : n;
+    [n, sans].forEach(function (x) {
+      var mots = x.split(/[^A-Za-z0-9\u00C0-\u00FF]+/).filter(Boolean);
+      if (!mots.length) { return; }
+      var camel = mots[0].charAt(0).toLowerCase() + mots[0].slice(1) + mots.slice(1).map(function (m) { return m.charAt(0).toUpperCase() + m.slice(1); }).join('');
+      var camelBas = mots[0].toLowerCase() + mots.slice(1).map(function (m) { return m.charAt(0).toUpperCase() + m.slice(1).toLowerCase(); }).join('');
+      [x, camel, camelBas, camel.charAt(0).toUpperCase() + camel.slice(1), camel.toLowerCase(), mots.join(''), mots.join('-'), mots.join('-').toLowerCase(), mots.join('_').toLowerCase(), mots.join(' ')].forEach(function (v) { vus[v] = 1; });
+    });
+  });
+  Object.keys(vus).forEach(function (v) { if (!window.geotab.addin[v]) { window.geotab.addin[v] = f; } });
+})(["Bonneville - Employés", "Bonneville Employés", "Bonneville - Employes", "employes", "employés"], geotab.addin.employes);
+</script>
+</body>
+</html>
