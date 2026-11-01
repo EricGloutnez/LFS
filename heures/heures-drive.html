@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Bonneville - Heures &amp; Dépenses</title>
-<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.1.7"></script>
+<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.1.8"></script>
 </head>
 <body style="margin:0">
 <div id="bd" data-theme="jour">
@@ -51,7 +51,7 @@
   .bd-refus { margin: 24px 2px; padding: 24px 20px; border-radius: 16px; background: var(--surface); border: 3px solid var(--non); display: flex; flex-direction: column; gap: 14px; text-align: center; }
   .bd-refus b { font-size: 30px; color: var(--non); line-height: 1.15; } .bd-refus span { font-size: 21px; font-weight: 600; line-height: 1.4; }
   #bd:not(.en-module) #hd { display: none; }
-  #bd #hd { min-height: calc(100vh - 64px); }
+  #bd #hd { min-height: calc(100vh - 64px); min-height: calc(100dvh - 64px); padding-bottom: calc(104px + env(safe-area-inset-bottom, 0px)); }
   #hd .entete { display: none !important; }
   #bd-attente { display: none; padding: 40px 20px; text-align: center; color: var(--doux); font-size: 16px; }
 </style>
@@ -86,6 +86,11 @@
   #hd .totaux { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
   #hd .totaux div { display: flex; flex-direction: column; gap: 2px; padding-left: 10px; box-shadow: inset 3px 0 0 var(--accent); }
   #hd .totaux b { font-size: 20px; } #hd .totaux span { font-size: 12px; color: #c4ccd4; font-weight: 600; }
+  #hd .periode .encours { font-size: 13px; color: #c4ccd4; }
+  /* Dépenses : bloc de période clair */
+  #hd .periode.claire { background: var(--surface); color: var(--encre); border: 1px solid var(--ligne); }
+  #hd .periode.claire .fleche { border-color: var(--ligne); color: var(--encre); }
+  #hd .periode.claire .totaux span, #hd .periode.claire .encours { color: var(--doux); }
   #hd .bascule { display: grid; grid-template-columns: 1fr 1fr; background: var(--bande); border-radius: 12px; padding: 4px; gap: 4px; }
   #hd .bascule button { min-height: 52px; border: 0; border-radius: 9px; background: transparent; color: var(--doux); font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
   #hd .bascule button small { font-size: 12px; font-weight: 600; }
@@ -141,7 +146,7 @@
 <script>
 (function () {
   'use strict';
-  var VERSION = '1.1.7';
+  var VERSION = '1.1.8';
   var B = window.Bonneville;
   var api = null, G = null, moi = '', monNom = '', droits = {}, pret = false;
   var heures = [], depenses = [];
@@ -191,8 +196,8 @@
   function blocPeriode() {
     var p = periode, cour = periodeCourante();
     var hP = dansPeriode(heures, p), s1 = hP.filter(function (x) { return x.d.date <= p.s1.fin; }), s2 = hP.filter(function (x) { return x.d.date >= p.s2.debut; });
-    var html = '<section class="periode"><div class="haut"><button type="button" class="fleche" data-a="periode" data-v="-1" aria-label="Période précédente">‹</button>'
-      + '<span class="titre">Période ' + h(B.libellePeriode(p)) + (p.n === cour.n ? '<br><span style="font-size:13px;color:#c4ccd4">Période en cours</span>' : '') + '</span>'
+    var html = '<section class="periode' + (ecran === 'depenses' ? ' claire' : '') + '"><div class="haut"><button type="button" class="fleche" data-a="periode" data-v="-1" aria-label="Période précédente">‹</button>'
+      + '<span class="titre">Période ' + h(B.libellePeriode(p)) + (p.n === cour.n ? '<br><span class="encours">Période en cours</span>' : '') + '</span>'
       + '<button type="button" class="fleche" data-a="periode" data-v="1" aria-label="Période suivante"' + (p.n >= cour.n ? ' disabled' : '') + '>›</button></div>';
     if (ecran === 'heures') {
       html += '<div class="totaux"><div><b>' + B.duree(totalMinutes(s1)) + '</b><span>Semaine 1</span></div><div><b>' + B.duree(totalMinutes(s2)) + '</b><span>Semaine 2</span></div><div><b>' + B.duree(totalMinutes(hP)) + '</b><span>Total</span></div></div>';
@@ -452,7 +457,7 @@ window.__bnErreurs = [];
 window.addEventListener('error', function (e) { try { window.__bnErreurs.push((e.message || 'erreur') + (e.filename ? ' (' + String(e.filename).split('/').pop() + ':' + e.lineno + ')' : '')); } catch (x) {} });
 (function () {
   'use strict';
-  var VERSION = '1.1.7';
+  var VERSION = '1.1.8';
   var B = window.Bonneville;
   var BASE = 'https://ericgloutnez.github.io/LFS/heures/';
   var CACHER = '.entete { display: none !important; } #lfsd > .pied { display: none !important; }';
@@ -462,7 +467,7 @@ window.addEventListener('error', function (e) { try { window.__bnErreurs.push((e
 
   // La bibliothèque commune peut arriver après ce script (Drive et MyGeotab chargent parfois les scripts dans le désordre).
   // On l'attend, on la charge nous-mêmes au besoin, et on en garde une copie pour le hors réseau.
-  var URL_COMMUN = BASE + 'heures-commun.js?v=1.1.7', communTexte = null;
+  var URL_COMMUN = BASE + 'heures-commun.js?v=1.1.8', communTexte = null;
   function chargerCommunTexte() {
     return fetch(URL_COMMUN).then(function (r) { if (!r.ok) { throw new Error('HTTP ' + r.status); } return r.text(); })
       .then(function (t) { communTexte = t; try { localStorage.setItem('hd-commun', t); } catch (e) {} return t; })

@@ -1,4 +1,4 @@
-/* Bonneville - Heures & Dépenses : bibliothèque commune (version 1.1.7)
+/* Bonneville - Heures & Dépenses : bibliothèque commune (version 1.1.8)
    Utilisée par : heures.html et heures-drive.html (coquilles), tempo.html, tempo-drive.html et employes.html.
    Stockage : AddInData de Geotab, identifiant propre à Heures & Dépenses (séparé de LFS).
    Types enregistrés : employe (accès), heure (une entrée d'heures), depense (une dépense avec reçu).
@@ -8,7 +8,7 @@
   var ADDIN_ID = 'aqKJVB4VwR32I2cfuHWClzw';      // Stockage de Heures & Dépenses
   var LFS_ID = 'aXdeNEZ7tQ7eMPNywYFFKrA';        // Stockage de LFS (lecture seule)
   var TYPES_LFS = ['voyage', 'formresume'];      // Types lus dans LFS, jamais écrits par Heures & Dépenses
-  var VERSION = '1.1.7';
+  var VERSION = '1.1.8';
   var TELEPHONE = '(438) 978-2162';
 
   // ---------- Accès à Geotab
