@@ -12,8 +12,8 @@
     {
       "url": "https://ericgloutnez.github.io/LFS/heures/heures-drive.html",
       "path": "DriveAppLink/",
-      "menuName": { "fr": "Heures & Dépenses", "en": "Hours & Expenses" },
-      "svgIcon": "https://ericgloutnez.github.io/LFS/bonneville-icone.svg"
+      "menuName": { "fr": "Bonneville", "en": "Bonneville" },
+      "icon": "https://ericgloutnez.github.io/LFS/bonneville-icone.svg"
     }
   ],
   "isSigned": false

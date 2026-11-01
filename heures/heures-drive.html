@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Bonneville - Heures &amp; Dépenses</title>
-<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.1.1"></script>
+<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.1.2"></script>
 </head>
 <body style="margin:0">
 <div id="bd" data-theme="jour">
@@ -68,7 +68,7 @@ window.__bnErreurs = [];
 window.addEventListener('error', function (e) { try { window.__bnErreurs.push((e.message || 'erreur') + (e.filename ? ' (' + String(e.filename).split('/').pop() + ':' + e.lineno + ')' : '')); } catch (x) {} });
 (function () {
   'use strict';
-  var VERSION = '1.1.1';
+  var VERSION = '1.1.2';
   var B = window.Bonneville;
   var BASE = 'https://ericgloutnez.github.io/LFS/heures/';
   var CACHER = '.entete { display: none !important; } #lfsd > .pied { display: none !important; }';
@@ -78,7 +78,7 @@ window.addEventListener('error', function (e) { try { window.__bnErreurs.push((e
 
   // La bibliothèque commune peut arriver après ce script (Drive et MyGeotab chargent parfois les scripts dans le désordre).
   // On l'attend, on la charge nous-mêmes au besoin, et on en garde une copie pour le hors réseau.
-  var URL_COMMUN = BASE + 'heures-commun.js?v=1.1.1', communTexte = null;
+  var URL_COMMUN = BASE + 'heures-commun.js?v=1.1.2', communTexte = null;
   function chargerCommunTexte() {
     return fetch(URL_COMMUN).then(function (r) { if (!r.ok) { throw new Error('HTTP ' + r.status); } return r.text(); })
       .then(function (t) { communTexte = t; try { localStorage.setItem('hd-commun', t); } catch (e) {} return t; })
@@ -280,13 +280,18 @@ window.addEventListener('error', function (e) { try { window.__bnErreurs.push((e
   window.geotab = window.geotab || {}; window.geotab.addin = window.geotab.addin || {};
   if (cibles.indexOf(window.geotab.addin) < 0) { cibles.push(window.geotab.addin); }
   function annoncer(noms, f) { noms.forEach(function (n) { cibles.forEach(function (c) { try { c[n] = f; } catch (e) {} }); }); }
-  annoncer(['heuresDrive', 'HeuresDrive', 'heuresdrive', 'heures-drive', 'heures_drive', 'Heures Drive', 'heures', 'Heures'], fabrique);
+  annoncer(['heuresDrive', 'HeuresDrive', 'heuresdrive', 'heures-drive', 'heures_drive', 'Heures Drive', 'heures', 'Heures', 'bonneville', 'Bonneville', 'BONNEVILLE', 'bonnevilleDrive', 'BonnevilleDrive', 'bonnevilleHeuresDepenses', 'bonnevilleHeuresEtDepenses', 'BonnevilleHeuresDepenses', 'Bonneville - Heures & Dépenses', 'bonneville-heures-depenses'], fabrique);
   // Diagnostic : noter les noms que Drive demande, et afficher un rapport si l'application n'a pas démarré
   var demandes = [];
   try {
     if (window.Proxy) {
       var reel = window.geotab.addin;
-      window.geotab.addin = new Proxy(reel, { get: function (t, k) { if (typeof k === 'string' && demandes.indexOf(k) < 0 && demandes.length < 25) { demandes.push(k); } return t[k]; } });
+      // Peu importe le nom interne que Drive donne à l'add-in, on répond avec l'application
+      window.geotab.addin = new Proxy(reel, { get: function (t, k) {
+        if (typeof k === 'string' && demandes.indexOf(k) < 0 && demandes.length < 25) { demandes.push(k); }
+        if (t[k] !== undefined || typeof k !== 'string' || /^(then|toJSON|constructor|prototype|__proto__|hasOwnProperty|valueOf|toString|length)$/.test(k)) { return t[k]; }
+        return fabrique;
+      } });
     }
   } catch (e) { window.__bnErreurs.push('Proxy : ' + e.message); }
   setTimeout(function () {
@@ -299,7 +304,8 @@ window.addEventListener('error', function (e) { try { window.__bnErreurs.push((e
       + 'Bibliothèque commune : ' + (window.Bonneville ? 'chargée' : 'absente') + '\n'
       + 'Erreurs : ' + (window.__bnErreurs.length ? window.__bnErreurs.join(' | ') : 'aucune') + '\n'
       + 'Navigateur : ' + navigator.userAgent;
-    if (z) { z.innerHTML = '<div style="background:#fff;border:2px solid #b42318;border-radius:12px;padding:12px;font:13px/1.45 monospace;white-space:pre-wrap;color:#14191e">' + rapport.replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }) + '</div><div style="font-size:14px;margin-top:8px">Fais une capture de cet écran et envoie-la.</div>'; }
+    var att = document.getElementById('bd-attente'); if (att) { att.style.display = 'none'; }
+    if (z) { z.style.display = 'flex'; z.innerHTML = '<div style="background:#fff;border:2px solid #b42318;border-radius:12px;padding:12px;font:13px/1.45 monospace;white-space:pre-wrap;color:#14191e">' + rapport.replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }) + '</div><div style="font-size:14px;margin-top:8px">Fais une capture de cet écran et envoie-la.</div>'; }
   }, 6000);
 })();
 </script>
