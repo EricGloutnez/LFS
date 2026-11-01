@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Bonneville - Heures &amp; Dépenses</title>
-<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.1.3"></script>
+<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.1.4"></script>
 </head>
 <body style="margin:0">
 <div id="bd" data-theme="jour">
@@ -68,17 +68,17 @@ window.__bnErreurs = [];
 window.addEventListener('error', function (e) { try { window.__bnErreurs.push((e.message || 'erreur') + (e.filename ? ' (' + String(e.filename).split('/').pop() + ':' + e.lineno + ')' : '')); } catch (x) {} });
 (function () {
   'use strict';
-  var VERSION = '1.1.3';
+  var VERSION = '1.1.4';
   var B = window.Bonneville;
   var BASE = 'https://ericgloutnez.github.io/LFS/heures/';
   var CACHER = '.entete { display: none !important; } #lfsd > .pied { display: none !important; }';
   var MODULES = {
-    tempo: { fichier: 'tempo-drive.html', noms: ['tempoDrive', 'bonnevilleTempo', 'tempo'], titre: 'Heures & Dépenses' }
+    tempo: { fichier: 'tempo-drive.html', noms: ['tempoDrive', 'bonnevilleTempo', 'tempo'], titre: 'Feuille de temps' }
   };
 
   // La bibliothèque commune peut arriver après ce script (Drive et MyGeotab chargent parfois les scripts dans le désordre).
   // On l'attend, on la charge nous-mêmes au besoin, et on en garde une copie pour le hors réseau.
-  var URL_COMMUN = BASE + 'heures-commun.js?v=1.1.3', communTexte = null;
+  var URL_COMMUN = BASE + 'heures-commun.js?v=1.1.4', communTexte = null;
   function chargerCommunTexte() {
     return fetch(URL_COMMUN).then(function (r) { if (!r.ok) { throw new Error('HTTP ' + r.status); } return r.text(); })
       .then(function (t) { communTexte = t; try { localStorage.setItem('hd-commun', t); } catch (e) {} return t; })
@@ -118,32 +118,39 @@ window.addEventListener('error', function (e) { try { window.__bnErreurs.push((e
     }).then(function (t) { try { localStorage.setItem(cle, t); } catch (e) {} return t; })
       .catch(function (e) { var t = null; try { t = localStorage.getItem(cle); } catch (x) {} if (t) { return t; } throw e; });
   }
+  var etapes = {};
+  function etape(cle, t) { etapes[cle] = (etapes[cle] || []).concat([Math.round(performance.now() / 100) / 10 + ' s : ' + t]); }
   function chargerModule(cle) {
     if (instances[cle]) { return Promise.resolve(instances[cle]); }
     if (enChargement[cle]) { return enChargement[cle]; }
     var m = MODULES[cle];
+    etape(cle, 'téléchargement de ' + m.fichier);
     enChargement[cle] = texteModule(m).then(function (html) {
+      etape(cle, 'téléchargé (' + html.length + ' caractères), bibliothèque ' + (communTexte ? 'intégrée' : 'externe'));
       // Les balises sont assemblées en morceaux : MyGeotab lit le texte de la page et prendrait sinon ces chaînes pour de vraies balises.
       var SCR = 'scr' + 'ipt';
-      var avant = '<' + SCR + '>window.geotab = { addin: {} }; window.__bonnevilleIntegre = true;</' + SCR + '><style>' + CACHER + '</style>';
+      var avant = '<' + SCR + '>window.geotab = { addin: {} }; window.__bonnevilleIntegre = true; window.onerror = function (msg, src, l) { try { parent.__bnErreurs.push(\'module : \' + msg + \' (ligne \' + l + \')\'); } catch (e) {} };</' + SCR + '><style>' + CACHER + '</style>';
       html = html.replace(/<head>/i, '<head>' + avant);
       if (communTexte) { html = html.replace(new RegExp('<' + SCR + ' src="[^"]*heures-commun[.]js[^"]*"></' + SCR + '>'), function () { return '<' + SCR + '>' + communTexte + '</' + SCR + '>'; }); }
       return new Promise(function (ok, ko) {
         var cadre = document.createElement('iframe');
         cadre.title = 'Heures & Dépenses - ' + m.titre; cadre.setAttribute('data-m', cle);
         cadre.onload = function () {
+          etape(cle, 'cadre chargé');
           try {
             var w = cadre.contentWindow, fab = null;
             m.noms.forEach(function (n) { if (!fab && w.geotab && w.geotab.addin && w.geotab.addin[n]) { fab = w.geotab.addin[n]; } });
             if (!fab) { throw new Error('Le module ' + m.titre + ' ne s’est pas annoncé.'); }
+            etape(cle, 'module trouvé, démarrage');
             var inst = fab();
             inst.initialize(api, state || {}, function () {
+              etape(cle, 'module démarré');
               try { inst.focus(api, state || {}); } catch (e) {}
               instances[cle] = { cadre: cadre, inst: inst, fenetre: w };
               try { w.BonnevilleModule.theme(themeActuel()); } catch (e) {}
               ok(instances[cle]);
             });
-          } catch (e) { ko(e); }
+          } catch (e) { etape(cle, 'erreur : ' + e.message); ko(e); }
         };
         cadre.srcdoc = html;
         $('bd-modules').appendChild(cadre);
@@ -157,12 +164,19 @@ window.addEventListener('error', function (e) { try { window.__bnErreurs.push((e
     $('bd-titre').textContent = MODULES[cle].titre;
     Array.prototype.forEach.call(document.querySelectorAll('#bd-modules iframe'), function (f) { f.className = f.getAttribute('data-m') === cle ? 'on' : ''; });
     $('bd-attente').style.display = instances[cle] ? 'none' : 'block';
+    $('bd-attente').textContent = 'Ouverture…';
+    var delai = setTimeout(function () {
+      if (instances[cle] || courant !== cle) { return; }
+      var rapport = 'Bonneville ' + VERSION + ' · ouverture de ' + MODULES[cle].fichier + '\n' + (etapes[cle] || []).join('\n') + '\nErreurs : ' + (window.__bnErreurs.length ? window.__bnErreurs.join(' | ') : 'aucune') + '\nNavigateur : ' + navigator.userAgent;
+      $('bd-attente').innerHTML = '<div style="text-align:left;background:#fff;border:2px solid #b42318;border-radius:12px;padding:12px;font:13px/1.45 monospace;white-space:pre-wrap;color:#14191e">' + h(rapport) + '</div><div style="margin-top:10px">Fais une capture de cet écran et envoie-la.</div><button type="button" class="bd-btn" style="margin-top:12px" onclick="location.reload()">Réessayer</button>';
+    }, 12000);
     chargerModule(cle).then(function (x) {
+      clearTimeout(delai);
       $('bd-attente').style.display = 'none';
       if (courant !== cle) { return; }
       x.cadre.className = 'on';
       if (ecran) { setTimeout(function () { try { x.fenetre.BonnevilleModule.aller(ecran); } catch (e) {} }, 50); }
-    }).catch(function (e) { $('bd-attente').textContent = 'Ouverture impossible : ' + (e && e.message ? e.message : e) + '. Vérifie le réseau puis réessaie.'; });
+    }).catch(function (e) { clearTimeout(delai); $('bd-attente').textContent = 'Ouverture impossible : ' + (e && e.message ? e.message : e) + '. Vérifie le réseau puis réessaie.'; });
     window.scrollTo(0, 0);
   }
   window.bonnevilleAccueil = function () { accueil(); };
