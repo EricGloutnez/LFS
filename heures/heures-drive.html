@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Bonneville - Heures &amp; Dépenses</title>
-<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.1.5"></script>
+<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.1.6"></script>
 </head>
 <body style="margin:0">
 <div id="bd" data-theme="jour">
@@ -47,8 +47,9 @@
   .bd-badge { position: absolute; top: 10px; right: 10px; min-width: 24px; height: 24px; padding: 0 6px; border-radius: 12px; background: var(--non); color: #fff; font-size: 13px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
   .bd-refus { margin: 24px 2px; padding: 24px 20px; border-radius: 16px; background: var(--surface); border: 3px solid var(--non); display: flex; flex-direction: column; gap: 14px; text-align: center; }
   .bd-refus b { font-size: 30px; color: var(--non); line-height: 1.15; } .bd-refus span { font-size: 21px; font-weight: 600; line-height: 1.4; }
-  #bd-modules iframe { display: none; width: 100%; height: calc(100vh - 64px); border: none; background: var(--fond); }
-  #bd-modules iframe.on { display: block; }
+  #bd:not(.en-module) #hd { display: none; }
+  #bd #hd { min-height: calc(100vh - 64px); }
+  #hd .entete { display: none !important; }
   #bd-attente { display: none; padding: 40px 20px; text-align: center; color: var(--doux); font-size: 16px; }
 </style>
 <div class="bd-entete">
@@ -60,7 +61,380 @@
 </div>
 <div id="bd-accueil"><div style="color:var(--doux)">Chargement…</div></div>
 <div id="bd-attente">Ouverture…</div>
-<div id="bd-modules"></div>
+<div id="bd-modules">
+<div id="hd" data-theme="jour">
+<style>
+  #hd { --encre: #14191e; --doux: #4f5963; --ligne: #d3d8dd; --fond: #eef0f2; --surface: #ffffff; --bande: #e3e6e9; --accent: #f2a900; --ok: #1b7f3b; --non: #b42318; --noir: #14191e; --champ: #ffffff;
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; color: var(--encre); background: var(--fond); min-height: 100vh; -webkit-text-size-adjust: 100%; padding-bottom: 86px; }
+  #hd[data-theme="nuit"] { --encre: #eef1f4; --doux: #a9b3bd; --ligne: #3a434c; --fond: #0f1317; --surface: #1b2127; --bande: #262e36; --noir: #000000; --champ: #12171c; }
+  #hd * { box-sizing: border-box; }
+  #hd .entete { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: var(--surface); border-bottom: 1px solid var(--ligne); }
+  #hd .entete img { height: 18px; } #hd .entete b { font-size: 17px; }
+  #hd { display: flex; flex-direction: column; box-sizing: border-box; }
+  #hd main { padding: 16px; display: flex; flex-direction: column; gap: 14px; max-width: 640px; margin: 0 auto; width: 100%; flex: 1; }
+  #hd h2 { margin: 0; font-size: 22px; }
+  #hd .aide { font-size: 14px; color: var(--doux); }
+  #hd .carte { background: var(--surface); border: 1px solid var(--ligne); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  #hd .periode { background: var(--noir); color: #fff; border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+  #hd .periode .haut { display: flex; align-items: center; gap: 8px; }
+  #hd .periode .titre { flex: 1; text-align: center; font-weight: 700; font-size: 16px; }
+  #hd .fleche { width: 44px; height: 44px; border-radius: 12px; border: 1px solid #3a434c; background: transparent; color: #fff; font-size: 22px; cursor: pointer; }
+  #hd .fleche:disabled { opacity: .3; }
+  #hd .totaux { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  #hd .totaux div { display: flex; flex-direction: column; gap: 2px; padding-left: 10px; box-shadow: inset 3px 0 0 var(--accent); }
+  #hd .totaux b { font-size: 20px; } #hd .totaux span { font-size: 12px; color: #c4ccd4; font-weight: 600; }
+  #hd .bascule { display: grid; grid-template-columns: 1fr 1fr; background: var(--bande); border-radius: 12px; padding: 4px; gap: 4px; }
+  #hd .bascule button { min-height: 52px; border: 0; border-radius: 9px; background: transparent; color: var(--doux); font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+  #hd .bascule button small { font-size: 12px; font-weight: 600; }
+  #hd .bascule button.on { background: var(--surface); color: var(--encre); box-shadow: 0 1px 3px rgba(0,0,0,.15); }
+  #hd .jour { display: flex; flex-direction: column; gap: 6px; }
+  #hd .jour-titre { display: flex; justify-content: space-between; font-size: 14px; font-weight: 700; color: var(--doux); padding: 0 4px; }
+  #hd .jour-titre.auj { color: var(--encre); }
+  #hd .ligne { width: 100%; text-align: left; background: var(--surface); border: 1px solid var(--ligne); border-radius: 12px; padding: 12px 14px; display: flex; gap: 12px; align-items: center; font: inherit; color: var(--encre); }
+  #hd button.ligne { cursor: pointer; }
+  #hd .ligne .txt { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  #hd .ligne .t { font-weight: 700; font-size: 16px; }
+  #hd .ligne .s { font-size: 14px; color: var(--doux); overflow-wrap: anywhere; }
+  #hd .ligne .v { font-weight: 800; font-size: 17px; white-space: nowrap; }
+  #hd .vide { font-size: 14px; color: var(--doux); padding: 4px 4px 0; }
+  #hd .btn { min-height: 54px; border-radius: 12px; border: 1px solid var(--ligne); background: var(--surface); color: var(--encre); font: inherit; font-size: 17px; font-weight: 700; cursor: pointer; padding: 0 16px; width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+  #hd .btn.jaune { background: var(--accent); border-color: var(--accent); color: #14191e; }
+  #hd .btn.rouge { color: var(--non); border-color: var(--non); background: transparent; }
+  #hd .btn:disabled { opacity: .5; cursor: default; }
+  #hd .rangee { display: flex; gap: 10px; }
+  #hd label.champ { display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 700; color: var(--doux); }
+  #hd input, #hd textarea { font: inherit; font-size: 18px; color: var(--encre); background: var(--champ); border: 2px solid var(--ligne); border-radius: 12px; padding: 12px; width: 100%; min-height: 54px; }
+  #hd textarea { min-height: 96px; resize: vertical; }
+  #hd input:focus, #hd textarea:focus { outline: none; border-color: var(--accent); }
+  #hd .duree { font-size: 26px; font-weight: 800; }
+  #hd .message { border-radius: 12px; padding: 12px 14px; font-size: 15px; font-weight: 600; background: #e7f4ec; color: #14532d; }
+  #hd .message.erreur { background: #fde8e7; color: #7a1a12; }
+  #hd .photo { width: 100%; max-height: 360px; object-fit: contain; border-radius: 12px; background: var(--bande); }
+  #hd .fichier { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  #hd .onglets-bas { position: fixed; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: 1fr 1fr; background: var(--surface); border-top: 1px solid var(--ligne); padding-bottom: env(safe-area-inset-bottom, 0px); z-index: 10; }
+  #hd .onglets-bas button { min-height: 66px; border: 0; background: transparent; color: var(--doux); font: inherit; font-size: 14px; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; cursor: pointer; border-top: 3px solid transparent; }
+  #hd .onglets-bas button.on { color: var(--encre); border-top-color: var(--accent); }
+  #hd .refus { border: 3px solid var(--non); text-align: center; } #hd .refus h2 { color: var(--non); font-size: 26px; } #hd .refus div { font-size: 17px; font-weight: 600; }
+  #hd .pied { text-align: center; font-size: 13px; font-weight: 600; color: var(--doux); padding: 16px 0 4px; margin-top: auto; }
+  #hd .onglets-bas.un { grid-template-columns: 1fr; }
+  #hd .attente { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; z-index: 20; color: #fff; font-size: 18px; font-weight: 700; }
+  #hd button:focus-visible, #hd input:focus-visible, #hd textarea:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+</style>
+<div class="entete"><img alt="Bonneville" src="https://ericgloutnez.github.io/LFS/logo-bonneville.png"><b>Heures &amp; Dépenses</b></div>
+<main id="hd-ecran"><div class="aide">Chargement…</div></main>
+<nav class="onglets-bas" id="hd-onglets" aria-label="Sections">
+  <button type="button" data-e="heures" class="on"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Heures</button>
+  <button type="button" data-e="depenses"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z M9 8h6 M9 12h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>Dépenses</button>
+</nav>
+</div>
+</div>
+<script>
+(function () {
+  'use strict';
+  var VERSION = '1.1.6';
+  var B = window.Bonneville;
+  var api = null, G = null, moi = '', monNom = '', droits = {}, pret = false;
+  var heures = [], depenses = [];
+  var periode = null, semaine = 1, ecran = 'heures', edition = null, message = null, photo = null, occupe = false;
+
+  function $(id) { return document.getElementById(id); }
+  function h(t) { return String(t === undefined || t === null ? '' : t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function lire(c) { try { var v = localStorage.getItem(c); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+  function ecrire(c, v) { try { localStorage.setItem(c, JSON.stringify(v)); } catch (e) {} }
+  function aujour() { return B.jourIso(); }
+  function argent(n) { return B.argent(n); }
+  function montantDe(t) { var n = parseFloat(String(t || '').replace(/\s|\$/g, '').replace(',', '.')); return isNaN(n) ? null : Math.round(n * 100) / 100; }
+  function dire(t, erreur) { message = { t: String(t).replace(/\.\.$/, '.'), e: !!erreur }; rendre(); }
+
+  // ---------- Règles de saisie
+  // Les entrées de la période en cours restent modifiables. Celles d'une période terminée sont fermées (le bureau peut corriger).
+  function periodeCourante() { return B.periodeDe(aujour()); }
+  function modifiable(date) { return date >= periodeCourante().debut; }
+  function dansPeriode(l, p) { return l.filter(function (x) { return x.d.date >= p.debut && x.d.date <= p.fin; }); }
+  function totalMinutes(l) { return l.reduce(function (s, x) { return s + B.minutesEntree(x.d); }, 0); }
+  function totalArgent(l) { return l.reduce(function (s, x) { return s + (Number(x.d.montant) || 0); }, 0); }
+  function trier(l) { return l.sort(function (a, b) { return (a.d.date + a.d.debut).localeCompare(b.d.date + b.d.debut); }); }
+
+  // ---------- Chargement
+  function cache() { ecrire('hd-drive-' + moi, { heures: heures, depenses: depenses, droits: droits, nom: monNom }); }
+  function charger() {
+    return G.session().then(function (s) {
+      moi = s.userName || '';
+      var c = lire('hd-drive-' + moi);
+      if (c) { heures = c.heures || []; depenses = c.depenses || []; droits = c.droits || {}; monNom = c.nom || ''; pret = true; rendre(); }
+      return Promise.all([
+        G.lireChamp('employe', 'user', moi),
+        G.lireChamp('heure', 'user', moi),
+        G.lireChamp('depense', 'user', moi),
+        G.appel('Get', { typeName: 'User', search: { name: moi } }).catch(function () { return []; })
+      ]);
+    }).then(function (r) {
+      var e = r[0][0]; droits = e ? (e.details.droits || {}) : {};
+      heures = trier(r[1].map(function (l) { return { id: l.id, d: l.details }; }));
+      depenses = trier(r[2].map(function (l) { return { id: l.id, d: l.details }; }));
+      var u = r[3] && r[3][0]; monNom = u ? ((u.firstName || '') + ' ' + (u.lastName || '')).trim() || moi : (monNom || moi);
+      pret = true; cache(); rendre();
+    }).catch(function (e) { pret = true; if (!heures.length && !depenses.length) { dire('Lecture impossible : ' + (e && e.message ? e.message : e) + '. Vérifie le réseau.', true); } else { rendre(); } });
+  }
+
+  // ---------- Rendu
+  function blocPeriode() {
+    var p = periode, cour = periodeCourante();
+    var hP = dansPeriode(heures, p), s1 = hP.filter(function (x) { return x.d.date <= p.s1.fin; }), s2 = hP.filter(function (x) { return x.d.date >= p.s2.debut; });
+    var html = '<section class="periode"><div class="haut"><button type="button" class="fleche" data-a="periode" data-v="-1" aria-label="Période précédente">‹</button>'
+      + '<span class="titre">Période ' + h(B.libellePeriode(p)) + (p.n === cour.n ? '<br><span style="font-size:13px;color:#c4ccd4">Période en cours</span>' : '') + '</span>'
+      + '<button type="button" class="fleche" data-a="periode" data-v="1" aria-label="Période suivante"' + (p.n >= cour.n ? ' disabled' : '') + '>›</button></div>';
+    if (ecran === 'heures') {
+      html += '<div class="totaux"><div><b>' + B.duree(totalMinutes(s1)) + '</b><span>Semaine 1</span></div><div><b>' + B.duree(totalMinutes(s2)) + '</b><span>Semaine 2</span></div><div><b>' + B.duree(totalMinutes(hP)) + '</b><span>Total</span></div></div>';
+    } else {
+      var dP = dansPeriode(depenses, p);
+      html += '<div class="totaux"><div><b>' + argent(totalArgent(dP)) + '</b><span>Total</span></div><div><b>' + dP.length + '</b><span>dépense' + (dP.length > 1 ? 's' : '') + '</span></div></div>';
+    }
+    return html + '</section>';
+  }
+  function vueHeures() {
+    var p = periode, s = semaine === 1 ? p.s1 : p.s2, html = blocPeriode();
+    html += '<div class="bascule" role="group" aria-label="Semaine">'
+      + '<button type="button" data-a="semaine" data-v="1"' + (semaine === 1 ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>Semaine 1<small>' + h(B.libelleSemaine(p.s1)) + '</small></button>'
+      + '<button type="button" data-a="semaine" data-v="2"' + (semaine === 2 ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>Semaine 2<small>' + h(B.libelleSemaine(p.s2)) + '</small></button></div>';
+    if (modifiable(p.fin)) { html += '<button type="button" class="btn jaune" data-a="nouvelleHeure">+ Ajouter des heures</button>'; }
+    for (var i = 0; i < 7; i++) {
+      var d = B.ajouterJours(s.debut, i), l = heures.filter(function (x) { return x.d.date === d; });
+      if (d > aujour() && !l.length) { continue; }
+      html += '<div class="jour"><div class="jour-titre' + (d === aujour() ? ' auj' : '') + '"><span>' + h(B.JOURS[B.dateDe(d).getDay()] + ' ' + B.dateDe(d).getDate() + ' ' + B.MOIS[B.dateDe(d).getMonth()]) + (d === aujour() ? ' (aujourd’hui)' : '') + '</span><span>' + (l.length ? B.duree(totalMinutes(l)) : '') + '</span></div>';
+      html += l.length ? l.map(function (x) {
+        var m = modifiable(x.d.date);
+        return '<' + (m ? 'button type="button" data-a="modifierHeure" data-id="' + h(x.id) + '"' : 'div') + ' class="ligne"><span class="txt"><span class="t">' + h(B.heureFr(x.d.debut)) + ' à ' + h(B.heureFr(x.d.fin)) + '</span><span class="s">' + h(x.d.description) + '</span></span><span class="v">' + B.duree(B.minutesEntree(x.d)) + '</span></' + (m ? 'button' : 'div') + '>';
+      }).join('') : '<div class="vide">Aucune heure</div>';
+      html += '</div>';
+    }
+    if (!modifiable(p.fin)) { html += '<div class="aide">Cette période est terminée. Pour une correction, appelle le bureau.</div>'; }
+    return html;
+  }
+  function vueDepenses() {
+    var p = periode, l = dansPeriode(depenses, p).slice().reverse(), html = blocPeriode();
+    if (modifiable(p.fin)) { html += '<button type="button" class="btn jaune" data-a="nouvelleDepense">+ Ajouter une dépense</button>'; }
+    html += l.length ? l.map(function (x) {
+      var m = modifiable(x.d.date);
+      return '<' + (m ? 'button type="button" data-a="modifierDepense" data-id="' + h(x.id) + '"' : 'div') + ' class="ligne"><span class="txt"><span class="t">' + h(B.dateCourte(x.d.date)) + '</span><span class="s">' + h(x.d.description) + (x.d.recu ? ' · reçu joint' : '') + '</span></span><span class="v">' + argent(x.d.montant) + '</span></' + (m ? 'button' : 'div') + '>';
+    }).join('') : '<div class="vide">Aucune dépense pour cette période.</div>';
+    if (!modifiable(p.fin)) { html += '<div class="aide">Cette période est terminée. Pour une correction, appelle le bureau.</div>'; }
+    return html;
+  }
+  function vueFormHeure() {
+    var d = edition ? edition.d : { date: aujour(), debut: '', fin: '', description: '' }, cour = periodeCourante();
+    return '<h2>' + (edition ? 'Modifier des heures' : 'Ajouter des heures') + '</h2>'
+      + '<section class="carte">'
+      + '<label class="champ">Date<input type="date" id="fh-date" value="' + h(d.date) + '" min="' + cour.debut + '" max="' + aujour() + '"></label>'
+      + '<div class="rangee"><label class="champ" style="flex:1">Début<input type="time" id="fh-debut" value="' + h(d.debut) + '"></label><label class="champ" style="flex:1">Fin<input type="time" id="fh-fin" value="' + h(d.fin) + '"></label></div>'
+      + '<div class="aide">Durée : <span class="duree" id="fh-duree">' + (d.debut && d.fin ? B.duree(B.minutesEntree(d)) : '—') + '</span></div>'
+      + '<label class="champ">Projet (description)<textarea id="fh-desc" placeholder="ex. Livraison série 17520, chantier Saint-Jean">' + h(d.description) + '</textarea></label>'
+      + '</section>'
+      + '<button type="button" class="btn jaune" data-a="sauverHeure">Enregistrer</button>'
+      + '<div class="rangee"><button type="button" class="btn" data-a="retour">Annuler</button>' + (edition ? '<button type="button" class="btn rouge" data-a="supprimerHeure">Supprimer</button>' : '') + '</div>';
+  }
+  function vueFormDepense() {
+    var d = edition ? edition.d : { date: aujour(), montant: '', description: '' }, cour = periodeCourante();
+    var apercu = photo ? '<img class="photo" alt="Photo du reçu" src="' + h(photo.url) + '">' : (edition && edition.d.recu ? '<div class="aide" id="fd-recu-zone">Chargement du reçu…</div>' : '<div class="aide">Aucune photo pour l’instant.</div>');
+    return '<h2>' + (edition ? 'Modifier une dépense' : 'Ajouter une dépense') + '</h2>'
+      + '<section class="carte">'
+      + '<label class="champ">Date de la dépense<input type="date" id="fd-date" value="' + h(d.date) + '" min="' + cour.debut + '" max="' + aujour() + '"></label>'
+      + '<label class="champ">Montant total (taxes incluses)<input type="text" inputmode="decimal" id="fd-montant" placeholder="0,00 $" value="' + h(d.montant !== '' && d.montant !== undefined ? String(d.montant).replace('.', ',') : '') + '"></label>'
+      + '<label class="champ">Description<textarea id="fd-desc" placeholder="ex. Dîner, quincaillerie, essence">' + h(d.description) + '</textarea></label>'
+      + '</section>'
+      + '<section class="carte"><b>Photo du reçu</b>' + apercu
+      + '<div class="rangee"><label class="btn" for="fd-camera">Prendre une photo</label><label class="btn" for="fd-galerie">Choisir une photo</label></div>'
+      + '<input class="fichier" type="file" id="fd-camera" accept="image/*" capture="environment"><input class="fichier" type="file" id="fd-galerie" accept="image/*"></section>'
+      + '<button type="button" class="btn jaune" data-a="sauverDepense">Enregistrer</button>'
+      + '<div class="rangee"><button type="button" class="btn" data-a="retour">Annuler</button>' + (edition ? '<button type="button" class="btn rouge" data-a="supprimerDepense">Supprimer</button>' : '') + '</div>';
+  }
+  function pied() { return '<div class="pied">Bonneville - Version ' + VERSION + '</div>'; }
+  function rendre() {
+    var z = $('hd-ecran'); if (!z || !B) { return; }
+    if (!periode) { periode = periodeCourante(); semaine = B.semaineDe(periode, aujour()); }
+    var onglet = ecran === 'formHeure' ? 'heures' : (ecran === 'formDepense' ? 'depenses' : ecran);
+    Array.prototype.forEach.call(document.querySelectorAll('#hd-onglets button'), function (b) { b.className = b.getAttribute('data-e') === onglet ? 'on' : ''; });
+    var html = message ? '<div class="message' + (message.e ? ' erreur' : '') + '" role="status">' + h(message.t) + '</div>' : '';
+    if (!pret) { z.innerHTML = '<div class="aide">Chargement…</div>'; return; }
+    if (!B.aAcces(droits)) {
+      $('hd-onglets').style.display = 'none';
+      z.innerHTML = html + '<section class="carte refus" role="alert"><h2>Accès refusé</h2><div>Ton compte' + (moi ? ' (' + h(moi) + ')' : '') + ' n’a pas accès à cette application. Communique avec le Gestionnaire Livraison pour obtenir l’accès.</div></section>' + pied();
+      return;
+    }
+    // Chaque module n'apparaît que si l'employé y a accès
+    if (!droits.heures && (ecran === 'heures' || ecran === 'formHeure')) { ecran = 'depenses'; }
+    if (!droits.depenses && (ecran === 'depenses' || ecran === 'formDepense')) { ecran = 'heures'; }
+    onglet = ecran === 'formHeure' ? 'heures' : (ecran === 'formDepense' ? 'depenses' : ecran);
+    var nav = $('hd-onglets'), nb = 0;
+    Array.prototype.forEach.call(nav.querySelectorAll('button'), function (b) { var e = b.getAttribute('data-e'), ok = e === 'heures' ? !!droits.heures : !!droits.depenses; b.style.display = ok ? '' : 'none'; if (ok) { nb++; } b.className = e === onglet ? 'on' : ''; });
+    nav.className = 'onglets-bas' + (nb < 2 ? ' un' : ''); nav.style.display = nb < 2 ? 'none' : '';
+    $('hd').style.paddingBottom = nb < 2 ? '20px' : '';
+    html += ecran === 'formHeure' ? vueFormHeure() : ecran === 'formDepense' ? vueFormDepense() : ecran === 'depenses' ? vueDepenses() : vueHeures();
+    z.innerHTML = html + pied() + (occupe ? '<div class="attente">' + h(occupe) + '</div>' : '');
+    brancherForm();
+  }
+
+  // ---------- Formulaires
+  function majDuree() {
+    var a = $('fh-debut').value, b = $('fh-fin').value;
+    $('fh-duree').textContent = a && b ? B.duree(B.minutesEntree({ debut: a, fin: b })) : '—';
+  }
+  function choisirPhoto(input) {
+    var f = input.files && input.files[0]; if (!f) { return; }
+    garderChamps();
+    B.reduirePhoto(f).then(function (blob) {
+      if (photo) { URL.revokeObjectURL(photo.url); }
+      photo = { blob: blob, url: URL.createObjectURL(blob) }; rendre();
+    }).catch(function (e) { dire('Photo non ajoutée : ' + e.message, true); });
+  }
+  var brouillon = null;
+  function garderChamps() {
+    if (ecran !== 'formDepense' || !$('fd-date')) { return; }
+    var base = edition ? edition.d : {};
+    brouillon = { date: $('fd-date').value, montant: $('fd-montant').value, description: $('fd-desc').value };
+    if (edition) { edition = { id: edition.id, d: Object.assign({}, base, brouillon) }; } else { edition = null; }
+  }
+  function brancherForm() {
+    if (ecran === 'formHeure') {
+      $('fh-debut').oninput = majDuree; $('fh-fin').oninput = majDuree;
+    }
+    if (ecran === 'formDepense') {
+      if (brouillon && !edition) { $('fd-date').value = brouillon.date; $('fd-montant').value = brouillon.montant; $('fd-desc').value = brouillon.description; }
+      $('fd-camera').onchange = function () { choisirPhoto(this); };
+      $('fd-galerie').onchange = function () { choisirPhoto(this); };
+      var zone = $('fd-recu-zone');
+      if (zone && edition && edition.d.recu) {
+        B.lireRecu(api, edition.d.recu).then(function (b) {
+          var z2 = $('fd-recu-zone'); if (z2) { z2.outerHTML = '<img class="photo" alt="Photo du reçu" src="' + URL.createObjectURL(b) + '">'; }
+        }).catch(function () { var z2 = $('fd-recu-zone'); if (z2) { z2.textContent = 'Le reçu est enregistré (aperçu indisponible sans réseau).'; } });
+      }
+    }
+  }
+  function chevauche(d, idExclu) {
+    var a = B.minutesDe(d.debut), b = a + B.minutesEntree(d);
+    return heures.some(function (x) {
+      if (x.id === idExclu || x.d.date !== d.date) { return false; }
+      var c = B.minutesDe(x.d.debut), e = c + B.minutesEntree(x.d);
+      return a < e && c < b;
+    });
+  }
+  function sauverHeure() {
+    var d = { type: 'heure', user: moi, nom: monNom, date: $('fh-date').value, debut: $('fh-debut').value, fin: $('fh-fin').value, description: $('fh-desc').value.trim() };
+    var cour = periodeCourante();
+    if (!d.date || d.date < cour.debut || d.date > aujour()) { alert('Choisis une date entre le ' + B.dateLongue(cour.debut) + ' et aujourd’hui.'); return; }
+    if (!d.debut || !d.fin) { alert('Inscris l’heure de début et l’heure de fin.'); return; }
+    if (!B.minutesEntree(d)) { alert('L’heure de fin doit être différente de l’heure de début.'); return; }
+    if (!d.description) { alert('Décris le projet sur lequel tu as travaillé.'); return; }
+    if (chevauche(d, edition && edition.id) && !confirm('Ces heures chevauchent une autre entrée de la même journée. Enregistrer quand même ?')) { return; }
+    var maint = new Date().toISOString();
+    d.creeLe = edition ? edition.d.creeLe : maint; if (edition) { d.majLe = maint; }
+    occupe = 'Enregistrement…'; rendre();
+    G.enregistrer(edition ? { id: edition.id } : null, d).then(function (id) {
+      heures = heures.filter(function (x) { return x.id !== id; }); heures.push({ id: id, d: d }); trier(heures); cache();
+      occupe = false; periode = B.periodeDe(d.date); semaine = B.semaineDe(periode, d.date); ecran = 'heures'; edition = null;
+      dire('Heures enregistrées : ' + B.duree(B.minutesEntree(d)) + ' le ' + B.dateCourte(d.date) + '.');
+    }).catch(function (e) { occupe = false; dire('Enregistrement impossible : ' + (e && e.message ? e.message : e) + '. Vérifie le réseau et réessaie.', true); });
+  }
+  function supprimerHeure() {
+    if (!confirm('Supprimer ces heures ?')) { return; }
+    occupe = 'Suppression…'; rendre();
+    G.retirer(edition.id).then(function () {
+      var id = edition.id; heures = heures.filter(function (x) { return x.id !== id; }); cache();
+      occupe = false; ecran = 'heures'; edition = null; dire('Heures supprimées.');
+    }).catch(function (e) { occupe = false; dire('Suppression impossible : ' + (e && e.message ? e.message : e), true); });
+  }
+  function sauverDepense() {
+    var cour = periodeCourante(), m = montantDe($('fd-montant').value);
+    var d = { type: 'depense', user: moi, nom: monNom, date: $('fd-date').value, montant: m, description: $('fd-desc').value.trim(), recu: edition ? edition.d.recu : '' };
+    if (!d.date || d.date < cour.debut || d.date > aujour()) { alert('Choisis une date entre le ' + B.dateLongue(cour.debut) + ' et aujourd’hui.'); return; }
+    if (m === null || m <= 0) { alert('Inscris le montant de la dépense.'); return; }
+    if (!d.description) { alert('Décris la dépense.'); return; }
+    if (!photo && !d.recu) { alert('Ajoute la photo du reçu.'); return; }
+    var maint = new Date().toISOString(), ancienRecu = '';
+    d.creeLe = edition ? edition.d.creeLe : maint; if (edition) { d.majLe = maint; }
+    occupe = photo ? 'Envoi du reçu…' : 'Enregistrement…'; rendre();
+    var etape = photo
+      ? B.envoyerRecu(api, photo.blob, 'Reçu ' + d.date + ' ' + monNom + '.jpg', { type: 'recu', user: moi, date: d.date, montant: m }).then(function (id) { ancienRecu = d.recu; d.recu = id; })
+      : Promise.resolve();
+    etape.then(function () { return G.enregistrer(edition ? { id: edition.id } : null, d); }).then(function (id) {
+      if (ancienRecu) { B.retirerRecu(api, ancienRecu); }
+      depenses = depenses.filter(function (x) { return x.id !== id; }); depenses.push({ id: id, d: d }); trier(depenses); cache();
+      if (photo) { URL.revokeObjectURL(photo.url); } photo = null; brouillon = null;
+      occupe = false; periode = B.periodeDe(d.date); ecran = 'depenses'; edition = null;
+      dire('Dépense enregistrée : ' + argent(m) + ' le ' + B.dateCourte(d.date) + '.');
+    }).catch(function (e) { occupe = false; dire('Enregistrement impossible : ' + (e && e.message ? e.message : e) + '. Vérifie le réseau et réessaie : la photo est gardée.', true); });
+  }
+  function supprimerDepense() {
+    if (!confirm('Supprimer cette dépense et son reçu ?')) { return; }
+    occupe = 'Suppression…'; rendre();
+    var x = edition;
+    G.retirer(x.id).then(function () {
+      if (x.d.recu) { B.retirerRecu(api, x.d.recu); }
+      depenses = depenses.filter(function (y) { return y.id !== x.id; }); cache();
+      occupe = false; ecran = 'depenses'; edition = null; dire('Dépense supprimée.');
+    }).catch(function (e) { occupe = false; dire('Suppression impossible : ' + (e && e.message ? e.message : e), true); });
+  }
+  function trouver(l, id) { var x = l.filter(function (y) { return y.id === id; })[0]; return x ? { id: x.id, d: JSON.parse(JSON.stringify(x.d)) } : null; }
+  function aller(e) {
+    message = null; edition = null; brouillon = null;
+    if (photo) { URL.revokeObjectURL(photo.url); photo = null; }
+    if (e === 'formHeure' || e === 'formDepense') { ecran = e; }
+    else { ecran = e === 'depenses' ? 'depenses' : 'heures'; }
+    rendre(); window.scrollTo(0, 0);
+  }
+
+  // ---------- Événements
+  function brancher() {
+    $('hd-onglets').addEventListener('click', function (ev) { var b = ev.target.closest('[data-e]'); if (b) { aller(b.getAttribute('data-e')); } });
+    $('hd-ecran').addEventListener('click', function (ev) {
+      var b = ev.target.closest('[data-a]'); if (!b || occupe) { return; }
+      var a = b.getAttribute('data-a'), v = b.getAttribute('data-v'), id = b.getAttribute('data-id');
+      if (a === 'periode') { message = null; periode = B.periodeVoisine(periode, Number(v)); semaine = periode.n === periodeCourante().n ? B.semaineDe(periode, aujour()) : 1; rendre(); return; }
+      if (a === 'semaine') { message = null; semaine = Number(v); rendre(); return; }
+      if (a === 'nouvelleHeure') { aller('formHeure'); return; }
+      if (a === 'nouvelleDepense') { aller('formDepense'); return; }
+      if (a === 'modifierHeure') { aller('formHeure'); edition = trouver(heures, id); rendre(); return; }
+      if (a === 'modifierDepense') { aller('formDepense'); edition = trouver(depenses, id); rendre(); return; }
+      if (a === 'retour') { aller(ecran === 'formDepense' ? 'depenses' : 'heures'); return; }
+      if (a === 'sauverHeure') { sauverHeure(); return; }
+      if (a === 'supprimerHeure') { supprimerHeure(); return; }
+      if (a === 'sauverDepense') { sauverDepense(); return; }
+      if (a === 'supprimerDepense') { supprimerDepense(); return; }
+    });
+  }
+
+  // ---------- Lien avec l'accueil (heures-drive.html)
+  window.BonnevilleModule = {
+    aller: function (e) { aller(e); },
+    theme: function (t) { $('hd').setAttribute('data-theme', t === 'nuit' ? 'nuit' : 'jour'); },
+    etat: function () {
+      if (!B) { return {}; }
+      var p = periodeCourante(), hP = dansPeriode(heures, p), dP = dansPeriode(depenses, p);
+      return {
+        pret: pret, acces: B.aAcces(droits), heures: !!droits.heures, depensesOk: !!droits.depenses, periode: B.libellePeriode(p),
+        s1: totalMinutes(hP.filter(function (x) { return x.d.date <= p.s1.fin; })), s2: totalMinutes(hP.filter(function (x) { return x.d.date >= p.s2.debut; })),
+        total: totalMinutes(hP), aujourdhui: totalMinutes(heures.filter(function (x) { return x.d.date === aujour(); })),
+        depenses: totalArgent(dP), nbDepenses: dP.length, semaine: B.semaineDe(p, aujour())
+      };
+    }
+  };
+
+  var branche = false;
+  var fabrique = function () {
+    return {
+      initialize: function (a, s, callback) {
+        api = a; B = window.Bonneville; G = B.creerApi(api);
+        if (!branche) { brancher(); branche = true; }
+        charger(); callback();
+      },
+      focus: function (a) { api = a; if (G && pret) { charger(); } },
+      blur: function () {}
+    };
+  };
+  // Intégrée à la page Bonneville : la coquille la démarre elle-même
+  window.__feuilleDeTemps = fabrique;
+})();
+</script>
 </div>
 
 <script>
@@ -68,7 +442,7 @@ window.__bnErreurs = [];
 window.addEventListener('error', function (e) { try { window.__bnErreurs.push((e.message || 'erreur') + (e.filename ? ' (' + String(e.filename).split('/').pop() + ':' + e.lineno + ')' : '')); } catch (x) {} });
 (function () {
   'use strict';
-  var VERSION = '1.1.5';
+  var VERSION = '1.1.6';
   var B = window.Bonneville;
   var BASE = 'https://ericgloutnez.github.io/LFS/heures/';
   var CACHER = '.entete { display: none !important; } #lfsd > .pied { display: none !important; }';
@@ -78,7 +452,7 @@ window.addEventListener('error', function (e) { try { window.__bnErreurs.push((e
 
   // La bibliothèque commune peut arriver après ce script (Drive et MyGeotab chargent parfois les scripts dans le désordre).
   // On l'attend, on la charge nous-mêmes au besoin, et on en garde une copie pour le hors réseau.
-  var URL_COMMUN = BASE + 'heures-commun.js?v=1.1.5', communTexte = null;
+  var URL_COMMUN = BASE + 'heures-commun.js?v=1.1.6', communTexte = null;
   function chargerCommunTexte() {
     return fetch(URL_COMMUN).then(function (r) { if (!r.ok) { throw new Error('HTTP ' + r.status); } return r.text(); })
       .then(function (t) { communTexte = t; try { localStorage.setItem('hd-commun', t); } catch (e) {} return t; })
@@ -120,51 +494,22 @@ window.addEventListener('error', function (e) { try { window.__bnErreurs.push((e
   }
   var etapes = {};
   function etape(cle, t) { etapes[cle] = (etapes[cle] || []).concat([Math.round(performance.now() / 100) / 10 + ' s : ' + t]); }
+  // La Feuille de temps fait partie de cette page : on la démarre une seule fois
   function chargerModule(cle) {
     if (instances[cle]) { return Promise.resolve(instances[cle]); }
     if (enChargement[cle]) { return enChargement[cle]; }
-    var m = MODULES[cle];
-    // Le module s'ouvre directement depuis son adresse GitHub (même site que cette page).
-    // L'ancienne méthode (cadre « srcdoc ») ne se chargeait jamais dans Geotab Drive sur iPhone.
-    etape(cle, 'ouverture de ' + m.fichier);
+    etape(cle, 'démarrage de la Feuille de temps');
     enChargement[cle] = new Promise(function (ok, ko) {
-      var cadre = document.createElement('iframe'), fini = false, essais = 0;
-      cadre.title = 'Bonneville - ' + m.titre; cadre.setAttribute('data-m', cle);
-      function trouver() {
-        var w = null, fab = null;
-        try { w = cadre.contentWindow; } catch (e) { return null; }
-        if (!w) { return null; }
-        try { m.noms.forEach(function (n) { if (!fab && w.geotab && w.geotab.addin && w.geotab.addin[n]) { fab = w.geotab.addin[n]; } }); } catch (e) { return null; }
-        return fab && w.Bonneville ? { w: w, fab: fab } : null;
-      }
-      function demarrerModule(t) {
-        if (fini) { return; } fini = true;
-        etape(cle, 'module trouvé, démarrage');
-        try {
-          var d = t.w.document, st = d.createElement('style'); st.textContent = CACHER; d.head.appendChild(st);
-          t.w.onerror = function (msg, src, l) { try { window.__bnErreurs.push('module : ' + msg + ' (ligne ' + l + ')'); } catch (e) {} };
-          var inst = t.fab();
-          inst.initialize(api, state || {}, function () {
-            etape(cle, 'module démarré');
-            try { inst.focus(api, state || {}); } catch (e) {}
-            instances[cle] = { cadre: cadre, inst: inst, fenetre: t.w };
-            try { t.w.BonnevilleModule.theme(themeActuel()); } catch (e) {}
-            ok(instances[cle]);
-          });
-        } catch (e) { etape(cle, 'erreur : ' + e.message); ko(e); }
-      }
-      // On vérifie régulièrement si le module est prêt (sans dépendre de l'événement « load »)
-      var minuterie = setInterval(function () {
-        essais++;
-        var t = trouver();
-        if (t) { clearInterval(minuterie); demarrerModule(t); return; }
-        if (essais === 1) { etape(cle, 'en attente du module'); }
-        if (essais > 150) { clearInterval(minuterie); if (!fini) { fini = true; etape(cle, 'module jamais prêt'); ko(new Error('Le module ' + m.titre + ' ne s’est pas chargé')); } }
-      }, 200);
-      cadre.onload = function () { etape(cle, 'cadre chargé'); };
-      cadre.onerror = function () { etape(cle, 'erreur de chargement du cadre'); };
-      cadre.src = BASE + m.fichier + '?v=' + VERSION;
-      $('bd-modules').appendChild(cadre);
+      try {
+        if (!window.__feuilleDeTemps) { throw new Error('La Feuille de temps est absente de la page.'); }
+        var inst = window.__feuilleDeTemps();
+        inst.initialize(api, state || {}, function () {
+          etape(cle, 'Feuille de temps démarrée');
+          instances[cle] = { cadre: document.getElementById('hd'), inst: inst, fenetre: window };
+          try { window.BonnevilleModule.theme(themeActuel()); } catch (e) {}
+          ok(instances[cle]);
+        });
+      } catch (e) { etape(cle, 'erreur : ' + e.message); ko(e); }
     });
     return enChargement[cle].catch(function (e) { delete enChargement[cle]; throw e; });
   }
