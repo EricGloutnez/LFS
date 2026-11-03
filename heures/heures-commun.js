@@ -1,4 +1,4 @@
-/* Bonneville - Heures & Dépenses : bibliothèque commune (version 1.2.1)
+/* Bonneville - Heures & Dépenses : bibliothèque commune (version 1.2.2)
    Utilisée par : heures.html et heures-drive.html (coquilles), tempo.html, tempo-drive.html et employes.html.
    Stockage : AddInData de Geotab, identifiant propre à Heures & Dépenses (séparé de LFS).
    Types enregistrés : employe (accès), heure (une entrée d'heures), depense (une dépense avec reçu).
@@ -8,7 +8,7 @@
   var ADDIN_ID = 'aqKJVB4VwR32I2cfuHWClzw';      // Stockage de Heures & Dépenses
   var LFS_ID = 'aXdeNEZ7tQ7eMPNywYFFKrA';        // Stockage de LFS (lecture seule)
   var TYPES_LFS = ['voyage', 'formresume'];      // Types lus dans LFS, jamais écrits par Heures & Dépenses
-  var VERSION = '1.2.1';
+  var VERSION = '1.2.2';
   var TELEPHONE = '(438) 978-2162';
 
   // ---------- Accès à Geotab
@@ -106,7 +106,11 @@
     { cle: 'heures', nom: 'Heures (saisie dans Geotab Drive)' },
     { cle: 'depenses', nom: 'Dépenses (saisie dans Geotab Drive, avec photo du reçu)' },
     { cle: 'admin', nom: 'Administrateur (accès au bureau)' },
-    { cle: 'hos', nom: 'Heures auto (HOS)' }
+    { cle: 'hos', nom: 'Heures auto (HOS)' },
+    { cle: 'escorte', nom: 'Escorte routière (prime de convoi)' },
+    { cle: 'km', nom: 'Kilométrage' },
+    { cle: 'repas', nom: 'Prime de repas' },
+    { cle: 'installation', nom: 'Prime d’installation' }
   ];
   var ROLES = [{ cle: 'employe', nom: 'Employé' }, { cle: 'administrateur', nom: 'Administrateur' }];
   var PROFILS_DEFAUT = [];
@@ -349,11 +353,70 @@
   }
   function heuresDecimales(min) { return Math.round((min || 0) / 60 * 100) / 100; }
 
+  // ---------- Cycles de paye : aux 2 semaines (jeudi au mercredi) ou hebdomadaire (dimanche au samedi)
+  var HEBDO_ANCRE = '2026-11-01';
+  function cycleDe(emp) { return emp && emp.cycle === 'hebdo' ? 'hebdo' : '2sem'; }
+  function periodeHebdo(iso) {
+    var n = Math.floor(joursEntre(HEBDO_ANCRE, iso || jourIso()) / 7), d = ajouterJours(HEBDO_ANCRE, n * 7);
+    return { n: n, debut: d, fin: ajouterJours(d, 6), s1: { debut: d, fin: ajouterJours(d, 6) }, s2: null, hebdo: true };
+  }
+  function periodeCycle(iso, cycle) { return cycle === 'hebdo' ? periodeHebdo(iso) : periodeDe(iso); }
+  function periodeCycleVoisine(p, k) { return p.hebdo ? periodeHebdo(ajouterJours(p.debut, 7 * k)) : periodeVoisine(p, k); }
+  // Plage d'affichage d'un cycle (avec ses semaines)
+  function plageCycle(p) {
+    return p.hebdo
+      ? { paye: false, hebdo: true, debut: p.debut, fin: p.fin, semaines: [{ nom: 'Semaine', court: 'Semaine', debut: p.debut, fin: p.fin }] }
+      : { paye: true, debut: p.debut, fin: p.fin, semaines: [{ nom: 'Semaine 1', court: 'Semaine 1', debut: p.s1.debut, fin: p.s1.fin }, { nom: 'Semaine 2', court: 'Semaine 2', debut: p.s2.debut, fin: p.s2.fin }] };
+  }
+
+  // ---------- Paramètres (taux et primes), modifiables au bureau
+  var PARAMS_DEFAUT = { kmTaux: 0.65, repasSeuil1: 180, repasSeuil2: 360, repasMontant1: 30, repasMontant2: 75, moduleMontant: 150, convoiMontant: 20 };
+  function params(rec) { var o = {}; Object.keys(PARAMS_DEFAUT).forEach(function (k) { o[k] = rec && typeof rec[k] === 'number' ? rec[k] : PARAMS_DEFAUT[k]; }); return o; }
+  // Taux figés au moment de la saisie (une journée garde ses taux même si on les change ensuite)
+  function figer(p) { return JSON.parse(JSON.stringify(params(p))); }
+  function kmEntree(e) { return (Number(e.kmAller) || 0) + (Number(e.kmChantier) || 0) + (Number(e.kmRetour) || 0); }
+  function arrondi(n) { return Math.round((n || 0) * 100) / 100; }
+  // Calcul d'une journée pour un employé : heures réelles et payées, km, primes
+  // entrees : ses entrées d'heures du jour ; jour : sa fiche de journée (modules, convoi) ; droits : ses options ; courant : paramètres actuels
+  function calculJour(entrees, jour, droits, courant) {
+    droits = droits || {}; entrees = entrees || [];
+    var reel = 0, paye = 0, km = 0, kmMontant = 0, taux = null;
+    entrees.forEach(function (x) {
+      var d = x.d || x, m = minutesEntree(d);
+      reel += m; paye += d.grandProjet ? m * 2 : m;
+      if (droits.km && !d.hos) { var k = kmEntree(d); km += k; kmMontant += k * params(d.taux || courant).kmTaux; }
+      if (d.taux) { taux = d.taux; }
+    });
+    var t = params((jour && jour.taux) || taux || courant), repas = 0;
+    if (droits.repas && reel > 0) { repas = reel <= t.repasSeuil1 ? 0 : (reel <= t.repasSeuil2 ? t.repasMontant1 : t.repasMontant2); }
+    var modules = droits.installation && jour ? (Number(jour.modules) || 0) : 0;
+    var modulesMontant = modules * params((jour && jour.taux) || courant).moduleMontant;
+    var convoi = droits.escorte && jour && jour.convoi ? params((jour && jour.taux) || courant).convoiMontant : 0;
+    return { reel: reel, paye: paye, km: km, kmMontant: arrondi(kmMontant), repas: repas, modules: modules, modulesMontant: arrondi(modulesMontant), convoi: convoi, primes: arrondi(kmMontant + repas + modulesMontant + convoi) };
+  }
+  // Somme de plusieurs journées
+  function sommeJours(l) {
+    var o = { reel: 0, paye: 0, km: 0, kmMontant: 0, repas: 0, modules: 0, modulesMontant: 0, convoi: 0, primes: 0 };
+    l.forEach(function (c) { Object.keys(o).forEach(function (k) { o[k] += c[k] || 0; }); });
+    ['kmMontant', 'modulesMontant', 'primes'].forEach(function (k) { o[k] = arrondi(o[k]); });
+    return o;
+  }
+  // Écart entre heures saisies et HOS (plus de 15 min sur le total, le début ou la fin)
+  function ecartHos(saisies, hos) {
+    if (!hos) { return null; }
+    var tot = saisies.reduce(function (s, x) { return s + minutesEntree(x.d || x); }, 0);
+    var deb = saisies.map(function (x) { return minutesDe((x.d || x).debut); }).filter(function (v) { return v !== null; });
+    var fin = saisies.map(function (x) { var d = x.d || x, a = minutesDe(d.debut); return a + minutesEntree(d); });
+    var hDeb = minutesDe(hos.debut), hFin = hDeb + (hos.duree || 0);
+    var dTot = Math.abs(tot - hos.minutes), dDeb = deb.length ? Math.abs(Math.min.apply(null, deb) - hDeb) : 0, dFin = fin.length ? Math.abs(Math.max.apply(null, fin) - hFin) : 0;
+    return dTot > 15 || dDeb > 15 || dFin > 15 ? { total: tot, hosTotal: hos.minutes, dTot: dTot, dDeb: dDeb, dFin: dFin } : null;
+  }
+
   // ---------- Heures automatiques à partir des journaux HOS de Geotab (DutyStatusLog)
   // Comptent comme travaillées : Conduite (D), En service (ON) et Déplacement dans la cour (YM).
   // Hors service (OFF), Couchette (SB), Usage personnel (PC) et Attente (WT) arrêtent le compte.
   var HOS_TRAVAIL = { D: 1, ON: 1, YM: 1 }, HOS_ARRET = { OFF: 1, SB: 1, PC: 1, WT: 1 };
-  function hhmm(d) { return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+  function hhmmDate(d) { return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
   function isoLocal(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
   function lireHos(G, userId, debut, fin) {
     var de = dateDe(ajouterJours(debut, -2)), a = dateDe(ajouterJours(fin, 1));
@@ -389,9 +452,9 @@
         Object.keys(jours).forEach(function (j) {
           var o = jours[j]; if (o.min < 1) { return; }
           var aj = (ajustements || []).filter(function (x) { return x.d.user === g.user && x.d.date === j; })[0];
-          var d = { type: 'heure', user: g.user, nom: g.nom, date: j, hos: true, description: 'Heures HOS (Conduite, En service, Cour)' };
-          if (aj) { d.debut = aj.d.debut; d.fin = aj.d.fin; d.ajuste = true; d.ajustId = aj.id; d.ajustePar = aj.d.majPar || aj.d.user; d.ajusteLe = aj.d.majLe || ''; d.hosDebut = hhmm(o.debut); d.hosFin = hhmm(o.fin); d.hosMinutes = o.min; d.description = 'Heures HOS ajustées'; }
-          else { d.debut = hhmm(o.debut); d.fin = o.fin.getHours() === 0 && o.fin.getMinutes() === 0 && isoLocal(o.fin) !== j ? '00:00' : hhmm(o.fin); d.minutes = o.min; }
+          var d = { type: 'heure', user: g.user, nom: g.nom, date: j, hos: true, description: 'Heures HOS (Conduite, En service, Cour)', hosBrut: { debut: hhmmDate(o.debut), minutes: o.min, duree: Math.round((o.fin - o.debut) / 60000) } };
+          if (aj) { d.debut = aj.d.debut; d.fin = aj.d.fin; d.ajuste = true; d.ajustId = aj.id; d.ajustePar = aj.d.majPar || aj.d.user; d.ajusteLe = aj.d.majLe || ''; d.hosDebut = hhmmDate(o.debut); d.hosFin = hhmmDate(o.fin); d.hosMinutes = o.min; d.description = 'Heures HOS ajustées'; }
+          else { d.debut = hhmmDate(o.debut); d.fin = o.fin.getHours() === 0 && o.fin.getMinutes() === 0 && isoLocal(o.fin) !== j ? '00:00' : hhmmDate(o.fin); d.minutes = o.min; }
           out.push({ id: 'hos:' + g.user + ':' + j, d: d });
         });
         return out;
@@ -474,6 +537,8 @@
     feriesQuebec: feriesQuebec,
     aAcces: function (d) { d = d || {}; return !!(d.heures || d.depenses); },
     PERIODE_ANCRE: PERIODE_ANCRE, periodeDe: periodeDe, periodeVoisine: periodeVoisine, semaineDe: semaineDe, libellePeriode: libellePeriode, libelleSemaine: libelleSemaine, dateLongue: dateLongue,
-    minutesEntree: minutesEntree, heuresHos: heuresHos, joursHos: joursHos, heuresDecimales: heuresDecimales, reduirePhoto: reduirePhoto, envoyerRecu: envoyerRecu, lireRecu: lireRecu, retirerRecu: retirerRecu
+    minutesEntree: minutesEntree, heuresHos: heuresHos, joursHos: joursHos,
+    HEBDO_ANCRE: HEBDO_ANCRE, cycleDe: cycleDe, periodeHebdo: periodeHebdo, periodeCycle: periodeCycle, periodeCycleVoisine: periodeCycleVoisine, plageCycle: plageCycle,
+    PARAMS_DEFAUT: PARAMS_DEFAUT, params: params, figer: figer, kmEntree: kmEntree, calculJour: calculJour, sommeJours: sommeJours, ecartHos: ecartHos, arrondi: arrondi, heuresDecimales: heuresDecimales, reduirePhoto: reduirePhoto, envoyerRecu: envoyerRecu, lireRecu: lireRecu, retirerRecu: retirerRecu
   };
 })();

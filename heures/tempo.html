@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Bonneville - Heures &amp; Dépenses</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.2.1"></script>
+<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.2.2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body style="margin:0">
@@ -69,6 +69,7 @@
   #hb .desc { max-width: 520px; overflow-wrap: anywhere; }
   #hb table.lignes td { height: 46px; padding-top: 0; padding-bottom: 0; vertical-align: middle; } #hb table.lignes th { height: 40px; }
   #hb .coupe { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 460px; }
+  #hb .carte .dep .argent { display: flex; gap: 8px; white-space: nowrap; }
   #hb .carte .dep { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--doux); }
   #hb .aide { font-size: 13px; color: var(--doux); }
   #hb .message { border-radius: 10px; padding: 10px 14px; font-weight: 600; background: #e7f4ec; color: #14532d; }
@@ -83,6 +84,17 @@
   #hb .carte.glisse { opacity: .4; }
   #hb .carte.cible { box-shadow: -4px 0 0 var(--accent); }
   #hb .carte.cible.apres { box-shadow: 4px 0 0 var(--accent); }
+  #hb .badge-hos.hebdo { background: #5b3fa0; }
+  #hb .badge-hos.gp { background: #9a5b00; font-size: 9px; }
+  #hb .alerte { color: #b8860b; font-size: 15px; } #hb .soumise { color: var(--ok); font-weight: 900; }
+  #hb .etat-feuille { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--ligne); border-radius: 10px; padding: 8px 12px; font-size: 13px; }
+  #hb .etat-feuille .btn { margin-left: auto; }
+  #hb .primes { background: var(--surface); border: 1px solid var(--ligne); border-radius: 10px; padding: 8px 12px; font-size: 13px; display: flex; flex-wrap: wrap; gap: 4px; }
+  #hb .primes .sep { color: var(--doux); padding: 0 4px; }
+  #hb .tiroir small.ecart { color: #8a6100; background: #fff6d6; border-radius: 6px; padding: 2px 6px; margin-top: 4px; display: block; }
+  #hb .tiroir small.extras { color: var(--ok); font-weight: 600; margin-top: 4px; }
+  #hb .lien-jour { border: 0; background: none; color: var(--bleu); font: inherit; font-size: 12px; font-weight: 700; padding: 4px 0 0; cursor: pointer; text-align: left; }
+  #hb .case-gp { display: flex; align-items: center; gap: 8px; font-weight: 600; }
   #hb .badge-hos.rouge { background: var(--non); }
   #hb .tiroir small.modif { color: var(--non); }
   #hb .masquer { position: absolute; top: 8px; right: 8px; width: 30px; height: 30px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: var(--doux); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; opacity: .55; }
@@ -125,7 +137,7 @@
 geotab.addin.tempo = function () {
   'use strict';
   var B = window.Bonneville;
-  var VERSION = '1.2.1';
+  var VERSION = '1.2.2';
   var api = null, G = null, moi = '', acces = false, pret = false;
   var users = [], employes = {}, heures = [], depenses = [];
   var periode = null, onglet = 'heures', filtreEmp = '', ouverts = {}, message = null;
@@ -150,9 +162,21 @@ geotab.addin.tempo = function () {
 
   function $(id) { return document.getElementById(id); }
   function h(t) { return String(t === undefined || t === null ? '' : t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
-  function nomUser(u) { var x = users.filter(function (y) { return y.user === u; })[0]; return x ? x.nom : (u || ''); }
+  function nomUser(u) { if (typeof fiches !== 'undefined' && fiches[u]) { return fiches[u]; } var x = users.filter(function (y) { return y.user === u; })[0]; return x ? x.nom : (u || ''); }
   function dire(t, e) { message = { t: t, e: !!e }; rendre(); }
   function dansPeriode(l) { var P = plage(); return l.filter(function (x) { return x.d.date >= P.debut && x.d.date <= P.fin && (!filtreEmp || x.d.user === filtreEmp); }); }
+  // ---------- Chaque employé a sa période selon son cycle (aux 2 semaines ou hebdomadaire)
+  function decalage() { return periode.n - B.periodeDe(B.jourIso()).n; }
+  function cycleU(u) { return B.cycleDe(employes[u] ? employes[u].d : null); }
+  function periodeU(u) { return cycleU(u) === 'hebdo' ? B.periodeCycleVoisine(B.periodeHebdo(B.jourIso()), decalage()) : periode; }
+  function plageDe(u) { return B.plageCycle(periodeU(u)); }
+  function droitsU(u) { return (employes[u] && employes[u].d.droits) || {}; }
+  // Données supplémentaires : journées (modules, convoi), soumissions, notes, paramètres
+  var jours = [], soumissions = [], notes = [], paramRec = null, fiches = {};
+  function jourDe(u, j) { var x = jours.filter(function (y) { return y.d.user === u && y.d.date === j; })[0]; return x || null; }
+  function soumissionDe(u, P) { return soumissions.filter(function (y) { return y.d.user === u && y.d.debut === P.debut; })[0] || null; }
+  function estSoumise(u, P) { var x = soumissionDe(u, P); return !!(x && x.d.statut === 'soumise'); }
+  function quand(iso) { var d = new Date(iso); return d.getDate() + ' ' + B.MOIS[d.getMonth()] + ' à ' + d.getHours() + ' h ' + String(d.getMinutes()).padStart(2, '0'); }
   function minutes(l) { return l.reduce(function (s, x) { return s + B.minutesEntree(x.d); }, 0); }
   function argentTotal(l) { return l.reduce(function (s, x) { return s + (Number(x.d.montant) || 0); }, 0); }
   function trier(l) { return l.sort(function (a, b) { return (a.d.date + (a.d.debut || '')).localeCompare(b.d.date + (b.d.debut || '')); }); }
@@ -173,14 +197,71 @@ geotab.addin.tempo = function () {
   }
   // ---------- Heures automatiques (HOS) : lues dans Geotab pour la période affichée, jamais enregistrées
   var ajusts = [], hosPlage = '';
+  // Les HOS servent de vérification. Une journée sans saisie prend les heures HOS.
+  var hosTout = [];
+  function recomposer() {
+    var saisies = heures.filter(function (x) { return !x.d.hos; }), cle = {};
+    saisies.forEach(function (x) { cle[x.d.user + '|' + x.d.date] = true; });
+    heures = trier(saisies.concat(hosTout.filter(function (x) { return !cle[x.d.user + '|' + x.d.date]; })));
+  }
+  function hosDu(u, j) { return hosTout.filter(function (x) { return x.d.user === u && x.d.date === j; })[0] || null; }
+  function ecartDu(u, j) {
+    var hx = hosDu(u, j); if (!hx) { return null; }
+    var saisies = heures.filter(function (x) { return x.d.user === u && x.d.date === j && !x.d.hos; });
+    if (!saisies.length) { return null; }
+    return B.ecartHos(saisies, hx.d.hosBrut);
+  }
   function chargerHos() {
     var gens = users.filter(function (u) { var e = employes[u.user]; return e && e.d.droits && e.d.droits.hos; }).map(function (u) { return { id: u.id, user: u.user, nom: u.nom }; });
-    var P = plage(); hosPlage = P.debut + P.fin;
-    if (!gens.length) { heures = heures.filter(function (x) { return !x.d.hos; }); rendre(); return Promise.resolve(); }
-    return B.heuresHos(G, gens, P.debut, P.fin, ajusts).then(function (l) {
-      if (hosPlage !== P.debut + P.fin) { return; }
-      heures = trier(heures.filter(function (x) { return !x.d.hos; }).concat(l)); rendre();
+    var ph = B.plageCycle(B.periodeCycleVoisine(B.periodeHebdo(B.jourIso()), decalage()));
+    var debut = periode.debut < ph.debut ? periode.debut : ph.debut, fin = periode.fin > ph.fin ? periode.fin : ph.fin, cle = debut + fin; hosPlage = cle;
+    if (!gens.length) { hosTout = []; recomposer(); rendre(); return Promise.resolve(); }
+    return B.heuresHos(G, gens, debut, fin, ajusts).then(function (l) {
+      if (hosPlage !== cle) { return; }
+      hosTout = l; recomposer(); rendre();
     });
+  }
+  // Modules installés et convoi routier d'une journée
+  function panneauJour(u, j) {
+    var jr = jourDe(u, j), d = jr ? jr.d : {}, dr = droitsU(u);
+    ouvrirPanneau('<h3>Journée du ' + h(B.dateCourte(j)) + '</h3><div class="aide">' + h(nomUser(u)) + '</div>'
+      + (dr.installation ? '<label class="champ">Modules installés<input type="number" min="0" step="1" id="pj-mod" value="' + h(d.modules || 0) + '"></label>' : '')
+      + (dr.escorte ? '<label class="case-gp"><input type="checkbox" id="pj-conv"' + (d.convoi ? ' checked' : '') + '> Convoi routier</label>' : '')
+      + '<div class="rangee"><button type="button" class="btn jaune" id="pj-ok">Enregistrer</button><button type="button" class="btn" id="pj-annuler">Annuler</button></div>', function () {
+        $('pj-annuler').onclick = fermer;
+        $('pj-ok').onclick = function () {
+          var n = JSON.parse(JSON.stringify(d)); n.type = 'jour'; n.user = u; n.date = j;
+          if (dr.installation) { n.modules = Math.max(0, parseInt($('pj-mod').value, 10) || 0); }
+          if (dr.escorte) { n.convoi = $('pj-conv').checked; }
+          n.taux = d.taux || B.figer(paramRec ? paramRec.d : null); n.majLe = new Date().toISOString(); n.majPar = moi;
+          G.enregistrer(jr, n).then(function (id) { jours = jours.filter(function (y) { return y.id !== id; }).concat([{ id: id, d: n }]); fermer(); dire('Journée enregistrée.'); rendre(); })
+            .catch(function (e) { alert('Enregistrement impossible : ' + (e && e.message ? e.message : e)); });
+        };
+      });
+  }
+  // Note du bureau (date, employé, texte), affichée dans le Rapport seulement
+  function panneauNote() {
+    ouvrirPanneau('<h3>Ajouter une note</h3><div class="aide">La note sera affichée dans le Rapport. Les employés ne la voient pas.</div>'
+      + '<label class="champ">Employé<select id="pn-user"><option value="">Choisir…</option>' + optionsEmployes(tiroirUser || '') + '</select></label>'
+      + '<label class="champ">Date<input type="date" id="pn-date" value="' + B.jourIso() + '"></label>'
+      + '<label class="champ">Note<textarea id="pn-texte" placeholder="Détail à retenir sur cette journée"></textarea></label>'
+      + '<div class="rangee"><button type="button" class="btn jaune" id="pn-ok">Enregistrer</button><button type="button" class="btn" id="pn-annuler">Annuler</button></div>', function () {
+        $('pn-annuler').onclick = fermer;
+        $('pn-ok').onclick = function () {
+          var n = { type: 'note', user: $('pn-user').value, date: $('pn-date').value, texte: $('pn-texte').value.trim(), par: moi, creeLe: new Date().toISOString() };
+          if (!n.user || !n.date || !n.texte) { alert('Choisis l’employé, la date et écris la note.'); return; }
+          G.enregistrer(null, n).then(function () { fermer(); dire('Note enregistrée pour ' + nomUser(n.user) + ' le ' + B.dateCourte(n.date) + '.'); })
+            .catch(function (e) { alert('Enregistrement impossible : ' + (e && e.message ? e.message : e)); });
+        };
+      });
+  }
+  // Rouvrir une feuille de temps soumise (l'employé pourra corriger et la soumettre de nouveau)
+  function rouvrir(u) {
+    var P = plageDe(u), so = soumissionDe(u, P); if (!so) { return; }
+    if (!confirm('Rouvrir la feuille de temps de ' + nomUser(u) + ' ? L’employé pourra corriger ses heures et devra la soumettre de nouveau.')) { return; }
+    var n = JSON.parse(JSON.stringify(so.d)); n.statut = 'rouverte'; n.rouverteLe = new Date().toISOString(); n.rouvertePar = moi;
+    G.enregistrer(so, n).then(function () { so.d = n; dire('Feuille de temps rouverte pour ' + nomUser(u) + '.'); rendre(); })
+      .catch(function (e) { alert('Changement impossible : ' + (e && e.message ? e.message : e)); });
   }
   function panneauHos(x) {
     var d = x.d;
@@ -213,13 +294,20 @@ geotab.addin.tempo = function () {
       G.lireType('heure').catch(function () { return []; }),
       G.lireType('depense').catch(function () { return []; }),
       G.lireType('ajusthos').catch(function () { return []; }),
-      G.lireChamp('prefbureau', 'user', moi).catch(function () { return []; })
+      G.lireChamp('prefbureau', 'user', moi).catch(function () { return []; }),
+      G.lireType('jour').catch(function () { return []; }),
+      G.lireType('soumission').catch(function () { return []; }),
+      G.lireType('parametres').catch(function () { return []; }),
+      G.lireType('fiche').catch(function () { return []; })
     ]).then(function (r) {
+      var lst = function (l) { return (l || []).map(function (x) { return { id: x.id, d: x.details }; }); };
+      jours = lst(r[6]); soumissions = lst(r[7]); paramRec = r[8] && r[8][0] ? { id: r[8][0].id, d: r[8][0].details } : null;
+      fiches = {}; lst(r[9]).forEach(function (x) { if (x.d.user && x.d.nom) { fiches[x.d.user] = x.d.nom; } });
       if (r[5] && r[5][0]) { prefRec = { id: r[5][0].id, d: r[5][0].details }; ordre = prefRec.d.ordre || []; }
       ajusts = r[4].map(function (l) { return { id: l.id, d: l.details }; });
       users = r[0]; employes = {};
       r[1].forEach(function (l) { employes[l.details.user] = { id: l.id, d: l.details }; });
-      heures = trier(r[2].map(function (l) { return { id: l.id, d: l.details }; }));
+      heures = trier(r[2].map(function (l) { return { id: l.id, d: l.details }; })); recomposer();
       depenses = trier(r[3].map(function (l) { return { id: l.id, d: l.details }; }));
       pret = true; majHeure = heureMaintenant(); majErreur = false; rendre();
       chargerHos();
@@ -240,7 +328,7 @@ geotab.addin.tempo = function () {
   function gensCartes() {
     var vus = {};
     users.forEach(function (u) { var e = employes[u.user]; if (u.actif && e && e.d.droits && (e.d.droits.heures || e.d.droits.hos) && !e.d.masque) { vus[u.user] = true; } });
-    dansPeriode(heures).concat(dansPeriode(depenses)).forEach(function (x) { vus[x.d.user] = true; });
+    heures.concat(depenses).forEach(function (x) { var P = plageDe(x.d.user); if (x.d.date >= P.debut && x.d.date <= P.fin) { vus[x.d.user] = true; } });
     return Object.keys(vus).filter(function (u) { return (!filtreEmp || u === filtreEmp) && carteMasquee(u) === voirMasquees; }).sort(function (a, b) {
       var ia = ordre.indexOf(a), ib = ordre.indexOf(b);
       if (ia >= 0 && ib >= 0) { return ia - ib; } if (ia >= 0) { return -1; } if (ib >= 0) { return 1; }
@@ -269,7 +357,7 @@ geotab.addin.tempo = function () {
   function nbMasquees() { return Object.keys(employes).filter(function (u) { return employes[u].d.masqueTableau; }).length; }
   function basculerCarte(u) {
     var d = employes[u] ? JSON.parse(JSON.stringify(employes[u].d)) : { type: 'employe', user: u, droits: {} };
-    if (d.masqueTableau) { delete d.masqueTableau; } else { d.masqueTableau = true; }
+    d.masqueTableau = !d.masqueTableau;
     d.maj = new Date().toISOString(); d.majPar = moi;
     G.enregistrer(employes[u] || null, d).then(function (id) {
       employes[u] = { id: id, d: d };
@@ -277,19 +365,25 @@ geotab.addin.tempo = function () {
       rendre();
     }).catch(function (e) { dire('Changement impossible : ' + (e && e.message ? e.message : e), true); });
   }
-  function joursPeriode() { var P = plage(), l = [], n = nbJours(P); for (var i = 0; i < n; i++) { l.push(B.ajouterJours(P.debut, i)); } return l; }
+  function joursPeriode(P) { P = P || plage(); var l = [], n = nbJours(P); for (var i = 0; i < n; i++) { l.push(B.ajouterJours(P.debut, i)); } return l; }
   // Jours écoulés depuis le début de la période jusqu'à aujourd'hui, samedi et dimanche compris
-  function ouvrables() { var auj = B.jourIso(); return joursPeriode().filter(function (j) { return j <= auj; }); }
-  function initiales(u) { return nomUser(u).split(/\s+/).filter(Boolean).slice(0, 2).map(function (p) { return p[0].toUpperCase(); }).join('') || '?'; }
+  function ouvrables(P) { var auj = B.jourIso(); return joursPeriode(P).filter(function (j) { return j <= auj; }); }
+  function initiales(u) { return nomUser(u).replace(/[«»"“”()]/g, ' ').split(/\s+/).filter(function (p) { return /^[A-Za-zÀ-ÿ]/.test(p); }).slice(0, 2).map(function (p) { return p[0].toUpperCase(); }).join('') || '?'; }
   function chiffresDe(u) {
-    var P = plage();
+    var P = plageDe(u), dr = droitsU(u), courant = B.params(paramRec ? paramRec.d : null);
     var l = heures.filter(function (x) { return x.d.user === u && x.d.date >= P.debut && x.d.date <= P.fin; });
     var parSem = P.semaines.map(function (s) { return minutes(l.filter(function (x) { return x.d.date >= s.debut && x.d.date <= s.fin; })); });
     var dl = depenses.filter(function (x) { return x.d.user === u && x.d.date >= P.debut && x.d.date <= P.fin; });
-    var ouv = ouvrables(), remplis = ouv.filter(function (j) { return l.some(function (x) { return x.d.date === j; }); }).length;
-    var jours = {}; l.forEach(function (x) { jours[x.d.date] = true; });
-    var total = minutes(l), nbj = Object.keys(jours).length;
-    return { P: P, l: l, parSem: parSem, s1: parSem[0] || 0, s2: parSem[1] || 0, total: total, nbJours: nbj, moyenne: nbj ? Math.round(total / nbj) : 0, dl: dl, dTotal: argentTotal(dl), ouv: ouv.length, remplis: remplis };
+    var ouv = ouvrables(P), remplis = ouv.filter(function (j) { return l.some(function (x) { return x.d.date === j; }); }).length;
+    var parJour = {}, ecarts = 0;
+    joursPeriode(P).forEach(function (j) {
+      var lj = l.filter(function (x) { return x.d.date === j; }), jr = jourDe(u, j);
+      if (lj.length || jr) { parJour[j] = B.calculJour(lj, jr ? jr.d : null, dr, courant); }
+      if (dr.hos && ecartDu(u, j)) { ecarts++; }
+    });
+    var somme = B.sommeJours(Object.keys(parJour).map(function (j) { return parJour[j]; }));
+    var nbj = Object.keys(parJour).filter(function (j) { return parJour[j].reel > 0; }).length, total = minutes(l);
+    return { P: P, l: l, parSem: parSem, s1: parSem[0] || 0, s2: parSem[1] || 0, total: total, nbJours: nbj, moyenne: nbj ? Math.round(total / nbj) : 0, dl: dl, dTotal: argentTotal(dl), ouv: ouv.length, remplis: remplis, parJour: parJour, somme: somme, ecarts: ecarts, soumission: soumissionDe(u, P) };
   }
   // ---------- Tout tient dans la page : on calcule combien de cartes ou de lignes entrent, et on pagine le reste
   var pages = { heures: 0, depenses: 0 }, nbPages = 1;
@@ -321,10 +415,10 @@ geotab.addin.tempo = function () {
         + '<button type="button" class="masquer" data-masquer="' + h(u) + '" title="' + (voirMasquees ? 'Réafficher cette carte' : 'Masquer cette carte') + '" aria-label="' + (voirMasquees ? 'Réafficher' : 'Masquer') + ' la carte de ' + h(nomUser(u)) + '">'
         + (voirMasquees ? '<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/></svg>'
           : '<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 5.1A10.8 10.8 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6C3.9 8.4 2 12 2 12s3.5 7 10 7c1.8 0 3.4-.5 4.7-1.3M9.9 9.9a3 3 0 0 0 4.2 4.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>')
-        + '</button><span class="tete"><span class="rond">' + h(initiales(u)) + '</span><span><b>' + h(nomUser(u)) + (estHos(u) ? ' <span class="badge-hos" title="Heures automatiques tirées des HOS">HOS</span>' : '') + '</b><small>' + h(u) + '</small></span></span>'
+        + '</button><span class="tete"><span class="rond">' + h(initiales(u)) + '</span><span><b>' + h(nomUser(u)) + (estHos(u) ? ' <span class="badge-hos" title="Heures HOS vérifiées">HOS</span>' : '') + (cycleU(u) === 'hebdo' ? ' <span class="badge-hos hebdo" title="Payé à la semaine (dimanche au samedi)">HEBDO</span>' : '') + (c.ecarts ? ' <span class="alerte" title="' + c.ecarts + ' journée(s) où les heures saisies ne concordent pas avec les HOS">⚠</span>' : '') + (c.soumission && c.soumission.d.statut === 'soumise' ? ' <span class="soumise" title="Soumise le ' + h(quand(c.soumission.d.soumisLe)) + '">✓</span>' : '') + '</b><small>' + h(u) + '</small></span></span>'
         + troisChiffres(c)
         + '<span class="barre-rempli" title="' + (c.ouv ? c.remplis + ' jour(s) sur ' + c.ouv + ' jours écoulés depuis le début de la période' : 'Période à venir') + '"><span style="width:' + pct + '%;background:' + coul + '"></span></span>'
-        + '<span class="dep"><span>' + (c.ouv ? c.remplis + ' / ' + c.ouv + ' jours' : 'À venir') + '</span><span>' + (c.dl.length ? '🧾 ' + c.dl.length + ' · ' + B.argent(c.dTotal) : 'Aucune dépense') + '</span></span></div>';
+        + '<span class="dep"><span>' + (c.ouv ? c.remplis + ' / ' + c.ouv + ' jours' : 'À venir') + '</span><span class="argent">' + (c.somme.primes ? '<span title="Primes et km">Primes ' + B.argent(c.somme.primes) + '</span>' : '') + (c.dl.length ? '<span title="' + c.dl.length + ' dépense(s)">🧾 ' + B.argent(c.dTotal) + '</span>' : (c.somme.primes ? '' : 'Aucune dépense')) + '</span></span></div>';
     }).join('') + '</div>';
   }
   // ---------- Panneau de détail d'un employé (s'ouvre à droite)
@@ -333,25 +427,43 @@ geotab.addin.tempo = function () {
   function ouvrirTiroir(u) { tiroirUser = u; rendreTiroir(); }
   function rendreTiroir() {
     if (!tiroirUser) { return; }
-    var u = tiroirUser, c = chiffresDe(u), auj = B.jourIso(), jours = joursPeriode();
-    var html = '<div class="tiroir" role="dialog" aria-label="Détail de ' + h(nomUser(u)) + '"><div class="ttete"><span class="rond gros">' + h(initiales(u)) + '</span><span><b>' + h(nomUser(u)) + '</b><small>' + h(u) + '</small></span><button type="button" class="btn" data-t="fermer" style="margin-left:auto">Fermer</button></div>'
-      + troisChiffres(c).replace('class="trois"', 'class="trois kpis"')
-      + '<div class="rangee-btn"><button type="button" class="btn" data-t="ajH">+ Ajouter des heures</button><button type="button" class="btn" data-t="ajD">+ Ajouter une dépense</button></div>';
-    c.P.semaines.forEach(function (s) {
-      var ls = c.l.filter(function (x) { return x.d.date >= s.debut && x.d.date <= s.fin; });
-      html += '<h4>' + h(c.P.paye ? s.nom + ' · ' + B.libelleSemaine(s) : s.nom) + ' · ' + B.duree(minutes(ls)) + '</h4>';
-      jours.filter(function (j) { return j >= s.debut && j <= s.fin; }).forEach(function (j) {
-        var lj = ls.filter(function (x) { return x.d.date === j; }), we = B.dateDe(j).getDay() % 6 === 0;
-        if (!lj.length && (j > auj || we)) { return; }
-        html += '<div class="jour"><span class="jn' + (lj.length ? '' : ' manque') + '">' + h(B.dateCourte(j)) + '</span><span>'
+    var u = tiroirUser, c = chiffresDe(u), auj = B.jourIso(), jrs = joursPeriode(c.P), dr = droitsU(u), so = c.soumission;
+    var html = '<div class="tiroir" role="dialog" aria-label="Détail de ' + h(nomUser(u)) + '"><div class="ttete"><span class="rond gros">' + h(initiales(u)) + '</span><span><b>' + h(nomUser(u)) + '</b><small>' + h(u) + ' · ' + (cycleU(u) === 'hebdo' ? 'Hebdomadaire' : 'Aux 2 semaines') + '</small></span><button type="button" class="btn" data-t="fermer" style="margin-left:auto">Fermer</button></div>'
+      + troisChiffres(c).replace('class="trois"', 'class="trois kpis"');
+    // État de la feuille de temps
+    html += '<div class="etat-feuille">' + (so && so.d.statut === 'soumise'
+      ? '<span class="soumise">✓</span> Feuille soumise le <b>' + h(quand(so.d.soumisLe)) + '</b> (verrouillée)<button type="button" class="btn petit" data-t="rouvrir">Rouvrir</button>'
+      : (so && so.d.statut === 'rouverte' ? 'Feuille rouverte par le bureau le ' + h(quand(so.d.rouverteLe)) + ' · pas encore soumise de nouveau' : 'Feuille pas encore soumise')) + '</div>';
+    // Primes de la période
+    var sm = c.somme, lignes = [];
+    if (sm.paye !== sm.reel) { lignes.push('Heures payées <b>' + B.duree(sm.paye) + '</b> (réelles ' + B.duree(sm.reel) + ')'); }
+    if (dr.km) { lignes.push('Km <b>' + sm.km + '</b> · ' + B.argent(sm.kmMontant)); }
+    if (dr.repas) { lignes.push('Repas <b>' + B.argent(sm.repas) + '</b>'); }
+    if (dr.installation) { lignes.push('Modules <b>' + sm.modules + '</b> · ' + B.argent(sm.modulesMontant)); }
+    if (dr.escorte) { lignes.push('Convoi <b>' + B.argent(sm.convoi) + '</b>'); }
+    if (lignes.length) { html += '<div class="primes">' + lignes.join('<span class="sep">·</span>') + '<span class="sep">·</span>Total des primes <b>' + B.argent(sm.primes) + '</b></div>'; }
+    html += '<div class="rangee-btn"><button type="button" class="btn" data-t="ajH">+ Ajouter des heures</button><button type="button" class="btn" data-t="ajD">+ Ajouter une dépense</button></div>';
+    c.P.semaines.forEach(function (sem) {
+      var ls = c.l.filter(function (x) { return x.d.date >= sem.debut && x.d.date <= sem.fin; });
+      html += '<h4>' + h(c.P.paye ? sem.nom + ' · ' + B.libelleSemaine(sem) : 'Semaine du ' + B.libelleSemaine(sem)) + ' · ' + B.duree(minutes(ls)) + '</h4>';
+      jrs.filter(function (j) { return j >= sem.debut && j <= sem.fin; }).forEach(function (j) {
+        var lj = ls.filter(function (x) { return x.d.date === j; }), jr = jourDe(u, j), cj = c.parJour[j], ec = dr.hos ? ecartDu(u, j) : null, hx = dr.hos ? hosDu(u, j) : null;
+        var we = B.dateDe(j).getDay() % 6 === 0;
+        if (!lj.length && !jr && (j > auj || we)) { return; }
+        html += '<div class="jour"><span class="jn' + (lj.length ? '' : ' manque') + '">' + h(B.dateCourte(j)) + (ec ? ' <span class="alerte" title="Écart avec les HOS">⚠</span>' : '') + '</span><span>'
           + (lj.length ? lj.map(function (x) {
             var bas = x.d.hos
-              ? (x.d.ajuste ? '<small class="modif">Modifié ' + (x.d.ajustePar === x.d.user ? 'par l’employé' : 'par le bureau') + ' · HOS d’origine : ' + h(B.heureFr(x.d.hosDebut)) + ' à ' + h(B.heureFr(x.d.hosFin)) + ' (' + B.duree(x.d.hosMinutes) + ')</small>' : '')
-              : '<small>' + h(x.d.description) + '</small>';
-            return '<span class="ent"><span><b>' + h(B.heureFr(x.d.debut)) + ' à ' + h(B.heureFr(x.d.fin)) + '</b> · ' + B.duree(B.minutesEntree(x.d))
+              ? (x.d.ajuste ? '<small class="modif">Modifié ' + (x.d.ajustePar === x.d.user ? 'par l’employé' : 'par le bureau') + ' · HOS d’origine : ' + h(B.heureFr(x.d.hosDebut)) + ' à ' + h(B.heureFr(x.d.hosFin)) + ' (' + B.duree(x.d.hosMinutes) + ')</small>' : '<small>Aucune heure saisie : heures HOS</small>')
+              : '<small>' + h(x.d.description) + (dr.km && B.kmEntree(x.d) ? ' · ' + B.kmEntree(x.d) + ' km (' + (x.d.kmAller || 0) + ' + ' + (x.d.kmChantier || 0) + ' + ' + (x.d.kmRetour || 0) + ')' : '') + '</small>';
+            var m = B.minutesEntree(x.d);
+            return '<span class="ent"><span><b>' + h(B.heureFr(x.d.debut)) + ' à ' + h(B.heureFr(x.d.fin)) + '</b> · ' + (x.d.grandProjet ? B.duree(m) + ' réelles · <b>' + B.duree(m * 2) + ' payées</b> <span class="badge-hos gp" title="Installation grand projet">GRAND PROJET</span>' : B.duree(m))
               + (x.d.hos ? ' <span class="badge-hos' + (x.d.ajuste ? ' rouge' : '') + '" title="' + (x.d.ajuste ? 'Heures HOS modifiées' : 'Heures tirées des HOS') + '">HOS</span>' : (x.d.parBureau ? ' <span class="sem">(saisie par le bureau)</span>' : (x.d.corrigeParBureau ? ' <span class="sem">(corrigée par le bureau)</span>' : ''))) + bas + '</span>'
               + '<button type="button" class="btn petit" data-t="modH" data-id="' + h(x.id) + '">Modifier</button></span>';
-          }).join('') : '<span class="manque">Aucune heure</span>') + '</span><span class="jt">' + (lj.length ? B.duree(minutes(lj)) : '') + '</span></div>';
+          }).join('') : '<span class="manque">Aucune heure</span>')
+          + (ec ? '<small class="ecart">⚠ HOS : ' + h(B.heureFr(hx.d.hosBrut.debut)) + ' à ' + h(B.heureFr(B.hhmm(B.minutesDe(hx.d.hosBrut.debut) + hx.d.hosBrut.duree))) + ' · ' + B.duree(hx.d.hosBrut.minutes) + ' de service · écart de ' + B.duree(ec.dTot) + ' sur le total</small>' : '')
+          + (cj && (cj.repas || cj.modules || cj.convoi || cj.km) ? '<small class="extras">' + [cj.km ? cj.km + ' km · ' + B.argent(cj.kmMontant) : '', cj.repas ? 'Repas ' + B.argent(cj.repas) : '', cj.modules ? cj.modules + ' module' + (cj.modules > 1 ? 's' : '') + ' · ' + B.argent(cj.modulesMontant) : '', cj.convoi ? 'Convoi ' + B.argent(cj.convoi) : ''].filter(Boolean).join(' · ') + '</small>' : '')
+          + ((dr.installation || dr.escorte) && (lj.length || jr) ? '<button type="button" class="lien-jour" data-t="jour" data-j="' + j + '">Modules / convoi de la journée</button>' : '')
+          + '</span><span class="jt">' + (lj.length ? B.duree(minutes(lj)) : '') + '</span></div>';
       });
     });
     html += '<h4>Dépenses · ' + B.argent(c.dTotal) + '</h4>' + (c.dl.length ? '<div class="recus">' + c.dl.map(function (x) {
@@ -372,6 +484,8 @@ geotab.addin.tempo = function () {
         else if (t === 'modH') { var xh = trouver(heures, id); if (xh && xh.d.hos) { panneauHos(xh); } else { panneauHeure(xh); } }
         else if (t === 'modD') { panneauDepense(trouver(depenses, id)); }
         else if (t === 'recu') { var x = trouver(depenses, id); if (x && x.d.recu) { voirRecu(x); } }
+        else if (t === 'jour') { panneauJour(tiroirUser, b.getAttribute('data-j')); }
+        else if (t === 'rouvrir') { rouvrir(tiroirUser); }
       });
     }
     fond.innerHTML = html;
@@ -403,9 +517,9 @@ geotab.addin.tempo = function () {
     var cour = B.periodeDe(B.jourIso()), lh = dansPeriode(heures), ld = dansPeriode(depenses);
     var gensAcces = users.filter(function (u) { var e = employes[u.user]; return u.actif && e && e.d.droits && (e.d.droits.heures || e.d.droits.depenses); });
     var html = message ? '<div class="message' + (message.e ? ' erreur' : '') + '" role="status">' + h(message.t) + '</div>' : '';
-    html += '<div class="outils"><div class="per"><button type="button" class="btn" data-a="periode" data-v="-1" aria-label="Période précédente">‹</button><b>Période ' + h(B.libellePeriode(periode)) + '<small>' + (periode.n === cour.n ? 'Période en cours' : (periode.n < cour.n ? 'Période terminée' : 'Période à venir')) + '</small></b><button type="button" class="btn" data-a="periode" data-v="1" aria-label="Période suivante">›</button></div>'
+    html += '<div class="outils"><div class="per"><button type="button" class="btn" data-a="periode" data-v="-1" aria-label="Période précédente">‹</button><b>Aux 2 semaines : ' + h(B.libellePeriode(periode).replace(/^du /, '')) + '<small>Hebdo : ' + h(B.libellePeriode(B.periodeCycleVoisine(B.periodeHebdo(B.jourIso()), decalage())).replace(/^du /, '')) + ' · ' + (periode.n === cour.n ? 'en cours' : (periode.n < cour.n ? 'terminées' : 'à venir')) + '</small></b><button type="button" class="btn" data-a="periode" data-v="1" aria-label="Période suivante">›</button></div>'
       + (periode.n !== cour.n ? '<button type="button" class="btn" data-a="aujourdhui">Période en cours</button>' : '')
-      + '<span class="maj" id="hb-maj" aria-live="polite">' + h(texteMaj()) + '</span><span class="droite"><span class="pager" id="hb-pager"></span>' + (ordre.length && !voirMasquees ? '<button type="button" class="btn discret" data-a="ordreAlpha" title="Remettre les cartes en ordre alphabétique">Ordre alphabétique</button>' : '') + (voirMasquees ? '<button type="button" class="btn" data-a="masquees">‹ Retour aux cartes</button>' : (nbMasquees() ? '<button type="button" class="btn discret" data-a="masquees" title="Voir les cartes masquées">Cartes masquées (' + nbMasquees() + ')</button>' : '')) + '<button type="button" class="btn discret" data-a="ajouterHeure" title="Ajouter des heures"><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Heures</button><button type="button" class="btn discret" data-a="ajouterDepense" title="Ajouter une dépense"><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Dépense</button></span></div>';
+      + '<span class="maj" id="hb-maj" aria-live="polite">' + h(texteMaj()) + '</span><span class="droite"><span class="pager" id="hb-pager"></span><button type="button" class="btn discret" data-a="note" title="Ajouter une note (visible dans le Rapport)"><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Note</button>' + (ordre.length && !voirMasquees ? '<button type="button" class="btn discret" data-a="ordreAlpha" title="Remettre les cartes en ordre alphabétique">Ordre alphabétique</button>' : '') + (voirMasquees ? '<button type="button" class="btn" data-a="masquees">‹ Retour aux cartes</button>' : (nbMasquees() ? '<button type="button" class="btn discret" data-a="masquees" title="Voir les cartes masquées">Cartes masquées (' + nbMasquees() + ')</button>' : '')) + '<button type="button" class="btn discret" data-a="ajouterHeure" title="Ajouter des heures"><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Heures</button><button type="button" class="btn discret" data-a="ajouterDepense" title="Ajouter une dépense"><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Dépense</button></span></div>';
     html += '<div class="zone" id="hb-zone"></div>';
     z.innerHTML = html + '<div class="pied">Bonneville - Version ' + B.VERSION + '</div>';
     remplirZone();
@@ -430,11 +544,19 @@ geotab.addin.tempo = function () {
       + '<label class="champ">Employé<select id="ph-user"' + (x ? ' disabled' : '') + '><option value="">Choisir…</option>' + optionsEmployes(d.user) + '</select></label>'
       + '<div class="rangee"><label class="champ">Date<input type="date" id="ph-date" value="' + h(d.date) + '"></label><label class="champ">Début<input type="time" id="ph-debut" value="' + h(d.debut) + '"></label><label class="champ">Fin<input type="time" id="ph-fin" value="' + h(d.fin) + '"></label></div>'
       + '<label class="champ">Projet (description)<textarea id="ph-desc">' + h(d.description) + '</textarea></label>'
+      + '<div class="rangee" id="ph-km"><label class="champ">Km aller<input type="number" min="0" id="ph-ka" value="' + h(d.kmAller || '') + '"></label><label class="champ">Km chantier<input type="number" min="0" id="ph-kc" value="' + h(d.kmChantier || '') + '"></label><label class="champ">Km retour<input type="number" min="0" id="ph-kr" value="' + h(d.kmRetour || '') + '"></label></div>'
+      + '<label class="case-gp" id="ph-gp-l"><input type="checkbox" id="ph-gp"' + (d.grandProjet ? ' checked' : '') + '> Installation grand projet (le temps compte double)</label>'
       + '<div class="rangee"><button type="button" class="btn jaune" id="ph-ok">Enregistrer</button>' + (x ? '<button type="button" class="btn rouge" id="ph-suppr">Supprimer</button>' : '') + '<button type="button" class="btn" id="ph-annuler">Annuler</button></div>',
       function () {
         $('ph-annuler').onclick = fermer;
+        var options = function () { var uu = x ? d.user : $('ph-user').value, dd = droitsU(uu); $('ph-km').style.display = dd.km ? '' : 'none'; $('ph-gp-l').style.display = dd.installation ? '' : 'none'; };
+        options(); if (!x) { $('ph-user').onchange = options; }
         $('ph-ok').onclick = function () {
           var n = { type: 'heure', user: x ? d.user : $('ph-user').value, date: $('ph-date').value, debut: $('ph-debut').value, fin: $('ph-fin').value, description: $('ph-desc').value.trim() };
+          var dd = droitsU(n.user), nb = function (id) { var v = parseFloat($(id).value); return isNaN(v) || v < 0 ? 0 : v; };
+          if (dd.km) { n.kmAller = nb('ph-ka'); n.kmChantier = nb('ph-kc'); n.kmRetour = nb('ph-kr'); }
+          if (dd.installation) { n.grandProjet = $('ph-gp').checked; }
+          n.taux = x && d.taux ? d.taux : B.figer(paramRec ? paramRec.d : null);
           if (!n.user) { alert('Choisis l’employé.'); return; }
           if (!n.date || !n.debut || !n.fin || !B.minutesEntree(n)) { alert('Inscris la date, le début et la fin.'); return; }
           if (!n.description) { alert('Inscris le projet.'); return; }
@@ -555,6 +677,7 @@ geotab.addin.tempo = function () {
       var a = b.getAttribute('data-a'), id = b.getAttribute('data-id');
       if (a === 'page') { pages[onglet] = Math.max(0, Math.min(nbPages - 1, pages[onglet] + Number(b.getAttribute('data-v')))); remplirZone(); return; }
       if (false) { mode = b.getAttribute('data-v'); if (mode === 'perso' && !perso) { perso = { debut: periode.debut, fin: periode.fin }; } pages = { heures: 0, depenses: 0 }; message = null; rendre(); return; }
+      if (a === 'note') { panneauNote(); return; }
       if (a === 'ordreAlpha') { if (confirm('Remettre les cartes en ordre alphabétique ?')) { ordre = []; sauverOrdre(); rendre(); } return; }
       if (a === 'masquees') { voirMasquees = !voirMasquees; pages = { heures: 0, depenses: 0 }; rendre(); return; }
       if (a === 'periode') { periode = B.periodeVoisine(periode, Number(b.getAttribute('data-v'))); pages = { heures: 0, depenses: 0 }; message = null; rendre(); chargerHos(); }

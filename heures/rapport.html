@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Bonneville - Rapport</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.2.1"></script>
+<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.2.2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body style="margin:0">
@@ -48,6 +48,10 @@
   #hr .pager { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; color: var(--doux); }
   #hr .resume { font-size: 13px; color: var(--doux); }
   #hr .message { border-radius: 10px; padding: 10px 14px; font-weight: 600; background: #fde8e7; color: #7a1a12; }
+  #hr .notes { flex: 0 0 auto; max-height: 26vh; overflow: auto; background: var(--surface); border: 1px solid var(--ligne); border-radius: 12px; padding: 8px 12px; font-size: 13px; scrollbar-width: thin; }
+  #hr .note { display: grid; grid-template-columns: 90px 170px 1fr; gap: 10px; padding: 5px 0; border-top: 1px solid var(--ligne); }
+  #hr .note .nd { font-weight: 700; } #hr .note .nn { color: var(--doux); }
+  #hr .ok { color: var(--ok); font-weight: 900; }
   #hr .pied { text-align: center; font-size: 12px; font-weight: 600; color: var(--doux); }
   #hr button:focus-visible, #hr input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 </style>
@@ -61,11 +65,12 @@ geotab.addin.rapport = function () {
   var B = window.Bonneville;
   var api = null, G = null, moi = '', acces = false, pret = false;
   var users = [], employes = {}, heures = [], depenses = [];
+  var cycle = '2sem', jours = [], soumissions = [], notes = [], paramRec = null, fiches = {};
   var choixDates = 'cours', du = '', au = '', choisis = null, avecDepenses = true, listeOuverte = false, page = 0, nbPages = 1, erreur = '';
 
   function $(id) { return document.getElementById(id); }
   function h(t) { return String(t === undefined || t === null ? '' : t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
-  function nomUser(u) { var x = users.filter(function (y) { return y.user === u; })[0]; return x ? x.nom : (u || ''); }
+  function nomUser(u) { if (fiches[u]) { return fiches[u]; } var x = users.filter(function (y) { return y.user === u; })[0]; return x ? x.nom : (u || ''); }
   function minutes(l) { return l.reduce(function (s, x) { return s + B.minutesEntree(x.d); }, 0); }
   function argentTotal(l) { return l.reduce(function (s, x) { return s + (Number(x.d.montant) || 0); }, 0); }
   function courtDate(iso) { var d = B.dateDe(iso); return d.getDate() + ' ' + B.MOIS[d.getMonth()]; }
@@ -74,17 +79,17 @@ geotab.addin.rapport = function () {
   // ---------- Dates : période de paye en cours, précédente, ou personnalisée
   function appliquerChoix(c) {
     choixDates = c;
-    var p = B.periodeDe(B.jourIso());
-    if (c === 'precedente') { p = B.periodeVoisine(p, -1); }
+    var p = B.periodeCycle(B.jourIso(), cycle);
+    if (c === 'precedente') { p = B.periodeCycleVoisine(p, -1); }
     if (c !== 'perso') { du = p.debut; au = p.fin; }
     page = 0;
   }
-  // Semaines de paye (jeudi au mercredi) coupées aux dates choisies
+  // Semaines selon le cycle choisi : jeudi au mercredi (aux 2 semaines) ou dimanche au samedi (hebdomadaire)
   function semaines() {
-    var p0 = B.periodeDe(du), j = du >= p0.s2.debut ? p0.s2.debut : p0.s1.debut, l = [], paye = choixDates !== 'perso', n = 0;
+    var p0 = B.periodeCycle(du, cycle), j = cycle === 'hebdo' ? p0.debut : (du >= p0.s2.debut ? p0.s2.debut : p0.s1.debut), l = [], paye = choixDates !== 'perso', n = 0;
     while (j <= au && l.length < 60) {
       var a = j < du ? du : j, f = B.ajouterJours(j, 6); if (f > au) { f = au; } n++;
-      l.push({ debut: a, fin: f, court: paye ? 'Semaine ' + n : 'Sem. du ' + courtDate(a), titre: courtDate(a) + ' au ' + courtDate(f) });
+      l.push({ debut: a, fin: f, court: paye ? (cycle === 'hebdo' ? 'Semaine' : 'Semaine ' + n) : 'Sem. du ' + courtDate(a), titre: courtDate(a) + ' au ' + courtDate(f) });
       j = B.ajouterJours(j, 7);
     }
     return l;
@@ -94,17 +99,22 @@ geotab.addin.rapport = function () {
     var vus = {};
     users.forEach(function (u) { var e = employes[u.user]; if (u.actif && e && e.d.droits && (e.d.droits.heures || e.d.droits.hos) && !e.d.masque) { vus[u.user] = true; } });
     heures.concat(depenses).forEach(function (x) { if (x.d.date >= du && x.d.date <= au) { vus[x.d.user] = true; } });
-    return Object.keys(vus).sort(function (a, b) { return nomUser(a).localeCompare(nomUser(b), 'fr'); });
+    // Seulement les employés du cycle choisi
+    return Object.keys(vus).filter(function (u) { return B.cycleDe(employes[u] ? employes[u].d : null) === cycle; }).sort(function (a, b) { return nomUser(a).localeCompare(nomUser(b), 'fr'); });
   }
   function lignes() {
-    var sem = semaines(), lh = dansDates(heures), ld = dansDates(depenses);
+    var sem = semaines(), lh = dansDates(heures), ld = dansDates(depenses), courant = B.params(paramRec ? paramRec.d : null);
     return gens().filter(function (u) { return !choisis || choisis[u]; }).map(function (u) {
-      var l = lh.filter(function (x) { return x.d.user === u; }), jours = {}; l.forEach(function (x) { jours[x.d.date] = true; });
+      var l = lh.filter(function (x) { return x.d.user === u; }), jrs = {}; l.forEach(function (x) { jrs[x.d.date] = true; });
+      jours.forEach(function (x) { if (x.d.user === u && x.d.date >= du && x.d.date <= au) { jrs[x.d.date] = jrs[x.d.date] || 'jour'; } });
+      var dr = (employes[u] && employes[u].d.droits) || {};
+      var sm = B.sommeJours(Object.keys(jrs).map(function (j) { var jr = jours.filter(function (x) { return x.d.user === u && x.d.date === j; })[0]; return B.calculJour(l.filter(function (x) { return x.d.date === j; }), jr ? jr.d : null, dr, courant); }));
       var dl = ld.filter(function (x) { return x.d.user === u; });
-      return { u: u, parSem: sem.map(function (s) { return minutes(l.filter(function (x) { return x.d.date >= s.debut && x.d.date <= s.fin; })); }), total: minutes(l), jours: Object.keys(jours).length, dep: argentTotal(dl), nbDep: dl.length };
+      var so = soumissions.filter(function (x) { return x.d.user === u && x.d.debut === du && x.d.statut === 'soumise'; })[0];
+      return { u: u, parSem: sem.map(function (s) { return minutes(l.filter(function (x) { return x.d.date >= s.debut && x.d.date <= s.fin; })); }), total: minutes(l), jours: Object.keys(jrs).filter(function (j) { return jrs[j] === true; }).length, dep: argentTotal(dl), nbDep: dl.length, sm: sm, soumis: so ? so.d.soumisLe : '' };
     });
   }
-
+  function quand(iso) { var d = new Date(iso); return d.getDate() + ' ' + B.MOIS[d.getMonth()] + ' ' + d.getHours() + ' h ' + String(d.getMinutes()).padStart(2, '0'); }
   // ---------- Heures automatiques (HOS) pour les dates choisies
   var ajusts = [], hosPlage = '';
   function chargerHos() {
@@ -113,13 +123,17 @@ geotab.addin.rapport = function () {
     if (!gensHos.length) { heures = heures.filter(function (x) { return !x.d.hos; }); rendre(); return; }
     B.heuresHos(G, gensHos, du, au, ajusts).then(function (l) {
       if (hosPlage !== cle) { return; }
-      heures = heures.filter(function (x) { return !x.d.hos; }).concat(l).sort(function (a, b) { return (a.d.date + a.d.debut).localeCompare(b.d.date + b.d.debut); });
+      var saisies = heures.filter(function (x) { return !x.d.hos; }), cle2 = {}; saisies.forEach(function (x) { cle2[x.d.user + '|' + x.d.date] = true; });
+      heures = saisies.concat(l.filter(function (x) { return !cle2[x.d.user + '|' + x.d.date]; })).sort(function (a, b) { return (a.d.date + a.d.debut).localeCompare(b.d.date + b.d.debut); });
       rendre();
     });
   }
   // ---------- Chargement
   function charger() {
-    return Promise.all([G.utilisateurs(), G.lireType('employe').catch(function () { return []; }), G.lireType('heure').catch(function () { return []; }), G.lireType('depense').catch(function () { return []; }), G.lireType('ajusthos').catch(function () { return []; })]).then(function (r) {
+    return Promise.all([G.utilisateurs(), G.lireType('employe').catch(function () { return []; }), G.lireType('heure').catch(function () { return []; }), G.lireType('depense').catch(function () { return []; }), G.lireType('ajusthos').catch(function () { return []; }), G.lireType('jour').catch(function () { return []; }), G.lireType('soumission').catch(function () { return []; }), G.lireType('note').catch(function () { return []; }), G.lireType('parametres').catch(function () { return []; }), G.lireType('fiche').catch(function () { return []; })]).then(function (r) {
+      var lst = function (l) { return (l || []).map(function (x) { return { id: x.id, d: x.details }; }); };
+      jours = lst(r[5]); soumissions = lst(r[6]); notes = lst(r[7]); paramRec = r[8] && r[8][0] ? { id: r[8][0].id, d: r[8][0].details } : null;
+      fiches = {}; lst(r[9]).forEach(function (x) { if (x.d.user && x.d.nom) { fiches[x.d.user] = x.d.nom; } });
       ajusts = r[4].map(function (l) { return { id: l.id, d: l.details }; });
       users = r[0]; employes = {};
       r[1].forEach(function (l) { employes[l.details.user] = { id: l.id, d: l.details }; });
@@ -136,7 +150,7 @@ geotab.addin.rapport = function () {
     if (!acces) { z.innerHTML = '<div class="message" role="alert" style="font-size:16px;padding:20px;text-align:center"><b style="font-size:22px">Accès refusé</b><br>Ton compte (' + h(moi) + ') n’a pas accès à cette application. Communique avec le Gestionnaire Livraison pour obtenir l’accès.</div><div class="pied">Bonneville - Version ' + B.VERSION + '</div>'; return; }
     var tous = gens(), nbChoisis = choisis ? tous.filter(function (u) { return choisis[u]; }).length : tous.length;
     var html = erreur ? '<div class="message" role="alert">' + h(erreur) + '</div>' : '';
-    html += '<div class="outils"><span class="mode" role="group" aria-label="Dates du rapport">'
+    html += '<div class="outils"><span class="mode" role="group" aria-label="Cycle de paye">' + [['2sem', 'Aux 2 semaines'], ['hebdo', 'Hebdomadaire']].map(function (c) { return '<button type="button" data-cy="' + c[0] + '" aria-pressed="' + (cycle === c[0]) + '">' + c[1] + '</button>'; }).join('') + '</span><span class="mode" role="group" aria-label="Dates du rapport">'
       + [['cours', 'Période en cours'], ['precedente', 'Période précédente'], ['perso', 'Personnalisée']].map(function (c) { return '<button type="button" data-c="' + c[0] + '" aria-pressed="' + (choixDates === c[0]) + '">' + c[1] + '</button>'; }).join('')
       + '</span><span class="dates"><label>Du <input type="date" id="hr-du" value="' + du + '"></label><label>au <input type="date" id="hr-au" value="' + au + '"></label><small>' + nbJours() + ' jours</small></span></div>';
     html += '<div class="outils"><span class="choix"><button type="button" class="btn" id="hr-gens" aria-expanded="' + listeOuverte + '">' + (choisis ? nbChoisis + ' employé' + (nbChoisis > 1 ? 's' : '') + ' sur ' + tous.length : 'Tous les employés (' + tous.length + ')') + ' ▾</button>'
@@ -144,34 +158,53 @@ geotab.addin.rapport = function () {
         + tous.map(function (u) { return '<label class="case"><input type="checkbox" data-u="' + h(u) + '"' + (!choisis || choisis[u] ? ' checked' : '') + '>' + h(nomUser(u)) + '</label>'; }).join('') + '</div>' : '')
       + '</span><label class="case"><input type="checkbox" id="hr-dep"' + (avecDepenses ? ' checked' : '') + '> Inclure les dépenses</label>'
       + '<span class="droite"><span class="pager" id="hr-pager"></span><button type="button" class="btn jaune" id="hr-excel"><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0l-4-4m4 4l4-4M5 19h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Exporter en Excel</button></span></div>';
-    html += '<div class="zone" id="hr-zone"></div><div class="pied">Bonneville - Version ' + B.VERSION + '</div>';
+    html += '<div class="zone" id="hr-zone"></div><div class="notes" id="hr-notes"></div><div class="pied">Bonneville - Version ' + B.VERSION + '</div>';
     z.innerHTML = html;
     brancherOutils();
     remplirTableau();
   }
   function remplirTableau() {
     var zone = $('hr-zone'); if (!zone) { return; }
+    remplirNotes();
     var sem = semaines(), L = lignes(), colsSem = sem.length <= 6;
-    if (!L.length) { $('hr-pager').innerHTML = ''; zone.innerHTML = '<div class="tableau"><div class="vide">Aucun employé pour ces dates.</div></div>'; return; }
+    if (!L.length) { $('hr-pager').innerHTML = ''; zone.innerHTML = '<div class="tableau"><div class="vide">Aucun employé de ce cycle pour ces dates.</div></div>'; return; }
     var par = Math.max(1, Math.floor((zone.clientHeight - 46 - 42 - 4) / 42));
     nbPages = Math.max(1, Math.ceil(L.length / par)); if (page > nbPages - 1) { page = nbPages - 1; }
     $('hr-pager').innerHTML = nbPages > 1 ? '<button type="button" class="btn petit" data-p="-1" aria-label="Page précédente"' + (page ? '' : ' disabled') + '>‹</button>Page ' + (page + 1) + ' / ' + nbPages + '<button type="button" class="btn petit" data-p="1" aria-label="Page suivante"' + (page < nbPages - 1 ? '' : ' disabled') + '>›</button>' : '';
     Array.prototype.forEach.call($('hr-pager').querySelectorAll('[data-p]'), function (b) { b.onclick = function () { page = Math.max(0, Math.min(nbPages - 1, page + Number(b.getAttribute('data-p')))); remplirTableau(); }; });
-    var tete = '<th>Employé</th>' + (colsSem ? sem.map(function (s) { return '<th class="n" title="' + h(s.titre) + '">' + h(s.court) + '</th>'; }).join('') : '') + '<th class="n">Total</th><th class="n">Jours travaillés</th>' + (avecDepenses ? '<th class="n">Dépenses</th>' : '');
+    var som = function (f) { return L.reduce(function (a, r) { return a + f(r); }, 0); };
+    var tete = '<th>Employé</th>' + (colsSem ? sem.map(function (s) { return '<th class="n" title="' + h(s.titre) + '">' + h(s.court) + '</th>'; }).join('') : '') + '<th class="n">Total</th><th class="n" title="Installation grand projet comptée double">Payées</th><th class="n">Jours</th><th class="n" title="Km, repas, modules et convoi">Primes</th>' + (avecDepenses ? '<th class="n">Dépenses</th>' : '') + '<th>Soumise</th>';
     var corps = L.slice(page * par, page * par + par).map(function (r) {
+      var det = [r.sm.km ? r.sm.km + ' km = ' + B.argent(r.sm.kmMontant) : '', r.sm.repas ? 'Repas ' + B.argent(r.sm.repas) : '', r.sm.modules ? r.sm.modules + ' module(s) = ' + B.argent(r.sm.modulesMontant) : '', r.sm.convoi ? 'Convoi ' + B.argent(r.sm.convoi) : ''].filter(Boolean).join(' · ');
       return '<tr><td><b>' + h(nomUser(r.u)) + '</b><span class="courriel">' + h(r.u) + '</span></td>'
         + (colsSem ? r.parSem.map(function (m) { return '<td class="n">' + (m ? B.duree(m) : '<span class="zero">0 h 00</span>') + '</td>'; }).join('') : '')
-        + '<td class="n"><b>' + B.duree(r.total) + '</b></td><td class="n">' + r.jours + '</td>' + (avecDepenses ? '<td class="n">' + (r.nbDep ? B.argent(r.dep) + ' <span class="courriel">(' + r.nbDep + ')</span>' : '—') + '</td>' : '') + '</tr>';
+        + '<td class="n"><b>' + B.duree(r.total) + '</b></td><td class="n">' + (r.sm.paye !== r.total ? '<b>' + B.duree(r.sm.paye) + '</b>' : B.duree(r.sm.paye)) + '</td><td class="n">' + r.jours + '</td>'
+        + '<td class="n"' + (det ? ' title="' + h(det) + '"' : '') + '>' + (r.sm.primes ? B.argent(r.sm.primes) : '—') + '</td>'
+        + (avecDepenses ? '<td class="n">' + (r.nbDep ? B.argent(r.dep) + ' <span class="courriel">(' + r.nbDep + ')</span>' : '—') + '</td>' : '')
+        + '<td>' + (r.soumis ? '<span class="ok">✓</span> ' + h(quand(r.soumis)) : '<span class="courriel">Non</span>') + '</td></tr>';
     }).join('');
     var tot = '<tr class="total"><td>Total (' + L.length + ' employé' + (L.length > 1 ? 's' : '') + ')</td>'
-      + (colsSem ? sem.map(function (s, i) { return '<td class="n">' + B.duree(L.reduce(function (a, r) { return a + r.parSem[i]; }, 0)) + '</td>'; }).join('') : '')
-      + '<td class="n">' + B.duree(L.reduce(function (a, r) { return a + r.total; }, 0)) + '</td><td class="n">' + L.reduce(function (a, r) { return a + r.jours; }, 0) + '</td>'
-      + (avecDepenses ? '<td class="n">' + B.argent(L.reduce(function (a, r) { return a + r.dep; }, 0)) + '</td>' : '') + '</tr>';
+      + (colsSem ? sem.map(function (s, i) { return '<td class="n">' + B.duree(som(function (r) { return r.parSem[i]; })) + '</td>'; }).join('') : '')
+      + '<td class="n">' + B.duree(som(function (r) { return r.total; })) + '</td><td class="n">' + B.duree(som(function (r) { return r.sm.paye; })) + '</td><td class="n">' + som(function (r) { return r.jours; }) + '</td><td class="n">' + B.argent(som(function (r) { return r.sm.primes; })) + '</td>'
+      + (avecDepenses ? '<td class="n">' + B.argent(som(function (r) { return r.dep; })) + '</td>' : '') + '<td>' + L.filter(function (r) { return r.soumis; }).length + ' / ' + L.length + '</td></tr>';
     zone.innerHTML = '<div class="tableau"><table><thead><tr>' + tete + '</tr></thead><tbody>' + corps + tot + '</tbody></table></div>';
   }
+  // Notes du bureau pour ces dates et ces employés
+  function notesVisibles() {
+    var g = {}; gens().forEach(function (u) { if (!choisis || choisis[u]) { g[u] = true; } });
+    return notes.filter(function (x) { return x.d.date >= du && x.d.date <= au && g[x.d.user]; }).sort(function (a, b) { return a.d.date.localeCompare(b.d.date); });
+  }
+  function remplirNotes() {
+    var z = $('hr-notes'); if (!z) { return; }
+    var l = notesVisibles();
+    z.innerHTML = l.length ? '<b>Notes (' + l.length + ')</b>' + l.map(function (x) { return '<div class="note"><span class="nd">' + h(B.dateCourte(x.d.date)) + '</span><span class="nn">' + h(nomUser(x.d.user)) + '</span><span class="nt">' + h(x.d.texte) + '</span></div>'; }).join('') : '';
+    z.style.display = l.length ? '' : 'none';
+  }
+
 
   // ---------- Événements
   function brancherOutils() {
+    Array.prototype.forEach.call(document.querySelectorAll('#hr .mode [data-cy]'), function (b) { b.onclick = function () { cycle = b.getAttribute('data-cy'); choisis = null; appliquerChoix(choixDates === 'perso' ? 'cours' : choixDates); rendre(); if (pret) { chargerHos(); } }; });
     Array.prototype.forEach.call(document.querySelectorAll('#hr .mode [data-c]'), function (b) { b.onclick = function () { appliquerChoix(b.getAttribute('data-c')); rendre(); if (pret) { chargerHos(); } }; });
     var changer = function () {
       var a = $('hr-du').value, b = $('hr-au').value; if (!a || !b) { return; }
@@ -203,19 +236,30 @@ geotab.addin.rapport = function () {
   // ---------- Excel
   function exporter() {
     if (!window.XLSX) { erreur = 'La bibliothèque Excel n’a pas été chargée. Fais Ctrl + F5 et réessaie.'; rendre(); return; }
-    var sem = semaines(), L = lignes(), lh = dansDates(heures), ld = dansDates(depenses), wb = XLSX.utils.book_new();
+    var sem = semaines(), L = lignes(), lh = dansDates(heures), ld = dansDates(depenses), wb = XLSX.utils.book_new(), courant = B.params(paramRec ? paramRec.d : null);
     function feuille(rows, titre) { XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{ 'Aucune donnée': '' }]), titre); }
     function nomSem(iso) { var s = sem.filter(function (x) { return iso >= x.debut && iso <= x.fin; })[0]; return s ? s.court : ''; }
     feuille(L.map(function (r) {
-      var o = { 'Employé': nomUser(r.u), 'Courriel': r.u };
+      var o = { 'Employé': nomUser(r.u), 'Courriel': r.u, 'Cycle': cycle === 'hebdo' ? 'Hebdomadaire' : 'Aux 2 semaines' };
       sem.forEach(function (s, i) { o[s.court + ' (h)'] = B.heuresDecimales(r.parSem[i]); });
-      o['Total (h)'] = B.heuresDecimales(r.total); o['Jours travaillés'] = r.jours;
+      o['Total réel (h)'] = B.heuresDecimales(r.total); o['Heures payées (h)'] = B.heuresDecimales(r.sm.paye); o['Jours travaillés'] = r.jours;
+      o['Km'] = r.sm.km; o['Montant km ($)'] = r.sm.kmMontant; o['Prime de repas ($)'] = r.sm.repas; o['Modules'] = r.sm.modules; o['Prime installation ($)'] = r.sm.modulesMontant; o['Convoi ($)'] = r.sm.convoi; o['Total primes ($)'] = r.sm.primes;
       if (avecDepenses) { o['Dépenses ($)'] = Math.round(r.dep * 100) / 100; }
+      o['Soumise le'] = r.soumis ? new Date(r.soumis).toLocaleString('fr-CA') : '';
       return o;
     }), 'Sommaire');
-    feuille(lh.map(function (x) { return { 'Employé': nomUser(x.d.user), 'Semaine': nomSem(x.d.date), 'Date': x.d.date, 'Début': x.d.debut, 'Fin': x.d.fin, 'Heures': B.heuresDecimales(B.minutesEntree(x.d)), 'Source': x.d.hos ? (x.d.ajuste ? 'HOS ajustées' : 'HOS') : 'Saisie', 'Projet (description)': x.d.description }; }), 'Heures');
-    if (avecDepenses) { feuille(ld.map(function (x) { return { 'Employé': nomUser(x.d.user), 'Semaine': nomSem(x.d.date), 'Date': x.d.date, 'Montant ($)': Number(x.d.montant) || 0, 'Description': x.d.description, 'Reçu': x.d.recu ? 'Oui' : 'Non' }; }), 'Dépenses'); }
-    XLSX.writeFile(wb, 'Rapport heures' + (avecDepenses ? ' et dépenses' : '') + ' ' + du + ' au ' + au + '.xlsx');
+    feuille(lh.filter(function (x) { return gens().indexOf(x.d.user) >= 0 && (!choisis || choisis[x.d.user]); }).map(function (x) {
+      var m = B.minutesEntree(x.d), t = B.params(x.d.taux || courant);
+      return { 'Employé': nomUser(x.d.user), 'Semaine': nomSem(x.d.date), 'Date': x.d.date, 'Début': x.d.debut, 'Fin': x.d.fin, 'Heures réelles': B.heuresDecimales(m), 'Grand projet': x.d.grandProjet ? 'Oui' : '', 'Heures payées': B.heuresDecimales(x.d.grandProjet ? m * 2 : m),
+        'Km aller': x.d.kmAller || 0, 'Km chantier': x.d.kmChantier || 0, 'Km retour': x.d.kmRetour || 0, 'Taux km': t.kmTaux, 'Source': x.d.hos ? (x.d.ajuste ? 'HOS ajustées' : 'HOS') : 'Saisie', 'Projet (description)': x.d.description };
+    }), 'Heures');
+    feuille(jours.filter(function (x) { return x.d.date >= du && x.d.date <= au && gens().indexOf(x.d.user) >= 0 && (!choisis || choisis[x.d.user]); }).map(function (x) {
+      var t = B.params(x.d.taux || courant);
+      return { 'Employé': nomUser(x.d.user), 'Date': x.d.date, 'Modules': x.d.modules || 0, 'Prime par module ($)': t.moduleMontant, 'Convoi routier': x.d.convoi ? 'Oui' : '', 'Prime convoi ($)': x.d.convoi ? t.convoiMontant : 0 };
+    }), 'Journées');
+    if (avecDepenses) { feuille(ld.filter(function (x) { return gens().indexOf(x.d.user) >= 0 && (!choisis || choisis[x.d.user]); }).map(function (x) { return { 'Employé': nomUser(x.d.user), 'Semaine': nomSem(x.d.date), 'Date': x.d.date, 'Montant ($)': Number(x.d.montant) || 0, 'Description': x.d.description, 'Reçu': x.d.recu ? 'Oui' : 'Non' }; }), 'Dépenses'); }
+    feuille(notesVisibles().map(function (x) { return { 'Date': x.d.date, 'Employé': nomUser(x.d.user), 'Note': x.d.texte }; }), 'Notes');
+    XLSX.writeFile(wb, 'Rapport ' + (cycle === 'hebdo' ? 'hebdomadaire' : 'aux 2 semaines') + ' ' + du + ' au ' + au + '.xlsx');
   }
 
   window.BonnevilleModule = { aller: function () { rendre(); } };

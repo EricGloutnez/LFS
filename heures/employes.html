@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Bonneville - Employés</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.2.1"></script>
+<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.2.2"></script>
 </head>
 <body style="margin:0">
 <div id="be">
@@ -44,6 +44,15 @@
   #be .puce { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; background: var(--bande); color: var(--doux); margin-left: 6px; }
   #be .message { border-radius: 10px; padding: 10px 14px; font-weight: 600; background: #e7f4ec; color: #14532d; }
   #be .message.erreur { background: #fde8e7; color: #7a1a12; }
+  #be select[data-cycle] { font: inherit; font-size: 13px; height: 30px; border: 1px solid var(--ligne); border-radius: 6px; padding: 0 6px; background: var(--surface); }
+  #be th.c, #be td.c { width: auto; padding: 0 6px; }
+  #be .fond-params { position: fixed; inset: 0; background: rgba(20,25,30,.45); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 16px; }
+  #be .pparams { background: var(--surface); border-radius: 14px; padding: 18px 20px; width: min(520px, 100%); max-height: 100%; overflow: auto; display: flex; flex-direction: column; gap: 8px; }
+  #be .pparams h3 { margin: 0; } #be .pparams h4 { margin: 8px 0 0; font-size: 12px; text-transform: uppercase; letter-spacing: .4px; color: var(--doux); }
+  #be .pchamp { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  #be .pval { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; }
+  #be .pval input { width: 100px; height: 34px; font: inherit; text-align: right; border: 1px solid var(--ligne); border-radius: 8px; padding: 0 8px; }
+  #be .rangee-p { display: flex; gap: 10px; margin-top: 8px; }
   #be .refus { background: var(--surface); border: 1px solid var(--ligne); border-radius: 14px; padding: 28px; text-align: center; max-width: 620px; margin: 40px auto; }
 </style>
 <div class="entete"><img alt="Bonneville" src="https://ericgloutnez.github.io/LFS/logo-bonneville.png"><span class="sep"></span><span class="titre">Employés</span><span class="version" id="be-version"></span></div>
@@ -54,7 +63,7 @@
 geotab.addin.employes = function () {
   'use strict';
   var B = window.Bonneville;
-  var VERSION = '1.2.1';
+  var VERSION = '1.2.2';
   var G = null, moi = '', users = [], employes = {}, modifies = {}, filtre = { texte: '', inactifs: false, retires: false }, selection = {}, message = null;
 
   function $(id) { return document.getElementById(id); }
@@ -63,7 +72,8 @@ geotab.addin.employes = function () {
   function dire(t, e) { message = { t: t, e: !!e }; rendre(); }
 
   function charger() {
-    return Promise.all([G.utilisateurs(), G.lireType('employe').catch(function () { return []; })]).then(function (r) {
+    return Promise.all([G.utilisateurs(), G.lireType('employe').catch(function () { return []; }), G.lireType('parametres').catch(function () { return []; })]).then(function (r) {
+      paramRec = r[2] && r[2][0] ? { id: r[2][0].id, d: r[2][0].details } : null;
       users = r[0]; employes = {}; modifies = {};
       r[1].forEach(function (l) { if (l.details.user) { employes[l.details.user] = { id: l.id, d: l.details }; } });
       rendre();
@@ -74,6 +84,17 @@ geotab.addin.employes = function () {
     // Les personnes retirées de la liste n'apparaissent que dans la vue « Personnes retirées »
     return users.filter(function (u) { return !!fiche(u.user).masque === filtre.retires && (filtre.retires || filtre.inactifs || u.actif) && (!t || (u.nom + ' ' + u.user).toLowerCase().indexOf(t) >= 0); });
   }
+  // Options par employé : [clé, titre de colonne, explication]
+  var OPTIONS = [
+    ['heures', 'Heures', 'Saisie des heures dans Geotab Drive'],
+    ['depenses', 'Dépenses', 'Ajout de dépenses avec photo du reçu dans Geotab Drive'],
+    ['admin', 'Admin.', 'Accès au bureau (Tableau de bord, Rapport, Employés)'],
+    ['hos', 'HOS', 'Heures auto : les journaux HOS servent de vérification (triangle jaune) et comptent si rien n’est saisi'],
+    ['escorte', 'Escorte', 'Escorte routière : case « Convoi routier » une fois par jour'],
+    ['km', 'Km', 'Kilométrage : km aller, chantier et retour dans chaque entrée d’heures'],
+    ['repas', 'Repas', 'Prime de repas selon les heures réelles du jour'],
+    ['installation', 'Install.', 'Prime d’installation : modules par jour et case « Installation grand projet »']
+  ];
   // Tout tient dans la page : la liste est découpée en pages selon la hauteur disponible
   var page = 0, nbPages = 1;
   function rendre() {
@@ -89,7 +110,7 @@ geotab.addin.employes = function () {
       + '<button type="button" class="btn" id="be-vue">' + (filtre.retires ? '‹ Revenir à la liste' : 'Personnes retirées (' + nbRetires + ')') + '</button>'
       + '<button type="button" class="btn" id="be-retirer"' + (nbSel ? '' : ' disabled') + '>' + (filtre.retires ? 'Remettre dans la liste' : 'Retirer de la liste') + (nbSel ? ' (' + nbSel + ')' : '') + '</button>'
       + '<span class="aide">' + avecAcces + ' avec accès</span>'
-      + '<span class="droite"><span class="pager" id="be-pager"></span><button type="button" class="btn jaune" id="be-sauver"' + (nbMod ? '' : ' disabled') + '>Enregistrer les changements' + (nbMod ? ' (' + nbMod + ')' : '') + '</button></span></div>';
+      + '<span class="droite"><span class="pager" id="be-pager"></span><button type="button" class="btn" id="be-params">Paramètres</button><button type="button" class="btn jaune" id="be-sauver"' + (nbMod ? '' : ' disabled') + '>Enregistrer les changements' + (nbMod ? ' (' + nbMod + ')' : '') + '</button></span></div>';
     if (filtre.retires) { html += '<div class="message" style="background:var(--bande);color:var(--encre)">Personnes retirées de la liste. Coche celles à remettre, puis clique sur « Remettre dans la liste ».</div>'; }
     html += '<div class="zone" id="be-zone"></div>'
       + '<div class="pied">Bonneville - Version ' + B.VERSION + '</div>';
@@ -100,6 +121,7 @@ geotab.addin.employes = function () {
     $('be-vue').onclick = function () { filtre.retires = !filtre.retires; selection = {}; page = 0; message = null; rendre(); };
     $('be-retirer').onclick = retirerSelection;
     $('be-sauver').onclick = sauver;
+    $('be-params').onclick = ouvrirParams;
     remplirTable(l);
   }
   function remplirTable(l) {
@@ -111,39 +133,70 @@ geotab.addin.employes = function () {
     $('be-pager').innerHTML = nbPages > 1 ? '<button type="button" class="btn petit" data-p="-1" aria-label="Page précédente"' + (page ? '' : ' disabled') + '>‹</button>Page ' + (page + 1) + ' / ' + nbPages + '<button type="button" class="btn petit" data-p="1" aria-label="Page suivante"' + (page < nbPages - 1 ? '' : ' disabled') + '>›</button>' : '';
     Array.prototype.forEach.call($('be-pager').querySelectorAll('[data-p]'), function (b) { b.onclick = function () { page = Math.max(0, Math.min(nbPages - 1, page + Number(b.getAttribute('data-p')))); remplirTable(); }; });
     var tousSel = morceau.length && morceau.every(function (u) { return selection[u.user]; });
-    zone.innerHTML = '<div class="tableau"><table><thead><tr><th class="sel"><input type="checkbox" id="be-tous" aria-label="Tout sélectionner sur cette page"' + (tousSel ? ' checked' : '') + '></th><th>Employé</th><th class="c">Heures</th><th class="c">Dépenses</th><th class="c">Administrateur</th><th class="c" title="Les heures de cet employé viennent de ses journaux HOS dans Geotab (Conduite, En service, Cour). Il peut quand même ajuster ou ajouter des heures.">Heures auto (HOS)</th></tr></thead><tbody>'
+    zone.innerHTML = '<div class="tableau"><table><thead><tr><th class="sel"><input type="checkbox" id="be-tous" aria-label="Tout sélectionner sur cette page"' + (tousSel ? ' checked' : '') + '></th><th>Employé</th>' + OPTIONS.map(function (o) { return '<th class="c" title="' + h(o[2]) + '">' + o[1] + '</th>'; }).join('') + '<th class="c">Cycle de paye</th></tr></thead><tbody>'
       + morceau.map(function (u) {
         var d = fiche(u.user).droits || {};
         return '<tr data-u="' + h(u.user) + '" class="' + (modifies[u.user] ? 'modifie' : '') + (u.actif ? '' : ' inactif') + '"><td class="sel"><input type="checkbox" class="be-sel" aria-label="Sélectionner ' + h(u.nom) + '"' + (selection[u.user] ? ' checked' : '') + '></td>'
           + '<td class="qui"><b>' + h(u.nom) + '</b>' + (u.actif ? '' : '<span class="puce">Inactif</span>') + '<span class="courriel">' + h(u.user) + '</span></td>'
-          + '<td class="c"><input type="checkbox" data-d="heures" aria-label="Heures : ' + h(u.nom) + '"' + (d.heures ? ' checked' : '') + '></td>'
-          + '<td class="c"><input type="checkbox" data-d="depenses" aria-label="Dépenses : ' + h(u.nom) + '"' + (d.depenses ? ' checked' : '') + '></td>'
-          + '<td class="c"><input type="checkbox" data-d="admin" aria-label="Administrateur : ' + h(u.nom) + '"' + (d.admin ? ' checked' : '') + '></td>'
-          + '<td class="c"><input type="checkbox" data-d="hos" aria-label="Heures auto (HOS) : ' + h(u.nom) + '"' + (d.hos ? ' checked' : '') + '></td></tr>';
-      }).join('') + (morceau.length ? '' : '<tr><td colspan="6" style="text-align:center;color:var(--doux);padding:24px">' + (filtre.retires ? 'Personne n’a été retiré de la liste.' : 'Aucun employé à afficher.') + '</td></tr>') + '</tbody></table></div>';
+          + OPTIONS.map(function (o) { return '<td class="c"><input type="checkbox" data-d="' + o[0] + '" aria-label="' + h(o[1].replace(/<br>/g, ' ') + ' : ' + u.nom) + '"' + (d[o[0]] ? ' checked' : '') + '></td>'; }).join('')
+          + '<td class="c"><select data-cycle aria-label="Cycle de paye : ' + h(u.nom) + '"><option value="2sem"' + (B.cycleDe(fiche(u.user)) === '2sem' ? ' selected' : '') + '>Aux 2 semaines</option><option value="hebdo"' + (B.cycleDe(fiche(u.user)) === 'hebdo' ? ' selected' : '') + '>Hebdomadaire</option></select></td></tr>';
+      }).join('') + (morceau.length ? '' : '<tr><td colspan="12" style="text-align:center;color:var(--doux);padding:24px">' + (filtre.retires ? 'Personne n’a été retiré de la liste.' : 'Aucun employé à afficher.') + '</td></tr>') + '</tbody></table></div>';
     $('be-tous').onchange = function () { var c = this.checked; morceau.forEach(function (u) { if (c) { selection[u.user] = true; } else { delete selection[u.user]; } }); rendre(); };
     Array.prototype.forEach.call(zone.querySelectorAll('input.be-sel'), function (c) {
       c.onchange = function () { var u = c.closest('tr').getAttribute('data-u'); if (c.checked) { selection[u] = true; } else { delete selection[u]; } rendre(); };
     });
+    Array.prototype.forEach.call(zone.querySelectorAll('tr[data-u] select[data-cycle]'), function (c) {
+      c.onchange = function () {
+        var u = c.closest('tr').getAttribute('data-u'), f = JSON.parse(JSON.stringify(fiche(u)));
+        f.cycle = c.value; f.droits = f.droits || {};
+        var orig = employes[u] ? (employes[u].d.droits || {}) : {};
+        if (OPTIONS.every(function (o) { return !!orig[o[0]] === !!f.droits[o[0]]; }) && B.cycleDe(employes[u] ? employes[u].d : null) === B.cycleDe(f)) { delete modifies[u]; } else { modifies[u] = f; }
+        message = null; rendre();
+      };
+    });
     Array.prototype.forEach.call(zone.querySelectorAll('tr[data-u] input[data-d]'), function (c) {
       c.onchange = function () {
         var u = c.closest('tr').getAttribute('data-u'), f = JSON.parse(JSON.stringify(fiche(u)));
-        f.droits = f.droits || {}; if (c.checked) { f.droits[c.getAttribute('data-d')] = true; } else { delete f.droits[c.getAttribute('data-d')]; }
+        f.droits = f.droits || {}; f.droits[c.getAttribute('data-d')] = c.checked; // false enregistré tel quel : une option décochée reste décochée
         var orig = employes[u] ? (employes[u].d.droits || {}) : {};
-        if (['heures', 'depenses', 'admin', 'hos'].every(function (k) { return !!orig[k] === !!f.droits[k]; })) { delete modifies[u]; } else { modifies[u] = f; }
+        if (OPTIONS.every(function (o) { return !!orig[o[0]] === !!f.droits[o[0]]; }) && B.cycleDe(employes[u] ? employes[u].d : null) === B.cycleDe(f)) { delete modifies[u]; } else { modifies[u] = f; }
         message = null; rendre();
       };
     });
   }
   var minuteur = null;
   window.addEventListener('resize', function () { clearTimeout(minuteur); minuteur = setTimeout(function () { if (users.length) { remplirTable(); } }, 120); });
+  // ---------- Paramètres : taux et primes (chaque journée garde les taux en vigueur au moment de la saisie)
+  var paramRec = null;
+  function ouvrirParams() {
+    var p = B.params(paramRec ? paramRec.d : null);
+    var champ = function (id, lib, val, pas, unite) { return '<label class="pchamp"><span>' + lib + '</span><span class="pval"><input type="number" id="' + id + '" step="' + pas + '" min="0" value="' + val + '">' + unite + '</span></label>'; };
+    var f = document.createElement('div'); f.className = 'fond-params'; f.id = 'be-fond-params';
+    f.innerHTML = '<div class="pparams" role="dialog" aria-label="Paramètres"><h3>Paramètres</h3><div class="aide">Les nouveaux taux s’appliquent aux saisies faites à partir de maintenant. Les journées déjà saisies gardent leurs taux.</div>'
+      + '<h4>Kilométrage</h4>' + champ('pp-km', 'Taux par km', p.kmTaux, '0.01', '$')
+      + '<h4>Prime de repas (heures réelles du jour)</h4>' + champ('pp-s1', 'Seuil 1 (aucune prime jusqu’à)', p.repasSeuil1 / 60, '0.25', 'h') + champ('pp-m1', 'Prime au-delà du seuil 1', p.repasMontant1, '1', '$')
+      + champ('pp-s2', 'Seuil 2', p.repasSeuil2 / 60, '0.25', 'h') + champ('pp-m2', 'Prime au-delà du seuil 2', p.repasMontant2, '1', '$')
+      + '<h4>Primes</h4>' + champ('pp-mod', 'Prime par module installé', p.moduleMontant, '1', '$') + champ('pp-conv', 'Prime de convoi routier (par jour)', p.convoiMontant, '1', '$')
+      + '<div class="rangee-p"><button type="button" class="btn jaune" id="pp-ok">Enregistrer</button><button type="button" class="btn" id="pp-annuler">Annuler</button></div></div>';
+    $('be').appendChild(f);
+    var fermer = function () { if (f.parentNode) { f.parentNode.removeChild(f); } };
+    f.addEventListener('click', function (e) { if (e.target === f) { fermer(); } });
+    $('pp-annuler').onclick = fermer;
+    $('pp-ok').onclick = function () {
+      var v = function (id) { var n = parseFloat(String($(id).value).replace(',', '.')); return isNaN(n) ? null : n; };
+      var d = { type: 'parametres', kmTaux: v('pp-km'), repasSeuil1: Math.round(v('pp-s1') * 60), repasMontant1: v('pp-m1'), repasSeuil2: Math.round(v('pp-s2') * 60), repasMontant2: v('pp-m2'), moduleMontant: v('pp-mod'), convoiMontant: v('pp-conv'), majLe: new Date().toISOString(), majPar: moi };
+      if (Object.keys(d).some(function (k) { return d[k] === null || (typeof d[k] === 'number' && isNaN(d[k])); })) { alert('Vérifie les montants : un champ est vide.'); return; }
+      if (d.repasSeuil2 <= d.repasSeuil1) { alert('Le seuil 2 doit être plus grand que le seuil 1.'); return; }
+      G.enregistrer(paramRec, d).then(function (id) { paramRec = { id: id, d: d }; fermer(); dire('Paramètres enregistrés.'); }).catch(function (e) { alert('Enregistrement impossible : ' + (e && e.message ? e.message : e)); });
+    };
+  }
   // Retire (ou remet) les personnes sélectionnées : enregistré tout de suite
   function retirerSelection() {
     var liste = Object.keys(selection), masquer = !filtre.retires, c = Promise.resolve(), n = 0;
     liste.forEach(function (u) {
       c = c.then(function () {
         var e = JSON.parse(JSON.stringify(fiche(u))); e.type = 'employe'; e.user = u; e.droits = e.droits || {};
-        if (masquer) { e.masque = true; } else { delete e.masque; }
+        e.masque = !!masquer;
         e.maj = new Date().toISOString(); e.majPar = moi;
         return G.enregistrer(employes[u] || null, e).then(function (id) { employes[u] = { id: id, d: e }; delete modifies[u]; n++; });
       });
