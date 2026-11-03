@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Bonneville - Heures &amp; Dépenses</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.2.7"></script>
+<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.2.8"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body style="margin:0">
@@ -84,6 +84,21 @@
   #hb .carte.glisse { opacity: .4; }
   #hb .carte.cible { box-shadow: -4px 0 0 var(--accent); }
   #hb .carte.cible.apres { box-shadow: 4px 0 0 var(--accent); }
+  #hb .zone { overflow: auto; scrollbar-width: thin; }
+  #hb .section-cycle { margin-bottom: 14px; }
+  #hb .section-cycle .cartes { height: auto; }
+  #hb .section-cycle h3 { display: flex; align-items: baseline; gap: 10px; margin: 0 0 8px; font-size: 15px; padding-bottom: 6px; border-bottom: 2px solid var(--ligne); }
+  #hb .section-cycle h3 small { font-size: 13px; color: var(--doux); font-weight: 600; }
+  #hb .section-cycle h3 .nb { margin-left: auto; font-size: 12px; color: var(--doux); font-weight: 600; }
+  #hb .pastille { width: 10px; height: 10px; border-radius: 50%; display: inline-block; align-self: center; }
+  #hb .pastille.deux { background: #1f4f8a; } #hb .pastille.hebdo { background: #5b3fa0; }
+  #hb .jours-coin { position: absolute; top: 12px; right: 14px; font-size: 12px; font-weight: 700; color: var(--doux); }
+  #hb .carte .tete { padding-right: 70px; }
+  #hb .menu-carte { position: fixed; z-index: 60; min-width: 210px; background: var(--surface); border: 1px solid var(--ligne); border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.2); padding: 6px; display: flex; flex-direction: column; }
+  #hb .menu-carte .mtitre { font-size: 12px; font-weight: 700; color: var(--doux); padding: 4px 10px 6px; }
+  #hb .menu-carte button { text-align: left; border: 0; background: none; font: inherit; font-size: 14px; padding: 8px 10px; border-radius: 6px; cursor: pointer; color: var(--encre); }
+  #hb .menu-carte button:hover, #hb .menu-carte button:focus-visible { background: var(--bande); outline: none; }
+  #hb .menu-carte .msep { height: 1px; background: var(--ligne); margin: 4px 6px; }
   #hb .badge-hos.hebdo { background: #5b3fa0; }
   #hb .badge-hos.gp { background: #9a5b00; font-size: 9px; }
   #hb .alerte { color: #b8860b; font-size: 15px; } #hb .soumise { color: var(--ok); font-weight: 900; }
@@ -137,7 +152,7 @@
 geotab.addin.tempo = function () {
   'use strict';
   var B = window.Bonneville;
-  var VERSION = '1.2.7';
+  var VERSION = '1.2.8';
   var api = null, G = null, moi = '', acces = false, pret = false;
   var users = [], employes = {}, heures = [], depenses = [];
   var periode = null, onglet = 'heures', filtreEmp = '', ouverts = {}, message = null;
@@ -240,9 +255,9 @@ geotab.addin.tempo = function () {
       });
   }
   // Note du bureau (date, employé, texte), affichée dans le Rapport seulement
-  function panneauNote() {
+  function panneauNote(pour) {
     ouvrirPanneau('<h3>Ajouter une note</h3><div class="aide">La note sera affichée dans le Rapport. Les employés ne la voient pas.</div>'
-      + '<label class="champ">Employé<select id="pn-user"><option value="">Choisir…</option>' + optionsEmployes(tiroirUser || '') + '</select></label>'
+      + '<label class="champ">Employé<select id="pn-user"><option value="">Choisir…</option>' + optionsEmployes(pour || tiroirUser || '') + '</select></label>'
       + '<label class="champ">Date<input type="date" id="pn-date" value="' + B.jourIso() + '"></label>'
       + '<label class="champ">Note<textarea id="pn-texte" placeholder="Détail à retenir sur cette journée"></textarea></label>'
       + '<div class="rangee"><button type="button" class="btn jaune" id="pn-ok">Enregistrer</button><button type="button" class="btn" id="pn-annuler">Annuler</button></div>', function () {
@@ -407,19 +422,23 @@ geotab.addin.tempo = function () {
     var gens = gensCartes();
     if (!gens.length) { pager(0, 1); z.innerHTML = '<div class="tableau"><div class="vide">' + (voirMasquees ? 'Aucune carte masquée.' : 'Aucun employé à afficher pour cette période.') + '</div></div>'; return; }
     var cols = Math.max(1, Math.floor((z.clientWidth + 12) / (280 + 12))), rangs = Math.max(1, Math.floor((z.clientHeight + 12) / (150 + 12))), par = cols * rangs;
-    var debut = pager(gens.length, par);
-    z.innerHTML = '<div class="cartes" style="grid-template-columns:repeat(' + cols + ', 1fr)">' + gens.slice(debut, debut + par).map(function (u) {
+    pager(0, 1);
+    var carte = function (u) {
       var c = chiffresDe(u), pct = c.ouv ? Math.round(c.remplis / c.ouv * 100) : 0;
       var coul = !c.ouv ? 'var(--bande)' : (pct >= 80 ? 'var(--ok)' : (pct >= 50 ? 'var(--accent)' : 'var(--non)'));
-      return '<div class="carte" role="button" tabindex="0" draggable="true" data-carte="' + h(u) + '" aria-label="Détail de ' + h(nomUser(u)) + '" title="Glisse la carte pour la déplacer">'
-        + '<button type="button" class="masquer" data-masquer="' + h(u) + '" title="' + (voirMasquees ? 'Réafficher cette carte' : 'Masquer cette carte') + '" aria-label="' + (voirMasquees ? 'Réafficher' : 'Masquer') + ' la carte de ' + h(nomUser(u)) + '">'
-        + (voirMasquees ? '<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/></svg>'
-          : '<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 5.1A10.8 10.8 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6C3.9 8.4 2 12 2 12s3.5 7 10 7c1.8 0 3.4-.5 4.7-1.3M9.9 9.9a3 3 0 0 0 4.2 4.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>')
-        + '</button><span class="tete"><span class="rond">' + h(initiales(u)) + '</span><span><b>' + h(nomUser(u)) + (estHos(u) ? ' <span class="badge-hos" title="Heures HOS vérifiées">HOS</span>' : '') + (cycleU(u) === 'hebdo' ? ' <span class="badge-hos hebdo" title="Payé à la semaine (dimanche au samedi)">HEBDO</span>' : '') + (c.ecarts ? ' <span class="alerte" title="' + c.ecarts + ' journée(s) où les heures saisies ne concordent pas avec les HOS">⚠</span>' : '') + (c.soumission && c.soumission.d.statut === 'soumise' ? ' <span class="soumise" title="Soumise le ' + h(quand(c.soumission.d.soumisLe)) + '">✓</span>' : '') + '</b><small>' + h(u) + '</small></span></span>'
+      return '<div class="carte" role="button" tabindex="0" draggable="true" data-carte="' + h(u) + '" aria-label="Détail de ' + h(nomUser(u)) + '" title="Clic : détail · Clic droit : actions · Glisse pour déplacer">'
+        + '<span class="jours-coin" title="' + (c.ouv ? c.remplis + ' jour(s) sur ' + c.ouv + ' jours écoulés depuis le début de la période' : 'Période à venir') + '">' + (c.ouv ? c.remplis + ' / ' + c.ouv + ' jours' : 'À venir') + '</span>'
+        + '<span class="tete"><span class="rond">' + h(initiales(u)) + '</span><span><b>' + h(nomUser(u)) + (estHos(u) ? ' <span class="badge-hos" title="Heures HOS vérifiées">HOS</span>' : '') + '' + (c.ecarts ? ' <span class="alerte" title="' + c.ecarts + ' journée(s) où les heures saisies ne concordent pas avec les HOS">⚠</span>' : '') + (c.soumission && c.soumission.d.statut === 'soumise' ? ' <span class="soumise" title="Soumise le ' + h(quand(c.soumission.d.soumisLe)) + '">✓</span>' : '') + '</b><small>' + h(u) + '</small></span></span>'
         + troisChiffres(c)
         + '<span class="barre-rempli" title="' + (c.ouv ? c.remplis + ' jour(s) sur ' + c.ouv + ' jours écoulés depuis le début de la période' : 'Période à venir') + '"><span style="width:' + pct + '%;background:' + coul + '"></span></span>'
-        + '<span class="dep"><span>' + (c.ouv ? c.remplis + ' / ' + c.ouv + ' jours' : 'À venir') + '</span><span class="argent">' + (droitsU(u).depenses || c.dl.length ? (c.dl.length ? '<span title="' + c.dl.length + ' dépense(s)">🧾 ' + c.dl.length + ' · ' + B.argent(c.dTotal) + '</span>' : 'Aucune dépense') : '') + '</span></span></div>';
-    }).join('') + '</div>';
+        + '<span class="dep"><span></span><span class="argent">' + (droitsU(u).depenses || c.dl.length ? (c.dl.length ? '<span title="' + c.dl.length + ' dépense(s)">🧾 ' + c.dl.length + ' · ' + B.argent(c.dTotal) + '</span>' : 'Aucune dépense') : '') + '</span></span></div>';
+    };
+    // Deux sections, chacune avec sa propre période
+    var groupes = [['2sem', 'Aux 2 semaines', B.libellePeriode(periode)], ['hebdo', 'Hebdomadaire', B.libellePeriode(B.periodeCycleVoisine(B.periodeHebdo(B.jourIso()), decalage()))]];
+    z.innerHTML = groupes.map(function (g) {
+      var l = gens.filter(function (u) { return cycleU(u) === g[0]; }); if (!l.length) { return ''; }
+      return '<section class="section-cycle"><h3><span class="pastille ' + (g[0] === 'hebdo' ? 'hebdo' : 'deux') + '"></span>' + g[1] + ' <small>' + h(g[2].replace(/^du /, '')) + '</small><span class="nb">' + l.length + ' employé' + (l.length > 1 ? 's' : '') + '</span></h3><div class="cartes" style="grid-template-columns:repeat(' + cols + ', 1fr)">' + l.map(carte).join('') + '</div></section>';
+    }).join('');
   }
   // ---------- Panneau de détail d'un employé (s'ouvre à droite)
   var tiroirUser = null;
@@ -517,9 +536,9 @@ geotab.addin.tempo = function () {
     var cour = B.periodeDe(B.jourIso()), lh = dansPeriode(heures), ld = dansPeriode(depenses);
     var gensAcces = users.filter(function (u) { var e = employes[u.user]; return u.actif && e && e.d.droits && (e.d.droits.heures || e.d.droits.depenses); });
     var html = message ? '<div class="message' + (message.e ? ' erreur' : '') + '" role="status">' + h(message.t) + '</div>' : '';
-    html += '<div class="outils"><div class="per"><button type="button" class="btn" data-a="periode" data-v="-1" aria-label="Période précédente">‹</button><b>Aux 2 semaines : ' + h(B.libellePeriode(periode).replace(/^du /, '')) + '<small>Hebdo : ' + h(B.libellePeriode(B.periodeCycleVoisine(B.periodeHebdo(B.jourIso()), decalage())).replace(/^du /, '')) + ' · ' + (periode.n === cour.n ? 'en cours' : (periode.n < cour.n ? 'terminées' : 'à venir')) + '</small></b><button type="button" class="btn" data-a="periode" data-v="1" aria-label="Période suivante">›</button></div>'
+    html += '<div class="outils"><div class="per"><button type="button" class="btn" data-a="periode" data-v="-1" aria-label="Période précédente">‹</button><b>' + (periode.n === cour.n ? 'Période en cours' : (periode.n < cour.n ? 'Périodes précédentes' : 'Périodes à venir')) + '</b><button type="button" class="btn" data-a="periode" data-v="1" aria-label="Période suivante">›</button></div>'
       + (periode.n !== cour.n ? '<button type="button" class="btn" data-a="aujourdhui">Période en cours</button>' : '')
-      + '<span class="maj" id="hb-maj" aria-live="polite">' + h(texteMaj()) + '</span><span class="droite"><span class="pager" id="hb-pager"></span><button type="button" class="btn discret" data-a="note" title="Ajouter une note (visible dans le Rapport)"><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Note</button>' + (ordre.length && !voirMasquees ? '<button type="button" class="btn discret" data-a="ordreAlpha" title="Remettre les cartes en ordre alphabétique">Ordre alphabétique</button>' : '') + (voirMasquees ? '<button type="button" class="btn" data-a="masquees">‹ Retour aux cartes</button>' : (nbMasquees() ? '<button type="button" class="btn discret" data-a="masquees" title="Voir les cartes masquées">Cartes masquées (' + nbMasquees() + ')</button>' : '')) + '<button type="button" class="btn discret" data-a="ajouterHeure" title="Ajouter des heures"><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Heures</button><button type="button" class="btn discret" data-a="ajouterDepense" title="Ajouter une dépense"><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Dépense</button></span></div>';
+      + '<span class="maj" id="hb-maj" aria-live="polite">' + h(texteMaj()) + '</span><span class="droite"><span class="pager" id="hb-pager"></span>' + (ordre.length && !voirMasquees ? '<button type="button" class="btn discret" data-a="ordreAlpha" title="Remettre les cartes en ordre alphabétique">Ordre alphabétique</button>' : '') + (voirMasquees ? '<button type="button" class="btn" data-a="masquees">‹ Retour aux cartes</button>' : (nbMasquees() ? '<button type="button" class="btn discret" data-a="masquees" title="Voir les cartes masquées">Cartes masquées (' + nbMasquees() + ')</button>' : '')) + '</span></div>';
     html += '<div class="zone" id="hb-zone"></div>';
     z.innerHTML = html + '<div class="pied">Bonneville - Version ' + B.VERSION + '</div>';
     remplirZone();
@@ -641,8 +660,45 @@ geotab.addin.tempo = function () {
   function trouver(l, id) { return l.filter(function (y) { return y.id === id; })[0]; }
   var minuteur = null;
   window.addEventListener('resize', function () { clearTimeout(minuteur); minuteur = setTimeout(remplirZone, 120); });
+  // ---------- Menu du clic droit sur une carte
+  function fermerMenu() { var m = $('hb-menu'); if (m) { m.parentNode.removeChild(m); } }
+  function ouvrirMenu(u, x, y) {
+    fermerMenu();
+    var m = document.createElement('div'); m.id = 'hb-menu'; m.className = 'menu-carte'; m.setAttribute('role', 'menu');
+    var items = [['heure', 'Ajouter des heures']];
+    if (droitsU(u).depenses) { items.push(['depense', 'Ajouter une dépense']); }
+    items.push(['note', 'Ajouter une note'], ['sep'], ['masquer', voirMasquees ? 'Réafficher la carte' : 'Masquer la carte']);
+    m.innerHTML = '<div class="mtitre">' + h(nomUser(u)) + '</div>' + items.map(function (it) { return it[0] === 'sep' ? '<div class="msep"></div>' : '<button type="button" role="menuitem" data-m="' + it[0] + '">' + it[1] + '</button>'; }).join('');
+    $('hb').appendChild(m);
+    var w = m.offsetWidth, hgt = m.offsetHeight;
+    m.style.left = Math.min(x, window.innerWidth - w - 8) + 'px'; m.style.top = Math.min(y, window.innerHeight - hgt - 8) + 'px';
+    m.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-m]'); if (!b) { return; }
+      var a = b.getAttribute('data-m'); fermerMenu();
+      if (a === 'heure') { panneauHeure(null, u); }
+      else if (a === 'depense') { panneauDepense(null, u); }
+      else if (a === 'note') { panneauNote(u); }
+      else if (a === 'masquer') { basculerCarte(u); }
+    });
+    var premier = m.querySelector('button'); if (premier) { premier.focus(); }
+  }
+  document.addEventListener('click', function (e) { if (!e.target.closest || !e.target.closest('#hb-menu')) { fermerMenu(); } });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { fermerMenu(); } });
+  window.addEventListener('scroll', fermerMenu, true);
   function brancher() {
     var zoneC = $('hb-contenu');
+    var appui = null, appuiFait = false;
+    zoneC.addEventListener('touchstart', function (e) {
+      var k = e.target.closest && e.target.closest('.carte[data-carte]'); if (!k || e.touches.length !== 1) { return; }
+      var t = e.touches[0]; appuiFait = false;
+      appui = setTimeout(function () { appuiFait = true; ouvrirMenu(k.getAttribute('data-carte'), t.clientX, t.clientY); }, 600);
+    }, { passive: true });
+    ['touchmove', 'touchend', 'touchcancel'].forEach(function (ev) { zoneC.addEventListener(ev, function () { clearTimeout(appui); }, { passive: true }); });
+    zoneC.addEventListener('click', function (e) { if (appuiFait) { appuiFait = false; e.stopPropagation(); e.preventDefault(); } }, true);
+    zoneC.addEventListener('contextmenu', function (e) {
+      var k = e.target.closest && e.target.closest('.carte[data-carte]'); if (!k) { return; }
+      e.preventDefault(); ouvrirMenu(k.getAttribute('data-carte'), e.clientX, e.clientY);
+    });
     zoneC.addEventListener('dragstart', function (e) {
       var k = e.target.closest && e.target.closest('.carte[data-carte]'); if (!k) { return; }
       glisse = k.getAttribute('data-carte'); k.classList.add('glisse');
@@ -652,7 +708,7 @@ geotab.addin.tempo = function () {
       var k = e.target.closest && e.target.closest('.carte[data-carte]'); if (!k || !glisse) { return; }
       e.preventDefault();
       Array.prototype.forEach.call(document.querySelectorAll('#hb .carte.cible'), function (c) { if (c !== k) { c.classList.remove('cible', 'apres'); } });
-      if (k.getAttribute('data-carte') === glisse) { return; }
+      if (k.getAttribute('data-carte') === glisse || cycleU(k.getAttribute('data-carte')) !== cycleU(glisse)) { return; }
       var r = k.getBoundingClientRect(), apres = e.clientX > r.left + r.width / 2;
       k.classList.add('cible'); k.classList.toggle('apres', apres);
     });
@@ -660,7 +716,7 @@ geotab.addin.tempo = function () {
       var k = e.target.closest && e.target.closest('.carte[data-carte]'); if (!k || !glisse) { return; }
       e.preventDefault();
       var cible = k.getAttribute('data-carte'), r = k.getBoundingClientRect(), apres = e.clientX > r.left + r.width / 2;
-      if (cible !== glisse) { deplacerCarte(glisse, cible, apres); }
+      if (cible !== glisse && cycleU(cible) === cycleU(glisse)) { deplacerCarte(glisse, cible, apres); }
     });
     zoneC.addEventListener('dragend', function () {
       glisse = null;
