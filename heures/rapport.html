@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Bonneville - Rapport</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.2.2"></script>
+<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.2.7"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body style="margin:0">
@@ -157,7 +157,7 @@ geotab.addin.rapport = function () {
       + (listeOuverte ? '<div class="liste-choix" id="hr-liste"><div class="haut"><button type="button" class="btn petit" data-g="tous">Tout cocher</button><button type="button" class="btn petit" data-g="aucun">Tout décocher</button></div>'
         + tous.map(function (u) { return '<label class="case"><input type="checkbox" data-u="' + h(u) + '"' + (!choisis || choisis[u] ? ' checked' : '') + '>' + h(nomUser(u)) + '</label>'; }).join('') + '</div>' : '')
       + '</span><label class="case"><input type="checkbox" id="hr-dep"' + (avecDepenses ? ' checked' : '') + '> Inclure les dépenses</label>'
-      + '<span class="droite"><span class="pager" id="hr-pager"></span><button type="button" class="btn jaune" id="hr-excel"><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0l-4-4m4 4l4-4M5 19h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Exporter en Excel</button></span></div>';
+      + '<span class="droite"><span class="pager" id="hr-pager"></span><button type="button" class="btn" id="hr-paie" title="Tous les employés hebdomadaires · une ligne par entrée d’heures">Rapport de paie</button><button type="button" class="btn jaune" id="hr-excel"><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0l-4-4m4 4l4-4M5 19h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Exporter en Excel</button></span></div>';
     html += '<div class="zone" id="hr-zone"></div><div class="notes" id="hr-notes"></div><div class="pied">Bonneville - Version ' + B.VERSION + '</div>';
     z.innerHTML = html;
     brancherOutils();
@@ -228,6 +228,7 @@ geotab.addin.rapport = function () {
     }
     $('hr-dep').onchange = function () { avecDepenses = this.checked; rendre(); };
     $('hr-excel').onclick = exporter;
+    $('hr-paie').onclick = rapportPaie;
   }
   document.addEventListener('click', function () { if (listeOuverte) { listeOuverte = false; rendre(); } });
   var minuteur = null;
@@ -262,6 +263,80 @@ geotab.addin.rapport = function () {
     XLSX.writeFile(wb, 'Rapport ' + (cycle === 'hebdo' ? 'hebdomadaire' : 'aux 2 semaines') + ' ' + du + ' au ' + au + '.xlsx');
   }
 
+  // ---------- Rapport de paie : une ligne par entrée d'heures, employés regroupés (format de la feuille de paie)
+  function chargerExcelJS() {
+    if (window.ExcelJS) { return Promise.resolve(); }
+    return new Promise(function (ok, ko) {
+      var sc = document.createElement('script');
+      sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js';
+      sc.onload = function () { ok(); }; sc.onerror = function () { ko(new Error('La bibliothèque Excel n’a pas pu être chargée.')); };
+      document.head.appendChild(sc);
+    });
+  }
+  var nomFichier = '';
+  function rapportPaie() {
+    var bouton = $('hr-paie'); bouton.disabled = true; bouton.textContent = 'Préparation…';
+    chargerExcelJS().then(function () {
+      // Tous les employés hebdomadaires, peu importe le cycle et les employés cochés à l'écran.
+      // Dates : la semaine (dimanche au samedi) en cours ou précédente, ou les dates personnalisées.
+      var d1 = du, d2 = au;
+      if (choixDates !== 'perso') { var ph = B.periodeCycle(B.jourIso(), 'hebdo'); if (choixDates === 'precedente') { ph = B.periodeCycleVoisine(ph, -1); } d1 = ph.debut; d2 = ph.fin; }
+      var estHebdo = function (u) { return B.cycleDe(employes[u] ? employes[u].d : null) === 'hebdo'; };
+      var vus = {};
+      users.forEach(function (x) { var e = employes[x.user]; if (x.actif && e && estHebdo(x.user) && e.d.droits && (e.d.droits.heures || e.d.droits.hos)) { vus[x.user] = true; } });
+      heures.forEach(function (x) { if (estHebdo(x.d.user) && x.d.date >= d1 && x.d.date <= d2) { vus[x.d.user] = true; } });
+      var gens = Object.keys(vus).sort(function (a, b) { return nomUser(a).localeCompare(nomUser(b), 'fr'); });
+      nomFichier = 'Rapport de paie hebdomadaire ' + d1 + ' au ' + d2 + '.xlsx';
+      var wb = new ExcelJS.Workbook(), ws = wb.addWorksheet('Paie');
+      var entetes = ['Employé', 'Date', '', 'Job', 'Début', 'Fin', 'Modules installés', 'KM aller', 'KM Chantier', 'KM Retour'];
+      ws.columns = [{ width: 24 }, { width: 12 }, { width: 10 }, { width: 30 }, { width: 9 }, { width: 9 }, { width: 11 }, { width: 10 }, { width: 11 }, { width: 10 }];
+      var ent = ws.addRow(entetes);
+      ent.height = 30;
+      ent.eachCell({ includeEmpty: true }, function (c) {
+        c.font = { name: 'Arial', bold: true, size: 10 }; c.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+        c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } };
+        c.border = { bottom: { style: 'thin', color: { argb: 'FF999999' } } };
+      });
+      var dec = function (hhmm) { var m = B.minutesDe(hhmm); return m === null ? null : Math.round(m / 60 * 100) / 100; };
+      var nb = function (v) { v = Number(v) || 0; return v ? v : null; };
+      var n = 0;
+      gens.forEach(function (u, gi) {
+        var l = heures.filter(function (x) { return x.d.user === u && x.d.date >= d1 && x.d.date <= d2; }).sort(function (a, b) { return (a.d.date + a.d.debut).localeCompare(b.d.date + b.d.debut); });
+        if (n) { ws.addRow([]); n++; }
+        // Un employé sans heures apparaît quand même, pour que personne ne soit oublié
+        if (!l.length) { ws.addRow([nomUser(u), null, null, 'Aucune heure', null, null, null, null, null, null]); n++; return; }
+        var dejaJour = {};
+        l.forEach(function (x) {
+          var jr = jours.filter(function (y) { return y.d.user === u && y.d.date === x.d.date; })[0];
+          var modules = !dejaJour[x.d.date] && jr ? nb(jr.d.modules) : null; dejaJour[x.d.date] = true;
+          var p = x.d.date.split('-');
+          var fin = dec(x.d.fin); if (fin !== null && fin < dec(x.d.debut)) { fin += 24; }
+          ws.addRow([nomUser(u), new Date(Date.UTC(+p[0], +p[1] - 1, +p[2])), null, x.d.hos ? 'Heures HOS' : (x.d.description || ''), dec(x.d.debut), fin, modules, nb(x.d.kmAller), nb(x.d.kmChantier), nb(x.d.kmRetour)]);
+          n++;
+        });
+      });
+      // Mise en forme : Arial, dates m/j/aaaa, bandes de couleur, filtres
+      ws.eachRow(function (row, i) {
+        if (i === 1) { return; }
+        row.eachCell({ includeEmpty: true }, function (c, col) {
+          c.font = { name: 'Arial', size: 10 };
+          if (col === 2) { c.numFmt = 'm/d/yyyy'; c.alignment = { horizontal: 'right' }; }
+          if (col === 4) { c.alignment = { horizontal: 'center' }; }
+          if (col >= 5) { c.alignment = { horizontal: 'right' }; }
+          if (i % 2 === 1) { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9E1F2' } }; }
+        });
+        for (var col = 1; col <= 10; col++) { var c = row.getCell(col); if (i % 2 === 1) { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9E1F2' } }; } }
+      });
+      ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 10 } };
+      ws.views = [{ state: 'frozen', ySplit: 1 }];
+      return wb.xlsx.writeBuffer();
+    }).then(function (buf) {
+      var blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), url = URL.createObjectURL(blob), a = document.createElement('a');
+      a.href = url; a.download = nomFichier; document.body.appendChild(a); a.click();
+      setTimeout(function () { URL.revokeObjectURL(url); a.parentNode.removeChild(a); }, 1500);
+    }).catch(function (e) { erreur = 'Rapport de paie impossible : ' + (e && e.message ? e.message : e); rendre(); })
+      .then(function () { var b2 = $('hr-paie'); if (b2) { b2.disabled = false; b2.textContent = 'Rapport de paie'; } });
+  }
   window.BonnevilleModule = { aller: function () { rendre(); } };
   var branche = false;
   return {

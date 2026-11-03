@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Bonneville - Employés</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.2.2"></script>
+<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.2.7"></script>
 </head>
 <body style="margin:0">
 <div id="be">
@@ -15,14 +15,14 @@
   #be .entete { display: flex; align-items: center; gap: 16px; height: 56px; padding: 0 28px; background: var(--surface); border-bottom: 1px solid var(--ligne); }
   #be .entete img { height: 18px; } #be .entete .sep { width: 1px; height: 26px; background: var(--ligne); } #be .entete .titre { font-weight: 700; font-size: 16px; }
   #be .version { margin-left: auto; font-size: 12px; color: var(--doux); }
-  #be main { flex: 1; min-height: 0; padding: 14px 24px 8px; display: flex; flex-direction: column; gap: 10px; max-width: 1100px; width: 100%; }
+  #be main { flex: 1; min-height: 0; padding: 14px 24px 8px; display: flex; flex-direction: column; gap: 10px; width: 100%; }
   #be .zone { flex: 1; min-height: 0; overflow: hidden; }
   #be .pied { text-align: center; font-size: 12px; font-weight: 600; color: var(--doux); }
   #be .pager { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; color: var(--doux); margin-right: 10px; }
   #be .btn.petit { height: 30px; padding: 0 10px; font-size: 13px; }
   #be .ligne-aide { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; }
   #be td.qui b { margin-right: 8px; } #be .courriel { color: var(--doux); font-size: 12px; }
-  #be .droite { display: inline-flex; align-items: center; }
+  #be .droite { display: inline-flex; align-items: center; gap: 10px; }
   #be .outils { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
   #be input[type=text] { font: inherit; height: 38px; padding: 0 10px; border: 1px solid var(--ligne); border-radius: 8px; width: 260px; }
   #be label.case { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; cursor: pointer; }
@@ -63,7 +63,7 @@
 geotab.addin.employes = function () {
   'use strict';
   var B = window.Bonneville;
-  var VERSION = '1.2.2';
+  var VERSION = '1.2.7';
   var G = null, moi = '', users = [], employes = {}, modifies = {}, filtre = { texte: '', inactifs: false, retires: false }, selection = {}, message = null;
 
   function $(id) { return document.getElementById(id); }
