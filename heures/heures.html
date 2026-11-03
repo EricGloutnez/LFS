@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Bonneville - Heures &amp; Dépenses</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.2.9"></script>
+<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=2.0.0"></script>
 </head>
 <body style="margin:0;overflow:hidden">
 <div id="bn">
@@ -58,7 +58,7 @@
 <script>
 (function () {
   'use strict';
-  var VERSION = '1.2.9';
+  var VERSION = '2.0.0';
   var B = window.Bonneville;
   var BASE = 'https://ericgloutnez.github.io/LFS/heures/';
   var MODULES = {
@@ -69,7 +69,7 @@
 
   // La bibliothèque commune peut arriver après ce script (Drive et MyGeotab chargent parfois les scripts dans le désordre).
   // On l'attend, on la charge nous-mêmes au besoin, et on en garde une copie pour le hors réseau.
-  var URL_COMMUN = BASE + 'heures-commun.js?v=1.2.9', communTexte = null;
+  var URL_COMMUN = BASE + 'heures-commun.js?v=2.0.0', communTexte = null;
   function chargerCommunTexte() {
     return fetch(URL_COMMUN).then(function (r) { if (!r.ok) { throw new Error('HTTP ' + r.status); } return r.text(); })
       .then(function (t) { communTexte = t; try { localStorage.setItem('hd-commun', t); } catch (e) {} return t; })
@@ -218,7 +218,8 @@
       moi = s.userName || '';
       return Promise.all([
         G.estAdministrateur(moi).catch(function () { return false; }),
-        G.lireTypes(['employe', 'profil']).catch(function () { return []; })
+        G.lireTypes(['employe', 'profil']).catch(function () { return []; }),
+        G.appel('Get', { typeName: 'User', search: { name: moi } }).catch(function () { return []; })
       ]);
     }).then(function (r) {
       var emp = null, profils = [];
@@ -227,7 +228,10 @@
       acces.tempo = !!B.droitsEffectifs(emp, profils).admin;
       document.querySelector('#bn-nav [data-m=employes]').hidden = !acces.employes;
       document.querySelector('#bn-nav [data-m=rapport]').hidden = !acces.tempo;
-      $('bn-qui').textContent = moi + (acces.tempo ? ' · Administrateur' : '');
+      // Nom de la personne connectée (son courriel seulement si MyGeotab n'a pas de nom)
+      var u = r[2] && r[2][0], nom = u ? ((u.firstName || '') + ' ' + (u.lastName || '')).trim() : '';
+      $('bn-qui').textContent = (nom || moi) + (acces.tempo ? ' · Administrateur' : '') + ' · Version ' + VERSION;
+      $('bn-qui').title = moi;
       if (courant === 'accueil') { ouvrir('accueil'); }
     });
   }

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Bonneville - Employés</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.2.9"></script>
+<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=2.0.0"></script>
 </head>
 <body style="margin:0">
 <div id="be">
@@ -63,7 +63,7 @@
 geotab.addin.employes = function () {
   'use strict';
   var B = window.Bonneville;
-  var VERSION = '1.2.9';
+  var VERSION = '2.0.0';
   var G = null, moi = '', users = [], employes = {}, modifies = {}, filtre = { texte: '', inactifs: false, retires: false }, selection = {}, message = null;
 
   function $(id) { return document.getElementById(id); }
@@ -93,7 +93,7 @@ geotab.addin.employes = function () {
     ['escorte', 'Escorte', 'Escorte routière : case « Convoi routier » une fois par jour'],
     ['km', 'Km', 'Kilométrage : km aller, chantier et retour dans chaque entrée d’heures'],
     ['repas', 'Repas', 'Prime de repas selon les heures réelles du jour'],
-    ['installation', 'Install.', 'Prime d’installation : modules par jour et case « Installation grand projet »']
+    ['installation', 'Modules', 'Modules installés (prime par module) et case « Installation grand projet »']
   ];
   // Tout tient dans la page : la liste est découpée en pages selon la hauteur disponible
   var page = 0, nbPages = 1;
