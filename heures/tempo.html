@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Bonneville - Heures &amp; Dépenses</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.2.8"></script>
+<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.2.9"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body style="margin:0">
@@ -152,7 +152,7 @@
 geotab.addin.tempo = function () {
   'use strict';
   var B = window.Bonneville;
-  var VERSION = '1.2.8';
+  var VERSION = '1.2.9';
   var api = null, G = null, moi = '', acces = false, pret = false;
   var users = [], employes = {}, heures = [], depenses = [];
   var periode = null, onglet = 'heures', filtreEmp = '', ouverts = {}, message = null;
@@ -273,9 +273,9 @@ geotab.addin.tempo = function () {
   // Rouvrir une feuille de temps soumise (l'employé pourra corriger et la soumettre de nouveau)
   function rouvrir(u) {
     var P = plageDe(u), so = soumissionDe(u, P); if (!so) { return; }
-    if (!confirm('Rouvrir la feuille de temps de ' + nomUser(u) + ' ? L’employé pourra corriger ses heures et devra la soumettre de nouveau.')) { return; }
+    if (!confirm('Relâcher la feuille de temps de ' + nomUser(u) + ' pour modification ? L’employé pourra corriger ses heures et devra la signer et la soumettre de nouveau.')) { return; }
     var n = JSON.parse(JSON.stringify(so.d)); n.statut = 'rouverte'; n.rouverteLe = new Date().toISOString(); n.rouvertePar = moi;
-    G.enregistrer(so, n).then(function () { so.d = n; dire('Feuille de temps rouverte pour ' + nomUser(u) + '.'); rendre(); })
+    G.enregistrer(so, n).then(function () { so.d = n; dire('Feuille de temps relâchée pour modification : ' + nomUser(u) + '.'); rendre(); })
       .catch(function (e) { alert('Changement impossible : ' + (e && e.message ? e.message : e)); });
   }
   function panneauHos(x) {
@@ -451,8 +451,8 @@ geotab.addin.tempo = function () {
       + troisChiffres(c).replace('class="trois"', 'class="trois kpis"');
     // État de la feuille de temps
     html += '<div class="etat-feuille">' + (so && so.d.statut === 'soumise'
-      ? '<span class="soumise">✓</span> Feuille soumise le <b>' + h(quand(so.d.soumisLe)) + '</b> (verrouillée)<button type="button" class="btn petit" data-t="rouvrir">Rouvrir</button>'
-      : (so && so.d.statut === 'rouverte' ? 'Feuille rouverte par le bureau le ' + h(quand(so.d.rouverteLe)) + ' · pas encore soumise de nouveau' : 'Feuille pas encore soumise')) + '</div>';
+      ? '<span class="soumise">✓</span> Feuille soumise le <b>' + h(quand(so.d.soumisLe)) + '</b> (verrouillée, signée par l’employé)<button type="button" class="btn petit" data-t="rouvrir">Relâcher pour modification</button>'
+      : (so && so.d.statut === 'rouverte' ? 'Feuille relâchée par le bureau le ' + h(quand(so.d.rouverteLe)) + ' · pas encore soumise de nouveau' : 'Feuille pas encore soumise')) + '</div>';
     // Primes de la période
     var sm = c.somme, lignes = [];
     if (sm.paye !== sm.reel) { lignes.push('Heures payées <b>' + B.duree(sm.paye) + '</b> (réelles ' + B.duree(sm.reel) + ')'); }
@@ -667,7 +667,9 @@ geotab.addin.tempo = function () {
     var m = document.createElement('div'); m.id = 'hb-menu'; m.className = 'menu-carte'; m.setAttribute('role', 'menu');
     var items = [['heure', 'Ajouter des heures']];
     if (droitsU(u).depenses) { items.push(['depense', 'Ajouter une dépense']); }
-    items.push(['note', 'Ajouter une note'], ['sep'], ['masquer', voirMasquees ? 'Réafficher la carte' : 'Masquer la carte']);
+    items.push(['note', 'Ajouter une note']);
+    if (estSoumise(u, plageDe(u))) { items.push(['sep'], ['relacher', 'Relâcher la feuille pour modification']); }
+    items.push(['sep'], ['masquer', voirMasquees ? 'Réafficher la carte' : 'Masquer la carte']);
     m.innerHTML = '<div class="mtitre">' + h(nomUser(u)) + '</div>' + items.map(function (it) { return it[0] === 'sep' ? '<div class="msep"></div>' : '<button type="button" role="menuitem" data-m="' + it[0] + '">' + it[1] + '</button>'; }).join('');
     $('hb').appendChild(m);
     var w = m.offsetWidth, hgt = m.offsetHeight;
@@ -679,6 +681,7 @@ geotab.addin.tempo = function () {
       else if (a === 'depense') { panneauDepense(null, u); }
       else if (a === 'note') { panneauNote(u); }
       else if (a === 'masquer') { basculerCarte(u); }
+      else if (a === 'relacher') { rouvrir(u); }
     });
     var premier = m.querySelector('button'); if (premier) { premier.focus(); }
   }

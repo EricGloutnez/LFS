@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Bonneville - Heures &amp; Dépenses (Drive)</title>
-<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.2.8"></script>
+<script src="https://ericgloutnez.github.io/LFS/heures/heures-commun.js?v=1.2.9"></script>
 </head>
 <body style="margin:0">
 <div id="hd" data-theme="jour">
@@ -110,6 +110,10 @@
   #hd .tl.somme b { color: var(--ok); }
   #hd .carte.soumettre { border: 2px solid var(--accent); }
   #hd .btn:disabled { opacity: .45; }
+  #hd .fond-signature { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; z-index: 30; padding: 16px; }
+  #hd .signature { background: var(--surface); color: var(--encre); border-radius: 16px; padding: 18px; width: 100%; max-width: 480px; display: flex; flex-direction: column; gap: 10px; border-top: 6px solid var(--accent); }
+  #hd .signature h3 { margin: 0; font-size: 20px; } #hd .signature p { margin: 0; font-size: 15px; line-height: 1.4; }
+  #hd .sig-resume { background: var(--bande); border-radius: 10px; padding: 10px 12px; font-size: 15px; }
   #hd .attente { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; z-index: 20; color: #fff; font-size: 18px; font-weight: 700; }
   #hd button:focus-visible, #hd input:focus-visible, #hd textarea:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 </style>
@@ -124,7 +128,7 @@
 <script>
 (function () {
   'use strict';
-  var VERSION = '1.2.8';
+  var VERSION = '1.2.9';
   var B = window.Bonneville;
   var api = null, G = null, moi = '', monNom = '', droits = {}, pret = false;
   var heures = [], depenses = [];
@@ -318,7 +322,8 @@
       + '<div class="aide">Durée : <span class="duree" id="fh-duree">' + (d.debut && d.fin ? B.duree(B.minutesEntree(d)) : '—') + '</span></div>'
       + '<label class="champ">Projet (description)<textarea id="fh-desc" placeholder="ex. Livraison série 17520, chantier Saint-Jean">' + h(d.description) + '</textarea></label>'
       + (droits.km ? '<div class="rangee km"><label class="champ">Km aller<input type="number" inputmode="numeric" min="0" id="fh-ka" value="' + h(d.kmAller || '') + '"></label><label class="champ">Km chantier<input type="number" inputmode="numeric" min="0" id="fh-kc" value="' + h(d.kmChantier || '') + '"></label><label class="champ">Km retour<input type="number" inputmode="numeric" min="0" id="fh-kr" value="' + h(d.kmRetour || '') + '"></label></div><div class="aide" id="fh-kmtot"></div>' : '')
-      + (droits.installation ? '<label class="case-gp"><input type="checkbox" id="fh-gp"' + (d.grandProjet ? ' checked' : '') + '> Installation grand projet (le temps compte double)</label>' : '')
+      + (droits.installation ? '<label class="champ">Modules installés ce jour<input type="number" inputmode="numeric" min="0" step="1" id="fh-mod" value="' + h(jourDe(d.date) ? (Number(jourDe(d.date).d.modules) || 0) : 0) + '"></label><div class="aide" id="fh-modtot"></div>'
+        + '<label class="case-gp"><input type="checkbox" id="fh-gp"' + (d.grandProjet ? ' checked' : '') + '> Installation grand projet (le temps compte double)</label>' : '')
       + '</section>'
       + '<button type="button" class="btn jaune" data-a="sauverHeure">Enregistrer</button>'
       + '<div class="rangee"><button type="button" class="btn" data-a="retour">Annuler</button>' + (edition ? '<button type="button" class="btn rouge" data-a="supprimerHeure">Supprimer</button>' : '') + '</div>';
@@ -362,7 +367,7 @@
     $('hd').className = formulaire ? 'formulaire' : '';
     nav.className = 'onglets-bas' + (nb < 2 ? ' un' : ''); nav.style.display = (nb < 2 || formulaire) ? 'none' : '';
     $('hd').style.paddingBottom = (nb < 2 || formulaire) ? '12px' : '';
-    html += ecran === 'total' ? vueTotal() : ecran === 'formHeure' ? vueFormHeure() : ecran === 'formDepense' ? vueFormDepense() : ecran === 'depenses' ? vueDepenses() : vueHeures();
+    html += ecran === 'total' ? vueTotal() + (confirmation ? fenetreSignature() : '') : ecran === 'formHeure' ? vueFormHeure() : ecran === 'formDepense' ? vueFormDepense() : ecran === 'depenses' ? vueDepenses() : vueHeures();
     z.innerHTML = html + pied() + (occupe ? '<div class="attente">' + h(occupe) + '</div>' : '');
     brancherForm();
   }
@@ -392,11 +397,25 @@
     var t = ['fh-ka', 'fh-kc', 'fh-kr'].reduce(function (a, id) { var v = parseFloat($(id).value); return a + (isNaN(v) || v < 0 ? 0 : v); }, 0), taux = B.params(edition && edition.d.taux ? edition.d.taux : paramCourant).kmTaux;
     $('fh-kmtot').innerHTML = t ? '<b>' + t + ' km × ' + argent(taux) + ' = ' + argent(B.arrondi(t * taux)) + '</b>' : 'Inscris tes km aller, chantier et retour si tu as utilisé ton véhicule.';
   }
+  function majModules() {
+    if (!$('fh-mod')) { return; }
+    var n = Math.max(0, parseInt($('fh-mod').value, 10) || 0), m = B.params(paramCourant).moduleMontant;
+    $('fh-modtot').innerHTML = n ? '<b>' + n + ' module' + (n > 1 ? 's' : '') + ' × ' + argent(m) + ' = ' + argent(n * m) + '</b>' : 'Prime de ' + argent(m) + ' par module installé.';
+  }
+  // Enregistre le nombre de modules de la journée (fiche « jour »), sans changer d'écran
+  function enregistrerModules(j, n) {
+    var jr = jourDe(j), actuel = jr ? (Number(jr.d.modules) || 0) : 0;
+    if (n === actuel) { return Promise.resolve(); }
+    var d = jr ? JSON.parse(JSON.stringify(jr.d)) : { type: 'jour', user: moi, date: j };
+    d.modules = n; d.taux = d.taux || B.figer(paramCourant); d.majLe = new Date().toISOString();
+    return G.enregistrer(jr, d).then(function (id) { joursRec = joursRec.filter(function (x) { return x.id !== id; }).concat([{ id: id, d: d }]); });
+  }
   function brancherForm() {
-    if (ecran === 'total' && $('ts-ok')) { $('ts-ok').onchange = function () { $('ts-btn').disabled = !this.checked; }; }
+
     if (ecran === 'formHeure') {
       $('fh-debut').oninput = majDuree; $('fh-fin').oninput = majDuree;
       if ($('fh-ka')) { ['fh-ka', 'fh-kc', 'fh-kr'].forEach(function (id) { $(id).oninput = majKm; }); majKm(); }
+      if ($('fh-mod')) { $('fh-mod').oninput = majModules; majModules(); $('fh-date').onchange = function () { var jr = jourDe(this.value); $('fh-mod').value = jr ? (Number(jr.d.modules) || 0) : 0; majModules(); }; }
     }
     if (ecran === 'formDepense') {
       if (brouillon && !edition) { $('fd-date').value = brouillon.date; $('fd-montant').value = brouillon.montant; $('fd-desc').value = brouillon.description; }
@@ -423,6 +442,8 @@
     var nb = function (id) { var v = parseFloat($(id).value); return isNaN(v) || v < 0 ? 0 : v; };
     if (droits.km) { d.kmAller = nb('fh-ka'); d.kmChantier = nb('fh-kc'); d.kmRetour = nb('fh-kr'); }
     if (droits.installation) { d.grandProjet = $('fh-gp').checked; }
+    // Lu tout de suite : le formulaire disparaît pendant l'enregistrement
+    var nbMod = $('fh-mod') ? Math.max(0, parseInt($('fh-mod').value, 10) || 0) : null;
     d.taux = edition && edition.d.taux ? edition.d.taux : B.figer(paramCourant);
     if (!modifiable(d.date)) { alert('Cette période est soumise ou terminée. Pour une correction, appelle le bureau.'); return; }
     var cour = periodeCourante();
@@ -436,6 +457,8 @@
     occupe = 'Enregistrement…'; rendre();
     G.enregistrer(edition ? { id: edition.id } : null, d).then(function (id) {
       heures = heures.filter(function (x) { return x.id !== id; }); heures.push({ id: id, d: d }); trier(heures); cache();
+      return nbMod === null ? id : enregistrerModules(d.date, nbMod).then(function () { return id; });
+    }).then(function () {
       occupe = false; periode = B.periodeCycle(d.date, cycle); semaine = (periode.hebdo ? 1 : B.semaineDe(periode, d.date)); ecran = 'heures'; edition = null;
       dire('Heures enregistrées : ' + B.duree(B.minutesEntree(d)) + ' le ' + B.dateCourte(d.date) + '.');
     }).catch(function (e) { occupe = false; dire('Enregistrement impossible : ' + (e && e.message ? e.message : e) + '. Vérifie le réseau et réessaie.', true); });
@@ -496,7 +519,7 @@
     var txt = 'Soumettre ta feuille de temps ' + (p.hebdo ? 'de la semaine du ' + B.libelleSemaine(p.s1) : 'de la période ' + B.libellePeriode(p)) + ' ?\n\n'
       + 'Heures : ' + B.duree(totalMinutes(hP)) + (cp.paye !== cp.reel ? ' (payées : ' + B.duree(cp.paye) + ')' : '') + (aDesPrimes() ? '\nPrimes : ' + argent(cp.primes) : '')
       + '\n\nUne fois soumise, tu ne pourras plus la modifier.';
-    if ($('ts-ok') && !$('ts-ok').checked) { return; }
+    confirmation = false;
     var so = soumissionDe(p), n = so ? JSON.parse(JSON.stringify(so.d)) : { type: 'soumission', user: moi };
     n.debut = p.debut; n.fin = p.fin; n.cycle = cycle; n.statut = 'soumise'; n.soumisLe = new Date().toISOString(); n.minutes = totalMinutes(hP); n.payees = cp.paye; n.primes = cp.primes;
     occupe = 'Soumission…'; rendre();
@@ -515,7 +538,7 @@
     var l = [];
     if (droits.km) { l.push(['Kilométrage', c.km + ' km', c.kmMontant]); }
     if (droits.repas) { l.push(['Primes de repas', '', c.repas]); }
-    if (droits.installation) { l.push(['Modules installés', c.modules + ' module' + (c.modules > 1 ? 's' : ''), c.modulesMontant]); }
+    if (droits.installation) { l.push(['Modules installés', c.modules + ' × ' + argent(c.modules ? c.modulesMontant / c.modules : B.params(paramCourant).moduleMontant), c.modulesMontant]); }
     if (droits.escorte) { l.push(['Convoi routier', '', c.convoi]); }
     return l;
   }
@@ -527,6 +550,17 @@
       + l.map(function (x) { return '<div class="tl"><span>' + h(x[0]) + (x[1] ? ' <small>' + h(x[1]) + '</small>' : '') + '</span><b>' + argent(x[2]) + '</b></div>'; }).join('')
       + (l.length ? '<div class="tl somme"><span>Total des primes</span><b>' + argent(c.primes) + '</b></div>' : '')
       + '</section>';
+  }
+  var confirmation = false;
+  function fenetreSignature() {
+    var p = periode, cp = calculPeriode(p), hP = dansPeriode(heures, p);
+    return '<div class="fond-signature"><div class="signature" role="alertdialog" aria-modal="true" aria-labelledby="sig-titre">'
+      + '<h3 id="sig-titre">Soumettre et signer ma feuille de temps</h3>'
+      + '<div class="sig-resume">' + h(p.hebdo ? 'Semaine du ' + B.libelleSemaine(p.s1) : 'Période ' + B.libellePeriode(p)) + '<br><b>' + B.duree(totalMinutes(hP)) + '</b> travaillées' + (cp.paye !== cp.reel ? ' · <b>' + B.duree(cp.paye) + '</b> payées' : '') + (aDesPrimes() ? ' · primes <b>' + argent(cp.primes) + '</b>' : '') + '</div>'
+      + '<p><b>En soumettant, je confirme que mes heures et mes primes sont complètes et exactes. Cette action équivaut à ma signature.</b></p>'
+      + '<p>Je ne pourrai plus modifier cette feuille de temps. Seul le bureau pourra la relâcher pour une correction.</p>'
+      + '<button type="button" class="btn jaune" data-a="soumettre">Je signe et je soumets</button>'
+      + '<button type="button" class="btn" data-a="annulerSoumission">Annuler</button></div></div>';
   }
   function vueTotal() {
     var p = periode, so = soumissionDe(p), html = '<h2>Total préliminaire</h2>'
@@ -544,9 +578,7 @@
     if (verrouillee(p)) {
       html += '<div class="message verrou">✓ Feuille de temps soumise le ' + h(quand(so.d.soumisLe)) + '. Elle est verrouillée : pour une correction, appelle le bureau.</div>';
     } else if (p.debut <= aujour()) {
-      html += '<section class="carte soumettre"><label class="case-gp"><input type="checkbox" id="ts-ok"> Je confirme que mes heures sont complètes et exactes pour cette ' + (p.hebdo ? 'semaine' : 'période') + '.</label>'
-        + '<div class="aide">Une fois soumise, ta feuille de temps est verrouillée. Seul le bureau peut la rouvrir.</div></section>'
-        + '<button type="button" class="btn jaune" data-a="soumettre" id="ts-btn" disabled>Soumettre ma feuille de temps</button>'
+      html += '<button type="button" class="btn jaune" data-a="demanderSoumission">Soumettre ma feuille de temps</button>'
         + (so && so.d.statut === 'rouverte' ? '<div class="aide">Le bureau a rouvert ta feuille le ' + h(quand(so.d.rouverteLe)) + '. Vérifie-la, puis soumets-la de nouveau.</div>' : '');
     }
     return html + '<div class="rangee"><button type="button" class="btn" data-a="retour">Retour à mes heures</button></div>';
@@ -578,6 +610,8 @@
       if (a === 'modules') { sauverJour(b.getAttribute('data-j'), function (n) { n.modules = Math.max(0, (Number(n.modules) || 0) + Number(v)); }); return; }
       if (a === 'convoi') { sauverJour(b.getAttribute('data-j'), function (n) { n.convoi = !n.convoi; }); return; }
       if (a === 'soumettre') { soumettre(); return; }
+      if (a === 'demanderSoumission') { confirmation = true; rendre(); return; }
+      if (a === 'annulerSoumission') { confirmation = false; rendre(); return; }
       if (a === 'voirTotal') { aller('total'); return; }
       if (a === 'retourHos') { retourHos(); return; }
       if (a === 'supprimerHeure') { supprimerHeure(); return; }
